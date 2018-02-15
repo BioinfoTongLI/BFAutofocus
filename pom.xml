@@ -15,7 +15,40 @@
         <micromanager.version>
             2.0.0.2
         </micromanager.version>
+        <license.licenseName>CeCILL-B</license.licenseName>
+        <license.copyrightOwners>CNRS Inria</license.copyrightOwners>
+        <license.projectName>BFAutofocus</license.projectName>
     </properties>
+
+    <licenses>
+        <license>
+            <name>CeCILL-B</name>
+        </license>
+    </licenses>
+
+    <mailingLists>
+        <mailingList>
+            <name>None</name>
+        </mailingList>
+    </mailingLists>
+
+    <scm>
+        <url>
+            None
+        </url>
+    </scm>
+
+    <issueManagement>
+        <url>
+            https://github.com/BioinfoTongLI/BFAutofocus/issues
+        </url>
+    </issueManagement>
+
+    <ciManagement>
+        <url>
+            not yet, will be with TraviCI
+        </url>
+    </ciManagement>
 
     <name>BFAutofocus</name>
     <groupId>edu.univ_tlse3</groupId>
@@ -47,9 +80,21 @@
 
     <inceptionYear>2018</inceptionYear>
 
+
     <dependencies>
 
+        <!-- https://mvnrepository.com/artifact/net.imagej/ij -->
+        <dependency>
+            <groupId>net.imagej</groupId>
+            <artifactId>ij</artifactId>
+            <version>1.50i</version>
+        </dependency>
 
+        <dependency>
+            <groupId>org.scijava</groupId>
+            <artifactId>scijava-common</artifactId>
+            <version>2.69.0</version>
+        </dependency>
 
         <!--Micro Manager-->
 
@@ -65,11 +110,11 @@
             <version>${micromanager.version}</version>
         </dependency>
 
-        <dependency>
-            <groupId>org.micromanager</groupId>
-            <artifactId>MMAcqEngine</artifactId>
-            <version>${micromanager.version}</version>
-        </dependency>
+        <!--<dependency>-->
+            <!--<groupId>org.micromanager</groupId>-->
+            <!--<artifactId>MMAcqEngine</artifactId>-->
+            <!--<version>${micromanager.version}</version>-->
+        <!--</dependency>-->
 
 
         <!-- Block for unit tests -->
@@ -135,6 +180,21 @@
                 </configuration>
                 <version>3.7.0</version>
             </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>1.4.1</version>
+                <executions>
+                    <execution>
+                        <phase>none</phase>
+                    </execution>
+                </executions>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
+
         </plugins>
     </build>
 

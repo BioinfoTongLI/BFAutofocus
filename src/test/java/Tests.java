@@ -1,10 +1,13 @@
+import edu.univ_tlse3.BFAutofocus;
 import ij.IJ;
 import ij.ImagePlus;
+import ij.process.ImageProcessor;
+import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 
@@ -15,34 +18,27 @@ public class Tests {
    public static Collection<Object[]> prepareFiles() {
       String root = System.getProperty("user.dir") + "/src/main/resources/";
       ImagePlus tmpbfimg = IJ.openImage(root + "BF.tif");
-      ImagePlus tmpfluoimg = IJ.openImage(root + "FLUO.tif");
-      return Arrays.asList(new Object[][] {{tmpbfimg, tmpfluoimg}});
+      return Arrays.asList(new Object[][] {{tmpbfimg}});
    }
    @Parameterized.Parameter
    public ImagePlus  bfimg;
 
-   @Parameterized.Parameter(1)
-   public ImagePlus  fluoimg;
+   @Test
+   public void calculateZPositionsTest(){
+      double range= 1;
+      double step = 0.3;
+      double startZ = 0.;
+      double[] expected = new double[]{-0.5, -0.2, 0.1, 0.4};
+      Assert.assertArrayEquals(expected, BFAutofocus.calculateZPositions(range,step, startZ), 0.01);
+   }
 
    @Test
-   public void show(){
-      bfimg.show();
-      fluoimg.show();
-//      OpService ops = new DefaultOpService();
-//      FinalInterval finalInterval = new FinalInterval(0,0,5,5);
-//
-//      RandomAccessibleInterval<UnsignedByteType> view = Views.interval(bfimg.getImg(), finalInterval);
-//      ImageJFunctions.show( view );
-//      logger.info((int) ops.run(Ops.Math.Add.class, 1,2) + "");
-//      int x = (int) ops.run("math.add", 1,1);
-//      System.out.println(x);
-//      RandomAccessibleInterval
-//      logger.info(x + "");
-//      ImageJFunctions.show( img. );
-      try {
-         Thread.sleep(100000);
-      } catch (InterruptedException e) {
-         e.printStackTrace();
+   public void calculateFocusZPositionTest(){
+      int zsliceNb = bfimg.getDimensions()[3];
+      double[] varArray = new double[zsliceNb];
+      for (int i = 1; i< zsliceNb+1 ; i++){
+         varArray[i-1] = bfimg.getStack().getProcessor(i).getStatistics().stdDev;
       }
+      Assert.assertEquals(16, BFAutofocus.getZfocus(varArray),1);
    }
 }
