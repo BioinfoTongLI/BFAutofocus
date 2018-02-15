@@ -4,7 +4,6 @@ import ij.process.ImageProcessor;
 import mmcorej.CMMCore;
 import mmcorej.Configuration;
 import mmcorej.TaggedImage;
-import org.json.JSONException;
 import org.micromanager.AutofocusPlugin;
 import org.micromanager.Studio;
 import org.micromanager.data.Image;
@@ -20,13 +19,11 @@ import java.text.ParseException;
 public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJavaPlugin{
    private static final String VERSION_INFO = "1.0.0";
    private static final String NAME = "Bright-field autofocus";
-   private static final String DESCRIPTION = "Micro-Manager plugin for z dimension autofocus";
+   private static final String HELPTEXT = "This simple autofocus is only designed to process transmitted-light (or DIC) images, Z-stack is required.";
    private static final String COPYRIGHT_NOTICE = "CeCILL-B-BSD compatible";
    private Studio studio_;
 
-   private static final String AF_DEVICE_NAME = "BFFocus";
    private static final String SEARCH_RANGE = "SearchRange_um";
-   private static final String TOLERANCE = "Tolerance_um";
    private static final String CROP_FACTOR = "CropFactor";
    private static final String CHANNEL = "Channel";
    private static final String EXPOSURE = "Exposure";
@@ -37,16 +34,12 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
    private final static String[] SCORINGMETHODS = {"Var"};
 
    private double searchRange = 10;
-//   private double absTolerance = 1.0;
    private double cropFactor = 1;
    private String channel = "";
    private double exposure = 100;
    private String show = "No";
    private String scoringMethod = "Edges";
    private int imageCount_;
-   private long startTimeMs_;
-   private double startZUm_;
-   private boolean liveModeOn_;
    private double step = 0.3;
 
    public BFAutofocus() {
@@ -79,11 +72,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
    @Override
    public double fullFocus() throws Exception {
-      startTimeMs_ = System.currentTimeMillis();
       applySettings();
       Rectangle oldROI = studio_.core().getROI();
       CMMCore core = studio_.getCMMCore();
-      liveModeOn_ = studio_.live().getIsLiveModeOn();
 
       //ReportingUtils.logMessage("Original ROI: " + oldROI);
       int w = (int) (oldROI.width * cropFactor);
@@ -123,27 +114,27 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
    @Override
    public double incrementalFocus() throws Exception {
-      return 0;
+      throw new UnsupportedOperationException("Not supported yet.");
    }
 
    @Override
    public int getNumberOfImages() {
-      return 0;
+      return imageCount_;
    }
 
    @Override
    public String getVerboseStatus() {
-      return null;
+      throw new UnsupportedOperationException("Not supported yet.");
    }
 
    @Override
    public double getCurrentFocusScore() {
-      return 0;
+      throw new UnsupportedOperationException("Not supported yet. You have to take z-stack.");
    }
 
    @Override
    public double computeScore(ImageProcessor imageProcessor) {
-      return 0;
+      return imageProcessor.getStatistics().stdDev;
    }
 
    @Override
@@ -154,28 +145,27 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
    @Override
    public String getName() {
-      return null;
+      return NAME;
    }
 
    @Override
    public String getHelpText() {
-      return null;
+      return HELPTEXT;
    }
 
    @Override
    public String getVersion() {
-      return null;
+      return VERSION_INFO;
    }
 
    @Override
    public String getCopyright() {
-      return null;
+      return COPYRIGHT_NOTICE;
    }
 
    private double runAutofocusAlgorithm() throws Exception {
       CMMCore core = studio_.getCMMCore();
       double z = core.getPosition(core.getFocusDevice());
-      startZUm_ = z;
       double[] zpositions = calculateZPositions(searchRange, step, z);
       double[] stdAtZPositions = new double[zpositions.length];
       TaggedImage currentImg;
@@ -184,6 +174,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
          core.waitForDevice(core.getCameraDevice());
          core.snapImage();
          currentImg = core.getTaggedImage();
+         imageCount_++;
          Image img = studio_.data().convertTaggedImage(currentImg);
          stdAtZPositions[i] = studio_.data().ij().createProcessor(img).getStatistics().stdDev;
          if (show.contentEquals("Yes")) {
@@ -211,8 +202,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
       core.waitForDevice(focusDevice);
    }
 
-   public static double[] calculateZPositions(double searchRange, double step, double startZUm_){
-      double lower = startZUm_ - searchRange/2;
+   public static double[] calculateZPositions(double searchRange, double step, double startZUm){
+      double lower = startZUm - searchRange/2;
       int nstep  = new Double(searchRange/step).intValue() + 1;
       double[] zpos = new double[nstep];
       for (int p = 0; p < nstep; p++){
