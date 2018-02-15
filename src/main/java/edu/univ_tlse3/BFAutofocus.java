@@ -165,8 +165,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
    private double runAutofocusAlgorithm() throws Exception {
       CMMCore core = studio_.getCMMCore();
-      double z = core.getPosition(core.getFocusDevice());
-      double[] zpositions = calculateZPositions(searchRange, step, z);
+      double oldZ = core.getPosition(core.getFocusDevice());
+      double[] zpositions = calculateZPositions(searchRange, step, oldZ);
       double[] stdAtZPositions = new double[zpositions.length];
       TaggedImage currentImg;
       for (int i =0; i< zpositions.length ;i++){
@@ -192,6 +192,15 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
          }
       }
       int index = getZfocus(stdAtZPositions);
+//      double lowerVarDiff = stdAtZPositions[index-1] - stdAtZPositions[index];
+//      double upperVarDiff = stdAtZPositions[index] - stdAtZPositions[index+1];
+//      if (lowerVarDiff * lowerVarDiff < upperVarDiff * upperVarDiff){
+//         return (zpositions[index-1] + zpositions[index]) / 2;
+//      }else if(lowerVarDiff * lowerVarDiff > upperVarDiff * upperVarDiff){
+//         return (zpositions[index] + zpositions[index+1]) / 2;
+//      }else{
+//         return zpositions[index];
+//      }
       return zpositions[index];
    }
 

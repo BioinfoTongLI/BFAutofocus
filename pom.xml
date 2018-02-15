@@ -181,6 +181,7 @@
                 <version>3.7.0</version>
             </plugin>
 
+            <!--Do not follow the rule of enforcer, specifically the duplicate class rule.-->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-enforcer-plugin</artifactId>
