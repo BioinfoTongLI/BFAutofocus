@@ -28,17 +28,15 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
    private static final String CHANNEL = "Channel";
    private static final String EXPOSURE = "Exposure";
    private static final String SHOW_IMAGES = "ShowImages";
-   private static final String SCORING_METHOD = "Maximize";
    private static final String[] SHOWVALUES = {"Yes", "No"};
    private static final String STEP_SIZE = "Step_size";
    private final static String[] SCORINGMETHODS = {"Var"};
 
    private double searchRange = 10;
    private double cropFactor = 1;
-   private String channel = "";
+   private String channel = "BF";
    private double exposure = 100;
-   private String show = "No";
-   private String scoringMethod = "Edges";
+   private String show = "Yes";
    private int imageCount_;
    private double step = 0.3;
 
@@ -48,8 +46,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
       super.createProperty(EXPOSURE, NumberUtils.doubleToDisplayString(exposure));
       super.createProperty(SHOW_IMAGES, show, SHOWVALUES);
       super.createProperty(STEP_SIZE, NumberUtils.doubleToDisplayString(step));
-      super.createProperty(SCORING_METHOD, scoringMethod, SCORINGMETHODS);
-      super.createProperty(CHANNEL, "");
+      super.createProperty(CHANNEL, channel);
    }
 
    @Override
@@ -61,7 +58,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
          channel = getPropertyValue(CHANNEL);
          exposure = NumberUtils.displayStringToDouble(getPropertyValue(EXPOSURE));
          show = getPropertyValue(SHOW_IMAGES);
-         scoringMethod = getPropertyValue(SCORING_METHOD);
 
       } catch (MMException ex) {
          studio_.logs().logError(ex);
@@ -178,30 +174,18 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
          Image img = studio_.data().convertTaggedImage(currentImg);
          stdAtZPositions[i] = studio_.data().ij().createProcessor(img).getStatistics().stdDev;
          if (show.contentEquals("Yes")) {
-            SwingUtilities.invokeLater(new Runnable() {
-               @Override
-               public void run() {
-                  try {
-                     studio_.live().displayImage(img);
-                  }
-                  catch (IllegalArgumentException e) {
-                     studio_.logs().showError(e);
-                  }
+            SwingUtilities.invokeLater(() -> {
+               try {
+                  studio_.live().displayImage(img);
+               }
+               catch (IllegalArgumentException e) {
+                  studio_.logs().showError(e);
                }
             });
          }
       }
-      int index = getZfocus(stdAtZPositions);
-      double lowerVarDiff = stdAtZPositions[index-1] - stdAtZPositions[index];
-      double upperVarDiff = stdAtZPositions[index] - stdAtZPositions[index+1];
-      if (lowerVarDiff * lowerVarDiff < upperVarDiff * upperVarDiff){
-         return (zpositions[index-1] + zpositions[index]) / 2;
-      }else if(lowerVarDiff * lowerVarDiff > upperVarDiff * upperVarDiff){
-         return (zpositions[index] + zpositions[index+1]) / 2;
-      }else{
-         return zpositions[index];
-      }
-//      return zpositions[index];
+      int rawIndex = getZfocus(stdAtZPositions);
+      return optimizeZFocus(rawIndex, stdAtZPositions, zpositions);
    }
 
    private void setZPosition(double z) throws Exception {
@@ -231,6 +215,20 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
          }
       }
       return maxIdx;
+   }
+
+   public static double optimizeZFocus(int rawZidx, double[] stdArray, double[] zpositionArray){
+      int oneLower = rawZidx-1;
+      int oneHigher = rawZidx+1;
+      double lowerVarDiff = stdArray[oneLower] - stdArray[rawZidx];
+      double upperVarDiff = stdArray[rawZidx] - stdArray[oneHigher];
+      if (lowerVarDiff * lowerVarDiff < upperVarDiff * upperVarDiff){
+         return (zpositionArray[oneLower] + zpositionArray[rawZidx]) / 2;
+      }else if(lowerVarDiff * lowerVarDiff > upperVarDiff * upperVarDiff){
+         return (zpositionArray[rawZidx] + zpositionArray[oneHigher]) / 2;
+      }else{
+         return zpositionArray[rawZidx];
+      }
    }
 }
 

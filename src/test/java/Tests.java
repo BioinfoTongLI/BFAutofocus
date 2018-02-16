@@ -7,7 +7,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 
@@ -18,10 +17,23 @@ public class Tests {
    public static Collection<Object[]> prepareFiles() {
       String root = System.getProperty("user.dir") + "/src/main/resources/";
       ImagePlus tmpbfimg = IJ.openImage(root + "BF.tif");
-      return Arrays.asList(new Object[][] {{tmpbfimg}});
+//      ImagePlus tmpbfimg = IJ.openImage("/media/tong/screening/17_11_17/BF_1/BF_1_MMStack_mph1.ome.tif");
+      int zsliceNb = tmpbfimg.getDimensions()[3];
+      double[] varArray = new double[zsliceNb];
+      ImageProcessor[] bfProcessors = new ImageProcessor[zsliceNb];
+      ImageProcessor currentProc;
+      for (int i = 1; i< zsliceNb+1 ; i++){
+         currentProc = tmpbfimg.getStack().getProcessor(i);
+         bfProcessors[i-1] = currentProc;
+         varArray[i-1] = currentProc.getStatistics().stdDev;
+      }
+      return Arrays.asList(new Object[][] {{varArray, bfProcessors}});
    }
    @Parameterized.Parameter
-   public ImagePlus  bfimg;
+   public double[]  vars;
+
+   @Parameterized.Parameter(1)
+   public ImageProcessor[]  bfProcs;
 
    @Test
    public void calculateZPositionsTest(){
@@ -34,11 +46,15 @@ public class Tests {
 
    @Test
    public void calculateFocusZPositionTest(){
-      int zsliceNb = bfimg.getDimensions()[3];
-      double[] varArray = new double[zsliceNb];
-      for (int i = 1; i< zsliceNb+1 ; i++){
-         varArray[i-1] = bfimg.getStack().getProcessor(i).getStatistics().stdDev;
+      Assert.assertEquals(15, BFAutofocus.getZfocus(vars),1);
+   }
+
+   @Test
+   public void optimizeZFocusTest(){
+      double[] zposList = new double[vars.length];
+      for (int  i = 0; i< zposList.length; i++){
+         zposList[i] = (double) i ;
       }
-      Assert.assertEquals(16, BFAutofocus.getZfocus(varArray),1);
+      Assert.assertEquals(15.5 -1, BFAutofocus.optimizeZFocus(14, vars, zposList),0.3);
    }
 }
