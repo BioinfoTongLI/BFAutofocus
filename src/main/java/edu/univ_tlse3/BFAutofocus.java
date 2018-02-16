@@ -15,7 +15,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.text.ParseException;
 
-@Plugin(type = org.micromanager.AutofocusPlugin.class)
+@Plugin(type = AutofocusPlugin.class)
 public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJavaPlugin{
    private static final String VERSION_INFO = "1.0.0";
    private static final String NAME = "Bright-field autofocus";
@@ -192,16 +192,16 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
          }
       }
       int index = getZfocus(stdAtZPositions);
-//      double lowerVarDiff = stdAtZPositions[index-1] - stdAtZPositions[index];
-//      double upperVarDiff = stdAtZPositions[index] - stdAtZPositions[index+1];
-//      if (lowerVarDiff * lowerVarDiff < upperVarDiff * upperVarDiff){
-//         return (zpositions[index-1] + zpositions[index]) / 2;
-//      }else if(lowerVarDiff * lowerVarDiff > upperVarDiff * upperVarDiff){
-//         return (zpositions[index] + zpositions[index+1]) / 2;
-//      }else{
-//         return zpositions[index];
-//      }
-      return zpositions[index];
+      double lowerVarDiff = stdAtZPositions[index-1] - stdAtZPositions[index];
+      double upperVarDiff = stdAtZPositions[index] - stdAtZPositions[index+1];
+      if (lowerVarDiff * lowerVarDiff < upperVarDiff * upperVarDiff){
+         return (zpositions[index-1] + zpositions[index]) / 2;
+      }else if(lowerVarDiff * lowerVarDiff > upperVarDiff * upperVarDiff){
+         return (zpositions[index] + zpositions[index+1]) / 2;
+      }else{
+         return zpositions[index];
+      }
+//      return zpositions[index];
    }
 
    private void setZPosition(double z) throws Exception {
