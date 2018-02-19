@@ -18,6 +18,7 @@
         <license.licenseName>CeCILL-B</license.licenseName>
         <license.copyrightOwners>CNRS Inria</license.copyrightOwners>
         <license.projectName>BFAutofocus</license.projectName>
+        <opencv.version> 3.2.0-0 </opencv.version>
     </properties>
 
     <licenses>
@@ -116,6 +117,12 @@
             <!--<version>${micromanager.version}</version>-->
         <!--</dependency>-->
 
+        <!-- OpenCv -->
+        <dependency>
+            <groupId>org.openpnp</groupId>
+            <artifactId>opencv</artifactId>
+            <version>${opencv.version}</version>
+        </dependency>
 
         <!-- Block for unit tests -->
         <dependency>
