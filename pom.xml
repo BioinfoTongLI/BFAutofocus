@@ -12,12 +12,11 @@
 
     <properties>
         <scijava.jvm.version>1.8</scijava.jvm.version>
-        <micromanager.version>
-            2.0.0.2
-        </micromanager.version>
+        <micromanager.version> 2.0.0.2 </micromanager.version>
         <license.licenseName>CeCILL-B</license.licenseName>
         <license.copyrightOwners>CNRS Inria</license.copyrightOwners>
         <license.projectName>BFAutofocus</license.projectName>
+        <opencv.version> 3.2.0-0 </opencv.version>
     </properties>
 
     <licenses>
@@ -116,6 +115,12 @@
             <!--<version>${micromanager.version}</version>-->
         <!--</dependency>-->
 
+        <!-- OpenCV -->
+        <dependency>
+            <groupId>org.openpnp</groupId>
+            <artifactId>opencv</artifactId>
+            <version>${opencv.version}</version>
+        </dependency>
 
         <!-- Block for unit tests -->
         <dependency>
@@ -130,18 +135,21 @@
             <version>5.0.1</version>
             <scope>test</scope>
         </dependency>
+
         <dependency>
             <groupId>org.junit.vintage</groupId>
             <artifactId>junit-vintage-engine</artifactId>
             <version>4.12.1</version>
             <scope>test</scope>
         </dependency>
+
         <dependency>
             <groupId>org.junit.platform</groupId>
             <artifactId>junit-platform-launcher</artifactId>
             <version>1.0.1</version>
             <scope>test</scope>
         </dependency>
+
         <dependency>
             <groupId>org.junit.platform</groupId>
             <artifactId>junit-platform-runner</artifactId>

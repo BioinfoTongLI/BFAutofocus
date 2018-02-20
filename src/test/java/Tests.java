@@ -44,17 +44,4 @@ public class Tests {
       Assert.assertArrayEquals(expected, BFAutofocus.calculateZPositions(range,step, startZ), 0.01);
    }
 
-   @Test
-   public void calculateFocusZPositionTest(){
-      Assert.assertEquals(15, BFAutofocus.getZfocus(vars),1);
-   }
-
-   @Test
-   public void optimizeZFocusTest(){
-      double[] zposList = new double[vars.length];
-      for (int  i = 0; i< zposList.length; i++){
-         zposList[i] = (double) i ;
-      }
-      Assert.assertEquals(15.5 -1, BFAutofocus.optimizeZFocus(14, vars, zposList),0.3);
-   }
 }

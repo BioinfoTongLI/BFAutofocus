@@ -1,5 +1,6 @@
 package edu.univ_tlse3;
 
+import ij.IJ;
 import ij.process.ImageProcessor;
 import mmcorej.CMMCore;
 import mmcorej.Configuration;
@@ -7,7 +8,11 @@ import mmcorej.TaggedImage;
 import org.micromanager.AutofocusPlugin;
 import org.micromanager.Studio;
 import org.micromanager.data.Image;
-import org.micromanager.internal.utils.*;
+import org.micromanager.internal.utils.AutofocusBase;
+import org.micromanager.internal.utils.MMException;
+import org.micromanager.internal.utils.MathFunctions;
+import org.micromanager.internal.utils.NumberUtils;
+import org.opencv.core.Mat;
 import org.scijava.plugin.Plugin;
 import org.scijava.plugin.SciJavaPlugin;
 
@@ -17,218 +22,231 @@ import java.text.ParseException;
 
 @Plugin(type = AutofocusPlugin.class)
 public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJavaPlugin{
-   private static final String VERSION_INFO = "1.0.0";
-   private static final String NAME = "Bright-field autofocus";
-   private static final String HELPTEXT = "This simple autofocus is only designed to process transmitted-light (or DIC) images, Z-stack is required.";
-   private static final String COPYRIGHT_NOTICE = "CeCILL-B-BSD compatible";
-   private Studio studio_;
+    private static final String VERSION_INFO = "1.0.0";
+    private static final String NAME = "Bright-field autofocus";
+    private static final String HELPTEXT = "This simple autofocus is only designed to process transmitted-light (or DIC) images, Z-stack is required.";
+    private static final String COPYRIGHT_NOTICE = "CeCILL-B-BSD compatible";
+    private Studio studio_;
+    private Image imgRef = (Image) IJ.openImage(PATH_REFIMAGE);
 
-   private static final String SEARCH_RANGE = "SearchRange_um";
-   private static final String CROP_FACTOR = "CropFactor";
-   private static final String CHANNEL = "Channel";
-   private static final String EXPOSURE = "Exposure";
-   private static final String SHOW_IMAGES = "ShowImages";
-   private static final String[] SHOWVALUES = {"Yes", "No"};
-   private static final String STEP_SIZE = "Step_size";
-   private final static String[] SCORINGMETHODS = {"Var"};
+    private static final String SEARCH_RANGE = "SearchRange_um";
+    private static final String CROP_FACTOR = "CropFactor";
+    private static final String CHANNEL = "Channel";
+    private static final String EXPOSURE = "Exposure";
+    private static final String SHOW_IMAGES = "ShowImages";
+    private static final String[] SHOWVALUES = {"Yes", "No"};
+    private static final String STEP_SIZE = "Step_size";
+    private static final String PATH_REFIMAGE = "Path of reference image";
 
-   private double searchRange = 10;
-   private double cropFactor = 1;
-   private String channel = "BF";
-   private double exposure = 100;
-   private String show = "Yes";
-   private int imageCount_;
-   private double step = 0.3;
+    private double searchRange = 10;
+    private double cropFactor = 1;
+    private String channel = "BF";
+    private double exposure = 100;
+    private String show = "Yes";
+    private int imageCount_;
+    private double step = 0.3;
+    private String pathOfReferenceImage = "";
 
-   public BFAutofocus() {
-      super.createProperty(SEARCH_RANGE, NumberUtils.doubleToDisplayString(searchRange));
-      super.createProperty(CROP_FACTOR, NumberUtils.doubleToDisplayString(cropFactor));
-      super.createProperty(EXPOSURE, NumberUtils.doubleToDisplayString(exposure));
-      super.createProperty(SHOW_IMAGES, show, SHOWVALUES);
-      super.createProperty(STEP_SIZE, NumberUtils.doubleToDisplayString(step));
-      super.createProperty(CHANNEL, channel);
-   }
+    public BFAutofocus() {
+        super.createProperty(SEARCH_RANGE, NumberUtils.doubleToDisplayString(searchRange));
+        super.createProperty(CROP_FACTOR, NumberUtils.doubleToDisplayString(cropFactor));
+        super.createProperty(EXPOSURE, NumberUtils.doubleToDisplayString(exposure));
+        super.createProperty(SHOW_IMAGES, show, SHOWVALUES);
+        super.createProperty(STEP_SIZE, NumberUtils.doubleToDisplayString(step));
+        super.createProperty(CHANNEL, channel);
+        super.createProperty(PATH_REFIMAGE, pathOfReferenceImage);
+    }
 
-   @Override
-   public void applySettings() {
-      try {
-         searchRange = NumberUtils.displayStringToDouble(getPropertyValue(SEARCH_RANGE));
-         cropFactor = NumberUtils.displayStringToDouble(getPropertyValue(CROP_FACTOR));
-         cropFactor = MathFunctions.clip(0.01, cropFactor, 1.0);
-         channel = getPropertyValue(CHANNEL);
-         exposure = NumberUtils.displayStringToDouble(getPropertyValue(EXPOSURE));
-         show = getPropertyValue(SHOW_IMAGES);
+    @Override
+    public void applySettings() {
+        try {
+            searchRange = NumberUtils.displayStringToDouble(getPropertyValue(SEARCH_RANGE));
+            cropFactor = NumberUtils.displayStringToDouble(getPropertyValue(CROP_FACTOR));
+            cropFactor = MathFunctions.clip(0.01, cropFactor, 1.0);
+            channel = getPropertyValue(CHANNEL);
+            exposure = NumberUtils.displayStringToDouble(getPropertyValue(EXPOSURE));
+            show = getPropertyValue(SHOW_IMAGES);
+            pathOfReferenceImage = getPropertyValue(PATH_REFIMAGE);
 
-      } catch (MMException ex) {
-         studio_.logs().logError(ex);
-      } catch (ParseException ex) {
-         studio_.logs().logError(ex);
-      }
-   }
+        } catch (MMException ex) {
+            studio_.logs().logError(ex);
+        } catch (ParseException ex) {
+            studio_.logs().logError(ex);
+        }
+    }
 
-   @Override
-   public double fullFocus() throws Exception {
-      applySettings();
-      Rectangle oldROI = studio_.core().getROI();
-      CMMCore core = studio_.getCMMCore();
+    @Override
+    public double fullFocus() throws Exception {
+        applySettings();
+        Rectangle oldROI = studio_.core().getROI();
+        CMMCore core = studio_.getCMMCore();
 
-      //ReportingUtils.logMessage("Original ROI: " + oldROI);
-      int w = (int) (oldROI.width * cropFactor);
-      int h = (int) (oldROI.height * cropFactor);
-      int x = oldROI.x + (oldROI.width - w) / 2;
-      int y = oldROI.y + (oldROI.height - h) / 2;
-      Rectangle newROI = new Rectangle(x, y, w, h);
-      //ReportingUtils.logMessage("Setting ROI to: " + newROI);
-      Configuration oldState = null;
-      if (channel.length() > 0) {
-         String chanGroup = core.getChannelGroup();
-         oldState = core.getConfigGroupState(chanGroup);
-         core.setConfig(chanGroup, channel);
-      }
+        //ReportingUtils.logMessage("Original ROI: " + oldROI);
+        int w = (int) (oldROI.width * cropFactor);
+        int h = (int) (oldROI.height * cropFactor);
+        int x = oldROI.x + (oldROI.width - w) / 2;
+        int y = oldROI.y + (oldROI.height - h) / 2;
+        Rectangle newROI = new Rectangle(x, y, w, h);
+        //ReportingUtils.logMessage("Setting ROI to: " + newROI);
+        Configuration oldState = null;
+        if (channel.length() > 0) {
+            String chanGroup = core.getChannelGroup();
+            oldState = core.getConfigGroupState(chanGroup);
+            core.setConfig(chanGroup, channel);
+        }
 
-      // avoid wasting time on setting roi if it is the same
-      if (cropFactor < 1.0) {
-         studio_.app().setROI(newROI);
-         core.waitForDevice(core.getCameraDevice());
-      }
-      double oldExposure = core.getExposure();
-      core.setExposure(exposure);
+        // avoid wasting time on setting roi if it is the same
+        if (cropFactor < 1.0) {
+            studio_.app().setROI(newROI);
+            core.waitForDevice(core.getCameraDevice());
+        }
+        double oldExposure = core.getExposure();
+        core.setExposure(exposure);
 
-      double z = runAutofocusAlgorithm();
+        double correctedXPosition = core.getXPosition() - runAutofocusAlgorithm()[0];
+        double correctedYPosition = core.getYPosition() - runAutofocusAlgorithm()[1];
+        double z = runAutofocusAlgorithm()[2];
 
-      if (cropFactor < 1.0) {
-         studio_.app().setROI(oldROI);
-         core.waitForDevice(core.getCameraDevice());
-      }
-      if (oldState != null) {
-         core.setSystemState(oldState);
-      }
-      core.setExposure(oldExposure);
-      setZPosition(z);
-      return z;
-   }
+        if (cropFactor < 1.0) {
+            studio_.app().setROI(oldROI);
+            core.waitForDevice(core.getCameraDevice());
+        }
+        if (oldState != null) {
+            core.setSystemState(oldState);
+        }
+        core.setExposure(oldExposure);
 
-   @Override
-   public double incrementalFocus() throws Exception {
-      throw new UnsupportedOperationException("Not supported yet.");
-   }
+        setZPosition(z);
+        setXYPosition(correctedXPosition, correctedYPosition);
 
-   @Override
-   public int getNumberOfImages() {
-      return imageCount_;
-   }
+        return z;
+    }
 
-   @Override
-   public String getVerboseStatus() {
-      throw new UnsupportedOperationException("Not supported yet.");
-   }
+    @Override
+    public double incrementalFocus() throws Exception {
+        throw new UnsupportedOperationException("Not supported yet.");
+    }
 
-   @Override
-   public double getCurrentFocusScore() {
-      throw new UnsupportedOperationException("Not supported yet. You have to take z-stack.");
-   }
+    @Override
+    public int getNumberOfImages() {
+        return imageCount_;
+    }
 
-   @Override
-   public double computeScore(ImageProcessor imageProcessor) {
-      return imageProcessor.getStatistics().stdDev;
-   }
+    @Override
+    public String getVerboseStatus() {
+        throw new UnsupportedOperationException("Not supported yet.");
+    }
 
-   @Override
-   public void setContext(Studio studio) {
-      studio_ = studio;
-      studio_.events().registerForEvents(this);
-   }
+    @Override
+    public double getCurrentFocusScore() {
+        throw new UnsupportedOperationException("Not supported yet. You have to take z-stack.");
+    }
 
-   @Override
-   public String getName() {
-      return NAME;
-   }
+    @Override
+    public double computeScore(ImageProcessor imageProcessor) {
+        return imageProcessor.getStatistics().stdDev;
+    }
 
-   @Override
-   public String getHelpText() {
-      return HELPTEXT;
-   }
+    @Override
+    public void setContext(Studio studio) {
+        studio_ = studio;
+        studio_.events().registerForEvents(this);
+    }
 
-   @Override
-   public String getVersion() {
-      return VERSION_INFO;
-   }
+    @Override
+    public String getName() {
+        return NAME;
+    }
 
-   @Override
-   public String getCopyright() {
-      return COPYRIGHT_NOTICE;
-   }
+    @Override
+    public String getHelpText() {
+        return HELPTEXT;
+    }
 
-   private double runAutofocusAlgorithm() throws Exception {
-      CMMCore core = studio_.getCMMCore();
-      double oldZ = core.getPosition(core.getFocusDevice());
-      double[] zpositions = calculateZPositions(searchRange, step, oldZ);
-      double[] stdAtZPositions = new double[zpositions.length];
-      TaggedImage currentImg;
-      for (int i =0; i< zpositions.length ;i++){
-         setZPosition(zpositions[i]);
-         core.waitForDevice(core.getCameraDevice());
-         core.snapImage();
-         currentImg = core.getTaggedImage();
-         imageCount_++;
-         Image img = studio_.data().convertTaggedImage(currentImg);
-         stdAtZPositions[i] = studio_.data().ij().createProcessor(img).getStatistics().stdDev;
-         if (show.contentEquals("Yes")) {
-            SwingUtilities.invokeLater(() -> {
-               try {
-                  studio_.live().displayImage(img);
-               }
-               catch (IllegalArgumentException e) {
-                  studio_.logs().showError(e);
-               }
-            });
-         }
-      }
-      int rawIndex = getZfocus(stdAtZPositions);
-      return optimizeZFocus(rawIndex, stdAtZPositions, zpositions);
-   }
+    @Override
+    public String getVersion() {
+        return VERSION_INFO;
+    }
 
-   private void setZPosition(double z) throws Exception {
-      CMMCore core = studio_.getCMMCore();
-      String focusDevice = core.getFocusDevice();
-      core.setPosition(focusDevice, z);
-      core.waitForDevice(focusDevice);
-   }
+    @Override
+    public String getCopyright() {
+        return COPYRIGHT_NOTICE;
+    }
 
-   public static double[] calculateZPositions(double searchRange, double step, double startZUm){
-      double lower = startZUm - searchRange/2;
-      int nstep  = new Double(searchRange/step).intValue() + 1;
-      double[] zpos = new double[nstep];
-      for (int p = 0; p < nstep; p++){
-         zpos[p] = lower + p * step;
-      }
-      return zpos;
-   }
+    private double[] runAutofocusAlgorithm() throws Exception {
+        CMMCore core = studio_.getCMMCore();
+        double oldZ = core.getPosition(core.getFocusDevice());
+        double[] zpositions = calculateZPositions(searchRange, step, oldZ);
+        double[] stdAtZPositions = new double[zpositions.length];
+        double[] xDistances = new double[zpositions.length];
+        double[] yDistances = new double[zpositions.length];
+        double[] distances = new double[zpositions.length];
+        double[] driftValues = new double[3];
+        double min = Double.MAX_VALUE;
+        int zStack = 0;
+        TaggedImage currentImg;
 
-   public static int getZfocus (double[] stdArray){
-      double min = Double.MAX_VALUE;
-      int maxIdx = Integer.MAX_VALUE;
-      for (int i = 0; i < stdArray.length; i++){
-         if (stdArray[i] < min){
-            maxIdx = i;
-            min = stdArray[i];
-         }
-      }
-      return maxIdx;
-   }
+        for (int i =0; i < zpositions.length ;i++){
+            setZPosition(zpositions[i]);
+            core.waitForDevice(core.getCameraDevice());
+            core.snapImage();
+            currentImg = core.getTaggedImage();
+            imageCount_++;
+            Image img = studio_.data().convertTaggedImage(currentImg);
+            stdAtZPositions[i] = studio_.data().ij().createProcessor(img).getStatistics().stdDev;
+            Mat imgRef_Mat = (Mat) imgRef;
+            Mat imgCurrent_Mat = (Mat) img;
 
-   public static double optimizeZFocus(int rawZidx, double[] stdArray, double[] zpositionArray){
-      int oneLower = rawZidx-1;
-      int oneHigher = rawZidx+1;
-      double lowerVarDiff = stdArray[oneLower] - stdArray[rawZidx];
-      double upperVarDiff = stdArray[rawZidx] - stdArray[oneHigher];
-      if (lowerVarDiff * lowerVarDiff < upperVarDiff * upperVarDiff){
-         return (zpositionArray[oneLower] + zpositionArray[rawZidx]) / 2;
-      }else if(lowerVarDiff * lowerVarDiff > upperVarDiff * upperVarDiff){
-         return (zpositionArray[rawZidx] + zpositionArray[oneHigher]) / 2;
-      }else{
-         return zpositionArray[rawZidx];
-      }
-   }
+            xDistances[i] = DriftCorrection.driftCorrection(imgRef_Mat, imgCurrent_Mat).get(0);
+            yDistances[i] = DriftCorrection.driftCorrection(imgRef_Mat, imgCurrent_Mat).get(1);
+            distances[i] = Math.hypot(xDistances[i], yDistances[i]);
+
+            if (show.contentEquals("Yes")) {
+                SwingUtilities.invokeLater(() -> {
+                    try {
+                        studio_.live().displayImage(img);
+                    }
+                    catch (IllegalArgumentException e) {
+                        studio_.logs().showError(e);
+                    }
+                });
+            }
+        }
+        for (int i = 0; i< distances.length; i++) {
+            if (distances[i] < min) {
+                min = distances[i];
+                zStack = i;
+            }
+        }
+
+        driftValues[0] = xDistances[zStack];
+        driftValues[1] = yDistances[zStack];
+        driftValues[2] = zpositions[zStack];
+
+        return driftValues;
+    }
+
+    private void setXYPosition(double x, double y) throws Exception {
+        CMMCore core = studio_.getCMMCore();
+        core.setXYPosition(x,y);
+    }
+
+    private void setZPosition(double z) throws Exception {
+        CMMCore core = studio_.getCMMCore();
+        String focusDevice = core.getFocusDevice();
+        core.setPosition(focusDevice, z);
+        core.waitForDevice(focusDevice);
+    }
+
+    public static double[] calculateZPositions(double searchRange, double step, double startZUm){
+        double lower = startZUm - searchRange/2;
+        int nstep  = new Double(searchRange/step).intValue() + 1;
+        double[] zpos = new double[nstep];
+        for (int p = 0; p < nstep; p++){
+            zpos[p] = lower + p * step;
+        }
+        return zpos;
+    }
+
 }
 
