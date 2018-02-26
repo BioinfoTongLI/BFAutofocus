@@ -97,17 +97,17 @@
 
         <!--Micro Manager-->
 
-        <dependency>
-            <groupId>org.micromanager</groupId>
-            <artifactId>MMJ_</artifactId>
-            <version>${micromanager.version}</version>
-        </dependency>
+        <!--<dependency>-->
+            <!--<groupId>org.micromanager</groupId>-->
+            <!--<artifactId>MMJ_</artifactId>-->
+            <!--<version>${micromanager.version}</version>-->
+        <!--</dependency>-->
 
-        <dependency>
-            <groupId>org.micromanager</groupId>
-            <artifactId>MMCoreJ</artifactId>
-            <version>${micromanager.version}</version>
-        </dependency>
+        <!--<dependency>-->
+            <!--<groupId>org.micromanager</groupId>-->
+            <!--<artifactId>MMCoreJ</artifactId>-->
+            <!--<version>${micromanager.version}</version>-->
+        <!--</dependency>-->
 
         <!--<dependency>-->
             <!--<groupId>org.micromanager</groupId>-->
@@ -121,6 +121,12 @@
             <artifactId>opencv</artifactId>
             <version>${opencv.version}</version>
         </dependency>
+
+        <!--<dependency>-->
+            <!--<groupId>io.github.joheras</groupId>-->
+            <!--<artifactId>IJ-OpenCV</artifactId>-->
+            <!--<version>1.0</version>-->
+        <!--</dependency>-->
 
         <!-- Block for unit tests -->
         <dependency>

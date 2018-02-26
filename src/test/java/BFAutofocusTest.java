@@ -11,13 +11,12 @@ import java.util.Arrays;
 import java.util.Collection;
 
 @RunWith(Parameterized.class)
-public class Tests {
+public class BFAutofocusTest {
 
    @Parameterized.Parameters
    public static Collection<Object[]> prepareFiles() {
       String root = System.getProperty("user.dir") + "/src/main/resources/";
       ImagePlus tmpbfimg = IJ.openImage(root + "BF.tif");
-//      ImagePlus tmpbfimg = IJ.openImage("/media/tong/screening/17_11_17/BF_1/BF_1_MMStack_mph1.ome.tif");
       int zsliceNb = tmpbfimg.getDimensions()[3];
       double[] varArray = new double[zsliceNb];
       ImageProcessor[] bfProcessors = new ImageProcessor[zsliceNb];
