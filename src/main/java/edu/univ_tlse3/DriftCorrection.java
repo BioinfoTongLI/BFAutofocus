@@ -2,9 +2,7 @@ package edu.univ_tlse3;
 
 import ij.ImagePlus;
 import org.opencv.core.*;
-import org.opencv.features2d.DescriptorExtractor;
-import org.opencv.features2d.DescriptorMatcher;
-import org.opencv.features2d.FeatureDetector;
+import org.opencv.features2d.*;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 
@@ -13,30 +11,28 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.opencv.features2d.Features2d.NOT_DRAW_SINGLE_POINTS;
+
 public class DriftCorrection {
 
     public static final double UMPERMIN = 0.5;
     public static final double INTERVALINMIN = 2;
     public static final double UMPERPIX = 0.065;
-    public static final Integer DETECTORALGO = FeatureDetector.ORB;
-    public static final Integer DESCRIPTOREXTRACTOR = DescriptorExtractor.BRISK;
+    public static final Integer DETECTORALGO = FeatureDetector.BRISK;
+    public static final Integer DESCRIPTOREXTRACTOR = DescriptorExtractor.ORB;
     public static final Integer DESCRIPTORMATCHER = DescriptorMatcher.FLANNBASED;
 
     // Read images from path
     public static Mat readImage(String pathOfImage) {
         Mat img = Imgcodecs.imread(pathOfImage, Imgcodecs.CV_LOAD_IMAGE_GRAYSCALE);
-//        displayImageIJ("Initial Image ", img);
         Mat img1 = new Mat(img.cols(), img.rows(), img.type());
         Core.MinMaxLocResult minMaxResult = Core.minMaxLoc(img);
         double maxVal = minMaxResult.maxVal;
         double minVal = minMaxResult.minVal;
-//        System.out.println("Min : " + minVal);
-//        System.out.println("Max : " + maxVal);
         double alpha = maxVal - minVal;
         double beta = -(minVal);
         img.convertTo(img1, CvType.CV_8UC1, alpha, beta);
         Mat img2 = equalizeImages(img1);
-//        displayImageIJ("Initial Image - Equalized ", img2);
 
         return img2;
     }
@@ -270,6 +266,13 @@ public class DriftCorrection {
         return img;
     }
 
+//    static Mat listToMat(ArrayList<DMatch> list) {
+//        MatOfDMatch mat = new MatOfDMatch();
+//        DMatch[] array = list.toArray(new DMatch[list.size()]);
+//        mat.fromArray(array);
+//        return mat;
+//    }
+
     //Display images with ImageJ, giving a title to image
     static void displayImageIJ(String titleOfImage, Mat img) {
         ImagePlus imgp = new ImagePlus();
@@ -286,10 +289,15 @@ public class DriftCorrection {
         imgp.show();
     }
 
+//    static Mat drawGoodMatches(Mat img1, Mat img2, MatOfKeyPoint keypoints1, MatOfKeyPoint keypoints2, ArrayList<DMatch> good_matchesList) {
+//        Mat good_matches = listToMat(good_matchesList);
+//        Mat imgGoodMatches = new Mat();
+//        MatOfByte matchesMask = new MatOfByte();
+//        Features2d.drawMatches(img1, keypoints1, img2, keypoints2, (MatOfDMatch) good_matches, imgGoodMatches, Scalar.all(-1), Scalar.all(0.5), matchesMask, NOT_DRAW_SINGLE_POINTS);
+//        return imgGoodMatches;
+//    }
 
     public static double[] driftCorrection(Mat img1, Mat img2) {
-        ArrayList<Double> driftValues = new ArrayList<>();
-
         //Load openCv Library, required besides imports
 //        nu.pattern.OpenCV.loadShared();
 
@@ -308,6 +316,9 @@ public class DriftCorrection {
         /* 4 - Select and display Good Matches */
         ArrayList<DMatch> good_matchesList = selectGoodMatches(matcher, keypoints1, keypoints2, UMPERMIN, UMPERPIX, INTERVALINMIN);
         System.out.println("Number of Good Matches : " + good_matchesList.size());
+
+//        Mat imgGoodMatches = drawGoodMatches(img1, img2, keypoints1, keypoints2, good_matchesList);
+//        displayImageIJ("Good Matches", imgGoodMatches);
 
         /* 5 - Get coordinates of GoodMatches Keypoints */
         ArrayList<Float> img1_keypoints_xCoordinates = getGoodMatchesXCoordinates(keypoints1, good_matchesList,true);
@@ -334,7 +345,7 @@ public class DriftCorrection {
 //        System.out.println("X variance : " + xVariance);
 //        System.out.println("Y variance : " + yVariance + "\n");
 
-        return new double[]{(double) meanXdisplacement, (double) meanYdisplacement};
+        return new double[]{(double) meanXdisplacement, (double) meanYdisplacement, (double) matcher.rows(), (double) good_matchesList.size()};
     }
 }
 

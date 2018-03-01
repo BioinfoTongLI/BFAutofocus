@@ -15,9 +15,12 @@ import org.scijava.plugin.Plugin;
 import org.scijava.plugin.SciJavaPlugin;
 
 import java.awt.*;
+import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.*;
@@ -40,10 +43,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private static final String STEP_SIZE = "Step_size";
     private static final String PATH_REFIMAGE = "Path of reference image";
 
-    private double searchRange = 10;
+    private double searchRange = 19;
     private double cropFactor = 1;
     private String channel = "DAPI";
-    private double exposure = 100;
+    private double exposure = 10;
     private String show = "Yes";
     private int imageCount_;
     private double step = 0.3;
@@ -85,8 +88,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         applySettings();
         Rectangle oldROI = studio_.core().getROI();
         CMMCore core = studio_.getCMMCore();
-
-        imgRef_Mat = DriftCorrection.readImage("/home/nolwenngueguen/Téléchargements/ImagesTest/1-21_Test.tif");
+        imgRef_Mat = DriftCorrection.readImage("/home/nolwenngueguen/Téléchargements/ImagesTest/1-36.tif");
 
 //        DriftCorrection.displayImageIJ("Ref Image ", imgRef_Mat);
 
@@ -121,20 +123,19 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
         core.setExposure(oldExposure);
 
-        int nThread = Runtime.getRuntime().availableProcessors();
-        ExecutorService es = Executors.newFixedThreadPool(nThread - 1);
+        int nThread = Runtime.getRuntime().availableProcessors() - 1;
+        ExecutorService es = Executors.newFixedThreadPool(nThread);
 
         double oldZ = core.getPosition(core.getFocusDevice());
         double[] zpositions = calculateZPositions(searchRange, step, oldZ);
         Future[] jobs = new Future[zpositions.length];
         TaggedImage currentImg;
 
+
+
         for (int i = 0; i < zpositions.length ;i++) {
-            Mat imgCurrent_Mat = DriftCorrection.readImage("/home/nolwenngueguen/Téléchargements/ImagesTest/2-25_Test.tif");
-//            System.out.println("i : " + i);
-//            String path = "/home/nolwenngueguen/Téléchargements/ImagesTest/2-" + (i+1) + ".tif";
-//            System.out.println("Path : " + path);
-//            Mat imgCurrent_Mat = DriftCorrection.readImage(path);
+            String path = "/home/nolwenngueguen/Téléchargements/ImagesTest/2-" + (i+1) + ".tif";
+            Mat imgCurrent_Mat = DriftCorrection.readImage(path);
 //            DriftCorrection.displayImageIJ("Image 2-" + (i+1), imgCurrent_Mat);
 
 //            setZPosition(zpositions[i]);
@@ -145,7 +146,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 //            Image img = studio_.data().convertTaggedImage(currentImg);
             jobs[i] = es.submit(new ThreadAttribution(imgRef_Mat, imgCurrent_Mat));
         }
-
 
         List<double[]> drifts = new ArrayList<double[]>();
         try {
@@ -161,28 +161,59 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-
         double[] distances = calculateDistances(drifts);
         int indexOfMinDistance = getIndexOfBestDistance(distances);
-        double[] bestDistances = drifts.get(indexOfMinDistance);
+        double[] bestDistance = drifts.get(indexOfMinDistance);
 
-        double correctedXPosition = core.getXPosition() - bestDistances[0];
-        double correctedYPosition = core.getYPosition() - bestDistances[1];
+        double xCorrection = bestDistance[0];
+        double yCorrection = bestDistance[1];
+
+        System.out.println("X Correction : " + xCorrection);
+        System.out.println("Y Correction : " + yCorrection);
+
+        double correctedXPosition = core.getXPosition() - xCorrection;
+        double correctedYPosition = core.getYPosition() - yCorrection;
         double z = zpositions[indexOfMinDistance];
 
         setZPosition(z);
         setXYPosition(correctedXPosition, correctedYPosition);
-        core.snapImage();
+//        core.snapImage();
 
-        getVariances(drifts);
+        double[] listOfVariances = getVariances(drifts);
+        double xVariance = listOfVariances[0];
+        double yVariance = listOfVariances[1];
 
-        System.out.println("Corrected X Position : " + correctedXPosition);
+        System.out.println("\nCorrected X Position : " + correctedXPosition);
         System.out.println("Corrected Y Position : " + correctedYPosition);
         System.out.println("Z Best Position : " + z);
 
         long endTime = new Date().getTime();
         long timeElapsed = endTime - startTime;
-        System.out.println("Duration in milliseconds : " + timeElapsed);
+        System.out.println("\nDuration in milliseconds : " + timeElapsed);
+
+        System.out.println("X Variance : " + xVariance);
+        System.out.println("Y Variance : " + yVariance);
+
+        //For "statistics" tests
+        File f = new File("/home/nolwenngueguen/Téléchargements/ImagesTest/Stats.csv");
+        FileWriter fw = new FileWriter(f, true);
+
+        for (int i = 0; i < drifts.size(); i++) {
+            double[] driftArray = drifts.get(i);
+            float xDrift = (float) driftArray[0];
+            float yDrift = (float) driftArray[1];
+            int numberMatches = (int) driftArray[2];
+            int numberGoodMatches = (int) driftArray[3];
+            fw.write((i+1) + "," + numberMatches + "," + numberGoodMatches + "," + xDrift + "," + yDrift + "\n");
+        }
+        fw.write("**,*****,***,***********,**********\n");
+        fw.close();
+
+        File f1 = new File("/home/nolwenngueguen/Téléchargements/ImagesTest/StatsTot.csv");
+        FileWriter fw1 = new FileWriter(f1, true);
+        fw1.write(xVariance + "," + yVariance + "," + xCorrection + "," + yCorrection + ","
+                + correctedXPosition + "," + correctedYPosition + "," + z + "," + timeElapsed + "\n");
+        fw1.close();
 
         return z;
     }
@@ -284,7 +315,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         return minIndex;
     }
 
-    private void getVariances(List<double[]> xysList) {
+    private double[] getVariances(List<double[]> xysList) throws IOException {
 
         double[] xDistances = new double[xysList.size()];
         double[] yDistances = new double[xysList.size()];
@@ -325,11 +356,18 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         xVariance = xDiff / xNumber;
         yVariance = yDiff / yNumber;
 
-        System.out.println("Variance de X : " + xVariance);
+        double[] listVar = new double[2];
+
+        listVar[0] = xVariance;
+        listVar[1] = yVariance;
+
+        System.out.println("\nVariance de X : " + xVariance);
         System.out.println("Variance de Y : " + yVariance);
+
+        return listVar;
     }
 
-//*************************** Class for multithreading ***************************//
+    //*************************** Class for multithreading ***************************//
     private class ThreadAttribution implements Callable<double[]> {
 
         private Mat img1_;
