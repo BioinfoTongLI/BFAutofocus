@@ -1,6 +1,9 @@
 package edu.univ_tlse3;
 
+import ij.IJ;
+import ij.ImagePlus;
 import ij.process.ImageProcessor;
+import ij.process.ShortProcessor;
 import mmcorej.CMMCore;
 import mmcorej.Configuration;
 import mmcorej.TaggedImage;
@@ -16,6 +19,7 @@ import org.scijava.plugin.SciJavaPlugin;
 import java.awt.*;
 import java.io.File;
 import java.io.FileWriter;
+import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Date;
@@ -24,7 +28,7 @@ import java.util.concurrent.*;
 
 @Plugin(type = AutofocusPlugin.class)
 public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJavaPlugin {
-    private static final String VERSION_INFO = "1.0.0";
+    private static final String VERSION_INFO = "0.0.1";
     private static final String NAME = "Bright-field autofocus";
     private static final String HELPTEXT = "This simple autofocus is only designed to process transmitted-light (or DIC) images, Z-stack is required.";
     private static final String COPYRIGHT_NOTICE = "CeCILL-B-BSD compatible";
@@ -84,8 +88,14 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         applySettings();
         Rectangle oldROI = studio_.core().getROI();
         CMMCore core = studio_.getCMMCore();
-        imgRef_Mat = DriftCorrection.readImage("/home/nolwenngueguen/Téléchargements/ImagesTest/1-36.tif");
-
+        core.setAutoShutter(false);
+        core.setShutterOpen(true);
+        ImagePlus refImp = IJ.getImage();
+        if ( refImp != null){
+            imgRef_Mat = toMat(refImp.getProcessor().convertToShortProcessor());
+        }else{
+            imgRef_Mat = DriftCorrection.readImage(pathOfReferenceImage);
+        }
 //        DriftCorrection.displayImageIJ("Ref Image ", imgRef_Mat);
 
         //ReportingUtils.logMessage("Original ROI: " + oldROI);
@@ -114,10 +124,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             studio_.app().setROI(oldROI);
             core.waitForDevice(core.getCameraDevice());
         }
-        if (oldState != null) {
-            core.setSystemState(oldState);
-        }
-        core.setExposure(oldExposure);
 
         int nThread = Runtime.getRuntime().availableProcessors() - 1;
         ExecutorService es = Executors.newFixedThreadPool(nThread);
@@ -130,18 +136,19 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         for (int i = 0; i < zpositions.length ;i++) {
 //            String path = "/home/nolwenngueguen/Téléchargements/ImagesTest/2-" + (i+1) + ".tif";
 //            Mat imgCurrent_Mat = DriftCorrection.readImage(path);
-//            DriftCorrection.displayImageIJ("Image 2-" + (i+1), imgCurrent_Mat);
-
             setZPosition(zpositions[i]);
             core.waitForDevice(core.getCameraDevice());
             core.snapImage();
             currentImg = core.getTaggedImage();
-            Mat mat = convert(currentImg);
-//            DriftCorrection.displayImageIJ("Image 2-" + (i+1), convert(currentImg));
+            Mat mat16 = convert(currentImg);
+            Mat mat8 = new Mat(mat16.cols(), mat16.rows(), CvType.CV_8UC1);
+            mat16.convertTo(mat8, CvType.CV_8UC1, 0.00390625);
+//            DriftCorrection.displayImageIJ("Image 2-" + (i+1), mat8);
             imageCount_++;
-//            Image img = studio_.data().convertTaggedImage(currentImg);
-//            jobs[i] = es.submit(new ThreadAttribution(imgRef_Mat, imgCurrent_Mat));
+            jobs[i] = es.submit(new ThreadAttribution(imgRef_Mat, mat8));
         }
+        core.setShutterOpen(false);
+        core.setAutoShutter(true);
 
         List<double[]> drifts = new ArrayList<double[]>();
         try {
@@ -171,10 +178,20 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double correctedYPosition = core.getYPosition() - yCorrection;
         double z = zpositions[indexOfMinDistance];
 
+        if (oldState != null) {
+            core.setSystemState(oldState);
+        }
+        core.setExposure(oldExposure);
+
         setZPosition(z);
         setXYPosition(correctedXPosition, correctedYPosition);
-//        core.snapImage();
 
+        writeOutput(startTime, drifts, xCorrection, yCorrection, correctedXPosition, correctedYPosition, z);
+
+        return z;
+    }
+
+    private void writeOutput(long startTime, List<double[]> drifts, double xCorrection, double yCorrection, double correctedXPosition, double correctedYPosition, double z) throws IOException {
         double[] listOfVariances = getVariances(drifts);
         double xVariance = listOfVariances[0];
         double yVariance = listOfVariances[1];
@@ -189,6 +206,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         System.out.println("X Variance : " + xVariance);
         System.out.println("Y Variance : " + yVariance);
+
 
         //For "statistics" tests
         File f = new File("/home/nolwenngueguen/Téléchargements/ImagesTest/Stats.csv");
@@ -210,8 +228,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         fw1.write(xVariance + "," + yVariance + "," + xCorrection + "," + yCorrection + ","
                 + correctedXPosition + "," + correctedYPosition + "," + z + "," + timeElapsed + "\n");
         fw1.close();
-
-        return z;
     }
 
     @Override
@@ -367,7 +383,17 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         int width = img.tags.getInt("Width");
         int height = img.tags.getInt("Height");
         Mat mat = new Mat(height, width, CvType.CV_16UC1);
-        mat.put(0,0, (short[]) img.pix);
+        short[] shorts = (short[]) img.pix;
+        mat.put(0,0, shorts);
+        return mat;
+    }
+
+    public static Mat toMat(ShortProcessor sp) {
+        final int w = sp.getWidth();
+        final int h = sp.getHeight();
+        final short[] pixels = (short[]) sp.getPixels();
+        Mat mat = new Mat(h, w, CvType.CV_16UC1);
+        mat.put(0,0, pixels);
         return mat;
     }
 
