@@ -1,11 +1,11 @@
 package edu.univ_tlse3;
 
 import ij.IJ;
-import ij.ImagePlus;
 import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
 import mmcorej.CMMCore;
 import mmcorej.Configuration;
+import mmcorej.StrVector;
 import mmcorej.TaggedImage;
 import org.json.JSONException;
 import org.micromanager.AutofocusPlugin;
@@ -44,14 +44,16 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private static final String STEP_SIZE = "Step_size";
     private static final String PATH_REFIMAGE = "Path of reference image";
 
-    private double searchRange = 19;
+    private double searchRange = 10;
     private double cropFactor = 1;
-    private String channel = "DAPI";
+    private String channel = "";
     private double exposure = 10;
     private String show = "Yes";
     private int imageCount_;
     private double step = 0.3;
-    private String pathOfReferenceImage = null;
+    private String pathOfReferenceImage = "";
+
+    final static double alpha = 0.00390625;
 
     public BFAutofocus() {
         super.createProperty(SEARCH_RANGE, NumberUtils.doubleToDisplayString(searchRange));
@@ -90,14 +92,12 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         CMMCore core = studio_.getCMMCore();
         core.setAutoShutter(false);
         core.setShutterOpen(true);
-        ImagePlus refImp = IJ.getImage();
-        if ( refImp != null){
-            imgRef_Mat = toMat(refImp.getProcessor().convertToShortProcessor());
-        }else{
+        if (!pathOfReferenceImage.equals("")){
+            ReportingUtils.logMessage("Loading reference image :" + pathOfReferenceImage);
             imgRef_Mat = DriftCorrection.readImage(pathOfReferenceImage);
+        }else{
+            imgRef_Mat = toMat(IJ.getImage().getProcessor().convertToShortProcessor());
         }
-//        DriftCorrection.displayImageIJ("Ref Image ", imgRef_Mat);
-
         //ReportingUtils.logMessage("Original ROI: " + oldROI);
         int w = (int) (oldROI.width * cropFactor);
         int h = (int) (oldROI.height * cropFactor);
@@ -142,7 +142,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             currentImg = core.getTaggedImage();
             Mat mat16 = convert(currentImg);
             Mat mat8 = new Mat(mat16.cols(), mat16.rows(), CvType.CV_8UC1);
-            mat16.convertTo(mat8, CvType.CV_8UC1, 0.00390625);
+            mat16.convertTo(mat8, CvType.CV_8UC1, alpha);
 //            DriftCorrection.displayImageIJ("Image 2-" + (i+1), mat8);
             imageCount_++;
             jobs[i] = es.submit(new ThreadAttribution(imgRef_Mat, mat8));
@@ -379,22 +379,51 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         return listVar;
     }
 
-    public static Mat convert(TaggedImage img) throws JSONException {
+    private static Mat convert(TaggedImage img) throws JSONException {
         int width = img.tags.getInt("Width");
         int height = img.tags.getInt("Height");
         Mat mat = new Mat(height, width, CvType.CV_16UC1);
-        short[] shorts = (short[]) img.pix;
-        mat.put(0,0, shorts);
+        mat.put(0,0, (short[]) img.pix);
         return mat;
     }
 
-    public static Mat toMat(ShortProcessor sp) {
+    private static Mat toMat(ShortProcessor sp) {
         final int w = sp.getWidth();
         final int h = sp.getHeight();
-        final short[] pixels = (short[]) sp.getPixels();
         Mat mat = new Mat(h, w, CvType.CV_16UC1);
-        mat.put(0,0, pixels);
-        return mat;
+        mat.put(0,0, (short[]) sp.getPixels());
+        Mat res = new Mat(h, w, CvType.CV_8UC1);
+        mat.convertTo(res, CvType.CV_8UC1, BFAutofocus.alpha);
+        return res;
+    }
+
+    @Override
+    public PropertyItem[] getProperties() {
+        CMMCore core = studio_.getCMMCore();
+        String channelGroup = core.getChannelGroup();
+        StrVector channels = core.getAvailableConfigs(channelGroup);
+        String allowedChannels[] = new String[(int)channels.size() + 1];
+        allowedChannels[0] = "";
+
+        try {
+            PropertyItem p = getProperty(CHANNEL);
+            boolean found = false;
+            for (int i = 0; i < channels.size(); i++) {
+                allowedChannels[i+1] = channels.get(i);
+                if (p.value.equals(channels.get(i))) {
+                    found = true;
+                }
+            }
+            p.allowed = allowedChannels;
+            if (!found) {
+                p.value = allowedChannels[0];
+            }
+            setProperty(p);
+        } catch (Exception e) {
+            ReportingUtils.logError(e);
+        }
+
+        return super.getProperties();
     }
 
     //*************************** Class for multithreading ***************************//
