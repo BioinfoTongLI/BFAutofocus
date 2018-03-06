@@ -1,5 +1,6 @@
 package edu.univ_tlse3;
 
+import com.sun.scenario.effect.impl.sw.sse.SSEBlend_SRC_OUTPeer;
 import ij.IJ;
 import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
@@ -46,7 +47,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
     private double searchRange = 10;
     private double cropFactor = 1;
-    private String channel = "";
+    private String channel = "BF";
     private double exposure = 10;
     private String show = "Yes";
     private int imageCount_;
@@ -98,7 +99,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             DriftCorrection.displayImageIJ("", imgRef_Mat);
         }else{
             imgRef_Mat= toMat(IJ.getImage().getProcessor().convertToShortProcessor());
-            DriftCorrection.displayImageIJ("Reference ", imgRef_Mat);
+//            DriftCorrection.displayImageIJ("Reference ", imgRef_Mat);
         }
         //ReportingUtils.logMessage("Original ROI: " + oldROI);
         int w = (int) (oldROI.width * cropFactor);
@@ -146,7 +147,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             Mat mat8 = new Mat(mat16.cols(), mat16.rows(), CvType.CV_8UC1);
             mat16.convertTo(mat8, CvType.CV_8UC1, alpha);
             Mat mat8Set = DriftCorrection.equalizeImages(mat8);
-            DriftCorrection.displayImageIJ("Image 2-" + (i+1), mat8Set);
+//            DriftCorrection.displayImageIJ("Image 2-" + (i+1), mat8Set);
             imageCount_++;
             jobs[i] = es.submit(new ThreadAttribution(imgRef_Mat, mat8Set));
         }
@@ -181,6 +182,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double correctedYPosition = core.getYPosition() - yCorrection;
         double z = zpositions[indexOfMinDistance];
 
+        System.out.println("absolute Z : " + z);
+        System.out.println("absolute Z position : " + indexOfMinDistance);
         if (oldState != null) {
             core.setSystemState(oldState);
         }
@@ -189,7 +192,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         setZPosition(z);
         setXYPosition(correctedXPosition, correctedYPosition);
 
-        writeOutput(startTime, drifts, xCorrection, yCorrection, correctedXPosition, correctedYPosition, z);
+//        writeOutput(startTime, drifts, xCorrection, yCorrection, correctedXPosition, correctedYPosition, z);
 
         return z;
     }

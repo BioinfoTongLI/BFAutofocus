@@ -97,23 +97,23 @@
 
         <!--Micro Manager-->
 
-        <!--<dependency>-->
-            <!--<groupId>org.micromanager</groupId>-->
-            <!--<artifactId>MMJ_</artifactId>-->
-            <!--<version>${micromanager.version}</version>-->
-        <!--</dependency>-->
+        <dependency>
+            <groupId>org.micromanager</groupId>
+            <artifactId>MMJ_</artifactId>
+            <version>${micromanager.version}</version>
+        </dependency>
 
-        <!--<dependency>-->
-            <!--<groupId>org.micromanager</groupId>-->
-            <!--<artifactId>MMCoreJ</artifactId>-->
-            <!--<version>${micromanager.version}</version>-->
-        <!--</dependency>-->
+        <dependency>
+            <groupId>org.micromanager</groupId>
+            <artifactId>MMCoreJ</artifactId>
+            <version>${micromanager.version}</version>
+        </dependency>
 
-        <!--<dependency>-->
-            <!--<groupId>org.micromanager</groupId>-->
-            <!--<artifactId>MMAcqEngine</artifactId>-->
-            <!--<version>${micromanager.version}</version>-->
-        <!--</dependency>-->
+        <dependency>
+            <groupId>org.micromanager</groupId>
+            <artifactId>MMAcqEngine</artifactId>
+            <version>${micromanager.version}</version>
+        </dependency>
 
         <!-- OpenCV -->
         <dependency>
