@@ -165,6 +165,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
       double[] zpositions = calculateZPositions(searchRange, step, oldZ);
       double[] stdAtZPositions = new double[zpositions.length];
       TaggedImage currentImg;
+      studio_.core().setAutoShutter(false);
+      studio_.core().setShutterOpen(true);
       for (int i =0; i< zpositions.length ;i++){
          setZPosition(zpositions[i]);
          core.waitForDevice(core.getCameraDevice());
@@ -184,6 +186,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             });
          }
       }
+      studio_.core().setShutterOpen(false);
+      studio_.core().setAutoShutter(true);
       int rawIndex = getZfocus(stdAtZPositions);
       return optimizeZFocus(rawIndex, stdAtZPositions, zpositions);
    }
