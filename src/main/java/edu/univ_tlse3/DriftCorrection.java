@@ -24,14 +24,17 @@ public class DriftCorrection {
 
     // Read images from path
     public static Mat readImage(String pathOfImage) {
-        Mat img = Imgcodecs.imread(pathOfImage, Imgcodecs.CV_LOAD_IMAGE_GRAYSCALE);
-        Mat img1 = new Mat(img.cols(), img.rows(), img.type());
-        Core.MinMaxLocResult minMaxResult = Core.minMaxLoc(img);
-        double maxVal = minMaxResult.maxVal;
-        double minVal = minMaxResult.minVal;
-        double alpha = maxVal - minVal;
-        double beta = -(minVal);
-        img.convertTo(img1, CvType.CV_8UC1, alpha, beta);
+//        Mat img = Imgcodecs.imread(pathOfImage, Imgcodecs.CV_LOAD_IMAGE_GRAYSCALE);
+        Mat img = Imgcodecs.imread(pathOfImage, CvType.CV_16UC1);
+        Mat img1 = new Mat(img.cols(), img.rows(), CvType.CV_8UC1);
+//        Core.MinMaxLocResult minMaxResult = Core.minMaxLoc(img);
+//        double maxVal = minMaxResult.maxVal;
+//        double minVal = minMaxResult.minVal;
+//        System.out.println("Max val : " + maxVal);
+//        System.out.println("Min val : " + minVal);
+//        double alpha = maxVal - minVal;
+//        double beta = -(minVal);
+        img.convertTo(img1, CvType.CV_8UC1, BFAutofocus.alpha);
         Mat img2 = equalizeImages(img1);
 
         return img2;

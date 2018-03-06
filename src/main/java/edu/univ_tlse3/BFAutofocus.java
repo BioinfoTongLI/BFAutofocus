@@ -95,8 +95,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         if (!pathOfReferenceImage.equals("")){
             ReportingUtils.logMessage("Loading reference image :" + pathOfReferenceImage);
             imgRef_Mat = DriftCorrection.readImage(pathOfReferenceImage);
+            DriftCorrection.displayImageIJ("", imgRef_Mat);
         }else{
-            imgRef_Mat = toMat(IJ.getImage().getProcessor().convertToShortProcessor());
+            imgRef_Mat= toMat(IJ.getImage().getProcessor().convertToShortProcessor());
+            DriftCorrection.displayImageIJ("Reference ", imgRef_Mat);
         }
         //ReportingUtils.logMessage("Original ROI: " + oldROI);
         int w = (int) (oldROI.width * cropFactor);
@@ -143,9 +145,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             Mat mat16 = convert(currentImg);
             Mat mat8 = new Mat(mat16.cols(), mat16.rows(), CvType.CV_8UC1);
             mat16.convertTo(mat8, CvType.CV_8UC1, alpha);
-//            DriftCorrection.displayImageIJ("Image 2-" + (i+1), mat8);
+            Mat mat8Set = DriftCorrection.equalizeImages(mat8);
+            DriftCorrection.displayImageIJ("Image 2-" + (i+1), mat8Set);
             imageCount_++;
-            jobs[i] = es.submit(new ThreadAttribution(imgRef_Mat, mat8));
+            jobs[i] = es.submit(new ThreadAttribution(imgRef_Mat, mat8Set));
         }
         core.setShutterOpen(false);
         core.setAutoShutter(true);
@@ -394,7 +397,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         mat.put(0,0, (short[]) sp.getPixels());
         Mat res = new Mat(h, w, CvType.CV_8UC1);
         mat.convertTo(res, CvType.CV_8UC1, BFAutofocus.alpha);
-        return res;
+        Mat resSet = DriftCorrection.equalizeImages(res);
+        return resSet;
     }
 
     @Override
