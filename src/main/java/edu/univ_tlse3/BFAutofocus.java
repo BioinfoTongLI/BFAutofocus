@@ -1,6 +1,5 @@
 package edu.univ_tlse3;
 
-import com.sun.scenario.effect.impl.sw.sse.SSEBlend_SRC_OUTPeer;
 import ij.IJ;
 import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
@@ -17,6 +16,7 @@ import org.opencv.core.Mat;
 import org.scijava.plugin.Plugin;
 import org.scijava.plugin.SciJavaPlugin;
 
+import javax.swing.*;
 import java.awt.*;
 import java.io.File;
 import java.io.FileWriter;
@@ -41,9 +41,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private static final String CHANNEL = "Channel";
     private static final String EXPOSURE = "Exposure";
     private static final String SHOW_IMAGES = "ShowImages";
+    private static final String XY_CORRECTION_TEXT = "Correcte XY at same time";
     private static final String[] SHOWVALUES = {"Yes", "No"};
     private static final String STEP_SIZE = "Step_size";
     private static final String PATH_REFIMAGE = "Path of reference image";
+    private static final String[] XY_CORRECTION = {"Yes", "No"};
 
     private double searchRange = 10;
     private double cropFactor = 1;
@@ -53,6 +55,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private int imageCount_;
     private double step = 0.3;
     private String pathOfReferenceImage = "";
+    private String xy_correction = "Yes";
 
     final static double alpha = 0.00390625;
 
@@ -61,6 +64,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         super.createProperty(CROP_FACTOR, NumberUtils.doubleToDisplayString(cropFactor));
         super.createProperty(EXPOSURE, NumberUtils.doubleToDisplayString(exposure));
         super.createProperty(SHOW_IMAGES, show, SHOWVALUES);
+        super.createProperty(XY_CORRECTION_TEXT, xy_correction, XY_CORRECTION);
         super.createProperty(STEP_SIZE, NumberUtils.doubleToDisplayString(step));
         super.createProperty(CHANNEL, channel);
         super.createProperty(PATH_REFIMAGE, pathOfReferenceImage);
@@ -76,10 +80,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             channel = getPropertyValue(CHANNEL);
             exposure = NumberUtils.displayStringToDouble(getPropertyValue(EXPOSURE));
             show = getPropertyValue(SHOW_IMAGES);
+            xy_correction = getPropertyValue(XY_CORRECTION_TEXT);
             pathOfReferenceImage = getPropertyValue(PATH_REFIMAGE);
-        } catch (MMException ex) {
-            studio_.logs().logError(ex);
-        } catch (ParseException ex) {
+        } catch (MMException | ParseException ex) {
             studio_.logs().logError(ex);
         }
     }
@@ -91,15 +94,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         applySettings();
         Rectangle oldROI = studio_.core().getROI();
         CMMCore core = studio_.getCMMCore();
-        core.setAutoShutter(false);
-        core.setShutterOpen(true);
         if (!pathOfReferenceImage.equals("")){
             ReportingUtils.logMessage("Loading reference image :" + pathOfReferenceImage);
             imgRef_Mat = DriftCorrection.readImage(pathOfReferenceImage);
-            DriftCorrection.displayImageIJ("", imgRef_Mat);
         }else{
             imgRef_Mat= toMat(IJ.getImage().getProcessor().convertToShortProcessor());
-//            DriftCorrection.displayImageIJ("Reference ", imgRef_Mat);
         }
         //ReportingUtils.logMessage("Original ROI: " + oldROI);
         int w = (int) (oldROI.width * cropFactor);
@@ -134,27 +133,39 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double oldZ = core.getPosition(core.getFocusDevice());
         double[] zpositions = calculateZPositions(searchRange, step, oldZ);
         Future[] jobs = new Future[zpositions.length];
-        TaggedImage currentImg;
 
+        boolean oldAutoShutterState = core.getAutoShutter();
+        core.setAutoShutter(false);
+        core.setShutterOpen(true);
+
+        Mat mat16;
+        Mat mat8;
+        Mat mat8Set;
         for (int i = 0; i < zpositions.length ;i++) {
-//            String path = "/home/nolwenngueguen/Téléchargements/ImagesTest/2-" + (i+1) + ".tif";
-//            Mat imgCurrent_Mat = DriftCorrection.readImage(path);
             setZPosition(zpositions[i]);
             core.waitForDevice(core.getCameraDevice());
             core.snapImage();
-            currentImg = core.getTaggedImage();
-            Mat mat16 = convert(currentImg);
-            Mat mat8 = new Mat(mat16.cols(), mat16.rows(), CvType.CV_8UC1);
+            final TaggedImage currentImg = core.getTaggedImage();
+            if (show.contentEquals("Yes")) {
+                SwingUtilities.invokeLater(() -> {
+                    try {
+                        studio_.live().displayImage(studio_.data().convertTaggedImage(currentImg));
+                    }
+                    catch (JSONException | IllegalArgumentException e) {
+                        studio_.logs().showError(e);
+                    }
+                });
+            }
+            mat16 = convert(currentImg);
+            mat8 = new Mat(mat16.cols(), mat16.rows(), CvType.CV_8UC1);
             mat16.convertTo(mat8, CvType.CV_8UC1, alpha);
-            Mat mat8Set = DriftCorrection.equalizeImages(mat8);
-//            DriftCorrection.displayImageIJ("Image 2-" + (i+1), mat8Set);
+            mat8Set = DriftCorrection.equalizeImages(mat8);
             imageCount_++;
             jobs[i] = es.submit(new ThreadAttribution(imgRef_Mat, mat8Set));
         }
-        core.setShutterOpen(false);
-        core.setAutoShutter(true);
+        core.setAutoShutter(oldAutoShutterState);
 
-        List<double[]> drifts = new ArrayList<double[]>();
+        List<double[]> drifts = new ArrayList<>();
         try {
             for (int i = 0; i < jobs.length ;i++) {
                 drifts.add(i, (double[]) jobs[i].get());
@@ -164,10 +175,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
         es.shutdown();
         try {
-            es.awaitTermination(5, TimeUnit.MINUTES);
+            es.awaitTermination(1, TimeUnit.MINUTES);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
+
         double[] distances = calculateDistances(drifts);
         int indexOfMinDistance = getIndexOfBestDistance(distances);
         double[] bestDistance = drifts.get(indexOfMinDistance);
@@ -184,13 +196,16 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         System.out.println("absolute Z : " + z);
         System.out.println("absolute Z position : " + indexOfMinDistance);
+
         if (oldState != null) {
             core.setSystemState(oldState);
         }
         core.setExposure(oldExposure);
 
         setZPosition(z);
-        setXYPosition(correctedXPosition, correctedYPosition);
+        if (xy_correction.contentEquals("Yes")){
+            setXYPosition(correctedXPosition, correctedYPosition);
+        }
 
 //        writeOutput(startTime, drifts, xCorrection, yCorrection, correctedXPosition, correctedYPosition, z);
 
