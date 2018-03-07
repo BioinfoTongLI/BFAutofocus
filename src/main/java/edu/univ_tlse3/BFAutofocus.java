@@ -23,6 +23,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.*;
@@ -49,7 +50,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
     private double searchRange = 10;
     private double cropFactor = 1;
-    private String channel = "BF";
+    private String channel = "";
     private double exposure = 10;
     private String show = "Yes";
     private int imageCount_;
@@ -67,7 +68,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         super.createProperty(XY_CORRECTION_TEXT, xy_correction, XY_CORRECTION);
         super.createProperty(STEP_SIZE, NumberUtils.doubleToDisplayString(step));
         super.createProperty(CHANNEL, channel);
-        super.createProperty(PATH_REFIMAGE, pathOfReferenceImage);
+//        super.createProperty(PATH_REFIMAGE, pathOfReferenceImage);
         nu.pattern.OpenCV.loadShared();
     }
 
@@ -81,7 +82,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             exposure = NumberUtils.displayStringToDouble(getPropertyValue(EXPOSURE));
             show = getPropertyValue(SHOW_IMAGES);
             xy_correction = getPropertyValue(XY_CORRECTION_TEXT);
-            pathOfReferenceImage = getPropertyValue(PATH_REFIMAGE);
+//            pathOfReferenceImage = getPropertyValue(PATH_REFIMAGE);
         } catch (MMException | ParseException ex) {
             studio_.logs().logError(ex);
         }
@@ -94,12 +95,12 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         applySettings();
         Rectangle oldROI = studio_.core().getROI();
         CMMCore core = studio_.getCMMCore();
-        if (!pathOfReferenceImage.equals("")){
-            ReportingUtils.logMessage("Loading reference image :" + pathOfReferenceImage);
-            imgRef_Mat = DriftCorrection.readImage(pathOfReferenceImage);
-        }else{
-            imgRef_Mat= toMat(IJ.getImage().getProcessor().convertToShortProcessor());
-        }
+//        if (!pathOfReferenceImage.equals("")){
+//            ReportingUtils.logMessage("Loading reference image :" + pathOfReferenceImage);
+//            imgRef_Mat = DriftCorrection.readImage(pathOfReferenceImage);
+//        }else{
+//            imgRef_Mat= toMat(IJ.getImage().getProcessor().convertToShortProcessor());
+//        }
         //ReportingUtils.logMessage("Original ROI: " + oldROI);
         int w = (int) (oldROI.width * cropFactor);
         int h = (int) (oldROI.height * cropFactor);
@@ -160,8 +161,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             mat8 = new Mat(mat16.cols(), mat16.rows(), CvType.CV_8UC1);
             mat16.convertTo(mat8, CvType.CV_8UC1, alpha);
             mat8Set = DriftCorrection.equalizeImages(mat8);
+//            mat8Set = DriftCorrection.readImage("/home/dataNolwenn/ImagesTest/2-38.tif");
             imageCount_++;
             jobs[i] = es.submit(new ThreadAttribution(imgRef_Mat, mat8Set));
+            imgRef_Mat = mat8Set;
         }
         core.setAutoShutter(oldAutoShutterState);
 
@@ -183,6 +186,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double[] distances = calculateDistances(drifts);
         int indexOfMinDistance = getIndexOfBestDistance(distances);
         double[] bestDistance = drifts.get(indexOfMinDistance);
+        System.out.println("index of min dist : " + indexOfMinDistance);
+        System.out.println("size drifts array : " + drifts.size());
+        System.out.println("bestDistances array : " + Arrays.toString(bestDistance));
 
         double xCorrection = bestDistance[0];
         double yCorrection = bestDistance[1];
@@ -230,7 +236,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
 
         //For "statistics" tests
-        File f = new File("/home/nolwenngueguen/Téléchargements/ImagesTest/Stats.csv");
+        File f = new File("/home/dataNolwenn/ImagesTest/Stats.csv");
         FileWriter fw = new FileWriter(f, true);
 
         for (int i = 0; i < drifts.size(); i++) {
@@ -244,7 +250,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         fw.write("**,*****,***,***********,**********\n");
         fw.close();
 
-        File f1 = new File("/home/nolwenngueguen/Téléchargements/ImagesTest/StatsTot.csv");
+        File f1 = new File("/home/dataNolwenn/ImagesTest/StatsTot.csv");
         FileWriter fw1 = new FileWriter(f1, true);
         fw1.write(xVariance + "," + yVariance + "," + xCorrection + "," + yCorrection + ","
                 + correctedXPosition + "," + correctedYPosition + "," + z + "," + timeElapsed + "\n");

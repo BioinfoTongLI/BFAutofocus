@@ -24,19 +24,10 @@ public class DriftCorrection {
 
     // Read images from path
     public static Mat readImage(String pathOfImage) {
-//        Mat img = Imgcodecs.imread(pathOfImage, Imgcodecs.CV_LOAD_IMAGE_GRAYSCALE);
         Mat img = Imgcodecs.imread(pathOfImage, CvType.CV_16UC1);
         Mat img1 = new Mat(img.cols(), img.rows(), CvType.CV_8UC1);
-//        Core.MinMaxLocResult minMaxResult = Core.minMaxLoc(img);
-//        double maxVal = minMaxResult.maxVal;
-//        double minVal = minMaxResult.minVal;
-//        System.out.println("Max val : " + maxVal);
-//        System.out.println("Min val : " + minVal);
-//        double alpha = maxVal - minVal;
-//        double beta = -(minVal);
         img.convertTo(img1, CvType.CV_8UC1, BFAutofocus.alpha);
         Mat img2 = equalizeImages(img1);
-
         return img2;
     }
 
@@ -107,12 +98,6 @@ public class DriftCorrection {
                 max = listOfDistances.get(i);
             }
         }
-//        System.out.println("List of Distances : " + listOfDistances);
-//        System.out.println("Min dist : " + min);
-//        System.out.println("Max dist : " + max);
-//
-//        Collections.sort(listOfDistances);
-//        System.out.println("List of Distances sorted : " + listOfDistances); //change keypoint's reference - to forget
         return listOfDistances;
     }
 
@@ -269,12 +254,12 @@ public class DriftCorrection {
         return img;
     }
 
-//    static Mat listToMat(ArrayList<DMatch> list) {
-//        MatOfDMatch mat = new MatOfDMatch();
-//        DMatch[] array = list.toArray(new DMatch[list.size()]);
-//        mat.fromArray(array);
-//        return mat;
-//    }
+    static Mat listToMat(ArrayList<DMatch> list) {
+        MatOfDMatch mat = new MatOfDMatch();
+        DMatch[] array = list.toArray(new DMatch[list.size()]);
+        mat.fromArray(array);
+        return mat;
+    }
 
     //Display images with ImageJ, giving a title to image
     static void displayImageIJ(String titleOfImage, Mat img) {
@@ -292,18 +277,15 @@ public class DriftCorrection {
         imgp.show();
     }
 
-//    static Mat drawGoodMatches(Mat img1, Mat img2, MatOfKeyPoint keypoints1, MatOfKeyPoint keypoints2, ArrayList<DMatch> good_matchesList) {
-//        Mat good_matches = listToMat(good_matchesList);
-//        Mat imgGoodMatches = new Mat();
-//        MatOfByte matchesMask = new MatOfByte();
-//        Features2d.drawMatches(img1, keypoints1, img2, keypoints2, (MatOfDMatch) good_matches, imgGoodMatches, Scalar.all(-1), Scalar.all(0.5), matchesMask, NOT_DRAW_SINGLE_POINTS);
-//        return imgGoodMatches;
-//    }
+    static Mat drawGoodMatches(Mat img1, Mat img2, MatOfKeyPoint keypoints1, MatOfKeyPoint keypoints2, ArrayList<DMatch> good_matchesList) {
+        Mat good_matches = listToMat(good_matchesList);
+        Mat imgGoodMatches = new Mat();
+        MatOfByte matchesMask = new MatOfByte();
+        Features2d.drawMatches(img1, keypoints1, img2, keypoints2, (MatOfDMatch) good_matches, imgGoodMatches, Scalar.all(-1), Scalar.all(0.5), matchesMask, NOT_DRAW_SINGLE_POINTS);
+        return imgGoodMatches;
+    }
 
     public static double[] driftCorrection(Mat img1, Mat img2) {
-        //Load openCv Library, required besides imports
-//        nu.pattern.OpenCV.loadShared();
-
         /* 1 - Detect keypoints */
         MatOfKeyPoint keypoints1 = findKeypoints(img1, DETECTORALGO);
         MatOfKeyPoint keypoints2 = findKeypoints(img2, DETECTORALGO);
@@ -329,13 +311,6 @@ public class DriftCorrection {
 
         ArrayList<Float> img2_keypoints_xCoordinates = getGoodMatchesXCoordinates(keypoints2, good_matchesList,false);
         ArrayList<Float> img2_keypoints_yCoordinates = getGoodMatchesYCoordinates(keypoints2, good_matchesList, false);
-
-        //Same as 4 and 5 but without filtering step
-//        ArrayList<DMatch> matchesList = convertMatOfMatcherToDMatch(matcher);
-//        ArrayList<Float> img1_keypoints_xCoordinates = getGoodMatchesXCoordinates(keypoints1, matchesList,true);
-//        ArrayList<Float> img1_keypoints_yCoordinates = getGoodMatchesYCoordinates(keypoints1, matchesList, true);
-//        ArrayList<Float> img2_keypoints_xCoordinates = getGoodMatchesXCoordinates(keypoints2, matchesList,false);
-//        ArrayList<Float> img2_keypoints_yCoordinates = getGoodMatchesYCoordinates(keypoints2, matchesList, false);
 
         /* 6 - Get X and Y mean displacements */
         float meanXdisplacement = getMeanXDisplacement(img1_keypoints_xCoordinates, img2_keypoints_xCoordinates );
