@@ -26,7 +26,7 @@ public class DriftCorrection {
     public static Mat readImage(String pathOfImage) {
         Mat img = Imgcodecs.imread(pathOfImage, CvType.CV_16UC1);
         Mat img1 = new Mat(img.cols(), img.rows(), CvType.CV_8UC1);
-        img.convertTo(img1, CvType.CV_8UC1, BFAutofocus.alpha);
+        img.convertTo(img1, CvType.CV_8UC1);//, BFAutofocus.alpha);
         Mat img2 = equalizeImages(img1);
         return img2;
     }
