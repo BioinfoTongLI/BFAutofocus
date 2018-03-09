@@ -9,6 +9,7 @@ import mmcorej.StrVector;
 import mmcorej.TaggedImage;
 import org.json.JSONException;
 import org.micromanager.AutofocusPlugin;
+import org.micromanager.MultiStagePosition;
 import org.micromanager.Studio;
 import org.micromanager.data.Datastore;
 import org.micromanager.data.Image;
@@ -24,9 +25,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
+import java.util.*;
 import java.util.List;
 import java.util.concurrent.*;
 
@@ -62,6 +61,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private double step = 0.3;
     private String pathOfReferenceImage = "";
     private String xy_correction = "Yes";
+    private Map positionDict = null;
 
     final static double alpha = 0.00390625;
 
@@ -98,17 +98,33 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     @Override
     public double fullFocus() throws Exception {
         long startTime = new Date().getTime();
-//        Datastore store = studio_.displays().getCurrentWindow().getDatastore();
-
         applySettings();
         Rectangle oldROI = studio_.core().getROI();
         CMMCore core = studio_.getCMMCore();
+
+        if (positionDict == null){
+            positionDict = new HashMap<String, Mat>();
+        }
+
+        for (MultiStagePosition position : studio_.positions().getPositionList()) {
+            if (!positionDict.containsKey(position)) {
+                core.snapImage();
+                TaggedImage imagePosition = core.getTaggedImage();
+                Mat mat16Pos = convert(imagePosition);
+                Mat mat8Pos = new Mat(mat16Pos.cols(), mat16Pos.rows(), CvType.CV_8UC1);
+                mat16Pos.convertTo(mat8Pos, CvType.CV_8UC1);
+                Mat mat8PosSet = DriftCorrection.equalizeImages(mat8Pos);
+                positionDict.put(position, mat8PosSet);
+            }
+        }
+
         if (!pathOfReferenceImage.equals("")) {
             ReportingUtils.logMessage("Loading reference image :" + pathOfReferenceImage);
             imgRef_Mat = DriftCorrection.readImage(pathOfReferenceImage);
         }else{
             imgRef_Mat= toMat(IJ.getImage().getProcessor().convertToShortProcessor());
         }
+
         //ReportingUtils.logMessage("Original ROI: " + oldROI);
         int w = (int) (oldROI.width * cropFactor);
         int h = (int) (oldROI.height * cropFactor);
@@ -168,6 +184,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             Image img = studio_.data().convertTaggedImage(currentImg);
             stdAtZPositions[i] = studio_.data().ij().createProcessor(img).getStatistics().stdDev;
 
+//            currentImg.tags.get("Current position");
             if (show.contentEquals("Yes")) {
                 SwingUtilities.invokeLater(() -> {
                     try {
@@ -210,20 +227,15 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         //Calcul of focus by number of Good Matches
 //        int indexOfMaxNumberGoodMatches = getIndexOfMaxNumberGoodMatches(goodMatchNumberArray);
 //        double[] maxNumberGoodMatches = drifts.get(indexOfMaxNumberGoodMatches);
-//        double xCorrection = maxNumberGoodMatches[0];
-//        double yCorrection = maxNumberGoodMatches[1];
-//        System.out.println("absolute Z : " + z);
-//        System.out.println("absolute Z position : " + indexOfMaxNumberGoodMatches);
-
-        //Calcul of focus by SD
-//        int rawIdx = getMinZfocus(stdAtZPositions);
-//        double[] sdFocus = drifts.get(rawIdx);
-//        double xCorrection = sdFocus[0];
-//        double yCorrection = sdFocus[1];
-//        double optimizedFocus = optimizeZFocus(rawIdx, stdAtZPositions, zpositions);
+//        double zMaxNumberGoodMatches = zpositions[indexOfMaxNumberGoodMatches];
+//
+//        //Calcul of focus by StdDev
+//        int indexFocusStdDev = getMinZfocus(stdAtZPositions);
+//        double[] stdDevFocus = drifts.get(indexFocusStdDev);
+//        double zOptimizedStdDev = optimizeZFocus(indexFocusStdDev, stdAtZPositions, zpositions);
 
         //Calcul of focus by SD and number of good matches
-        int indexOfBestFocus = getBestFocus(goodMatchNumberArray, stdAtZPositions);
+        int indexOfBestFocus = getindexOfBestFocus(stdAtZPositions, zpositions, goodMatchNumberArray, drifts);
         double[] bestFocus = drifts.get(indexOfBestFocus);
         double xCorrection = bestFocus[0];
         double yCorrection = bestFocus[1];
@@ -352,21 +364,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         return maxIdx;
     }
 
-    public static int getBestFocus(double[] numberOfMatches, double[] stdArray) {
-        double minOfStdDev = Double.MAX_VALUE;
-        double maxOfGoodMatches = Double.MIN_VALUE;
-        int indexOfBestFocus = Integer.MAX_VALUE;
-
-        for (int i = 0; i < stdArray.length; i++){
-            if (stdArray[i] < minOfStdDev && numberOfMatches[i] > maxOfGoodMatches){
-                indexOfBestFocus = i;
-                minOfStdDev = stdArray[i];
-                maxOfGoodMatches = numberOfMatches[i];
-            }
-        }
-        return  indexOfBestFocus;
-    }
-
     public static double optimizeZFocus(int rawZidx, double[] stdArray, double[] zpositionArray){
         int oneLower = rawZidx-1;
         int oneHigher = rawZidx+1;
@@ -413,6 +410,21 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
         return maxIndex;
     }
+
+    public static int getindexOfBestFocus(double[] stdAtZPositions, double[] zpositions, double[] numberOfMatches, List<double[]> drifts) {
+        //Calcul of focus by number of Good Matches
+        int indexOfMaxNumberGoodMatches = getIndexOfMaxNumberGoodMatches(numberOfMatches);
+        double zMaxNumberGoodMatches = zpositions[indexOfMaxNumberGoodMatches];
+
+        //Calcul of focus by StdDev
+        int indexFocusStdDev = getMinZfocus(stdAtZPositions);
+        double zOptimizedStdDev = optimizeZFocus(indexFocusStdDev, stdAtZPositions, zpositions);
+
+        int indexOfBestFocus = (int) (zMaxNumberGoodMatches + zOptimizedStdDev) / 2;
+
+        return  indexOfBestFocus;
+    }
+
     private double[] getVariances(List<double[]> xysList) {
 
         double[] xDistances = new double[xysList.size()];
