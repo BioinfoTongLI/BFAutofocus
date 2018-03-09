@@ -45,7 +45,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private static final String EXPOSURE = "Exposure";
     private static final String SHOW_IMAGES = "ShowImages";
     private static final String INCREMENTAL = "incremental";
-    private static final String XY_CORRECTION_TEXT = "Correcte XY at same time";
+    private static final String XY_CORRECTION_TEXT = "Correct XY at same time";
     private static final String[] SHOWVALUES = {"Yes", "No"};
     private static final String STEP_SIZE = "Step_size";
     private static final String PATH_REFIMAGE = "Path of reference image";
@@ -98,7 +98,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     @Override
     public double fullFocus() throws Exception {
         long startTime = new Date().getTime();
-        Datastore store = studio_.displays().getCurrentWindow().getDatastore();
+//        Datastore store = studio_.displays().getCurrentWindow().getDatastore();
 
         applySettings();
         Rectangle oldROI = studio_.core().getROI();

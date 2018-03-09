@@ -294,6 +294,12 @@ public class DriftCorrection {
         Mat img1_descriptors = calculDescriptors(img1, keypoints1, DESCRIPTOREXTRACTOR);
         Mat img2_descriptors = calculDescriptors(img2, keypoints2, DESCRIPTOREXTRACTOR);
 
+        if(img1_descriptors.empty()) {
+            System.out.println("Descriptor  ref image empty");
+        }
+        if(img2_descriptors.empty()){
+            System.out.println("Descriptor image 2 empty");
+        }
         /* 3 - Matching descriptor using FLANN matcher */
         MatOfDMatch matcher = matchingDescriptor(img1_descriptors, img2_descriptors, DESCRIPTORMATCHER);
         System.out.println("Number of Matches : " + matcher.rows());
