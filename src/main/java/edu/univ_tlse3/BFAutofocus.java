@@ -3,6 +3,7 @@ package edu.univ_tlse3;
 import ij.process.ImageProcessor;
 import mmcorej.CMMCore;
 import mmcorej.Configuration;
+import mmcorej.StrVector;
 import mmcorej.TaggedImage;
 import org.micromanager.AutofocusPlugin;
 import org.micromanager.Studio;
@@ -30,9 +31,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
    private static final String SHOW_IMAGES = "ShowImages";
    private static final String[] SHOWVALUES = {"Yes", "No"};
    private static final String STEP_SIZE = "Step_size";
-   private final static String[] SCORINGMETHODS = {"Var"};
 
-   private double searchRange = 10;
+   private double searchRange = 6;
    private double cropFactor = 1;
    private String channel = "BF";
    private double exposure = 100;
@@ -159,6 +159,35 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
       return COPYRIGHT_NOTICE;
    }
 
+   @Override
+   public PropertyItem[] getProperties() {
+      CMMCore core = studio_.getCMMCore();
+      String channelGroup = core.getChannelGroup();
+      StrVector channels = core.getAvailableConfigs(channelGroup);
+      String allowedChannels[] = new String[(int)channels.size() + 1];
+      allowedChannels[0] = "";
+
+      try {
+         PropertyItem p = getProperty(CHANNEL);
+         boolean found = false;
+         for (int i = 0; i < channels.size(); i++) {
+            allowedChannels[i+1] = channels.get(i);
+            if (p.value.equals(channels.get(i))) {
+               found = true;
+            }
+         }
+         p.allowed = allowedChannels;
+         if (!found) {
+            p.value = allowedChannels[0];
+         }
+         setProperty(p);
+      } catch (Exception e) {
+         ReportingUtils.logError(e);
+      }
+
+      return super.getProperties();
+   }
+
    private double runAutofocusAlgorithm() throws Exception {
       CMMCore core = studio_.getCMMCore();
       double oldZ = core.getPosition(core.getFocusDevice());
@@ -225,6 +254,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
    }
 
    public static double optimizeZFocus(int rawZidx, double[] stdArray, double[] zpositionArray){
+      if (rawZidx == zpositionArray.length-1 || rawZidx == 0){
+         return zpositionArray[rawZidx];
+      }
       int oneLower = rawZidx-1;
       int oneHigher = rawZidx+1;
       double lowerVarDiff = stdArray[oneLower] - stdArray[rawZidx];
