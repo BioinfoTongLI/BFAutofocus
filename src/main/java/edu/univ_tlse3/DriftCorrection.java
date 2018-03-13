@@ -295,7 +295,7 @@ public class DriftCorrection {
         Mat img2_descriptors = calculDescriptors(img2, keypoints2, DESCRIPTOREXTRACTOR);
 
         if(img1_descriptors.empty()) {
-            System.out.println("Descriptor  ref image empty");
+            System.out.println("Descriptor ref image empty");
         }
         if(img2_descriptors.empty()){
             System.out.println("Descriptor image 2 empty");

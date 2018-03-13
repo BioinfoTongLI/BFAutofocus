@@ -1,5 +1,6 @@
 package edu.univ_tlse3;
 
+import com.google.common.collect.Multiset;
 import ij.IJ;
 import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
@@ -10,6 +11,7 @@ import mmcorej.TaggedImage;
 import org.json.JSONException;
 import org.micromanager.AutofocusPlugin;
 import org.micromanager.MultiStagePosition;
+import org.micromanager.PositionList;
 import org.micromanager.Studio;
 import org.micromanager.data.Datastore;
 import org.micromanager.data.Image;
@@ -36,7 +38,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private static final String HELPTEXT = "This simple autofocus is only designed to process transmitted-light (or DIC) images, Z-stack is required.";
     private static final String COPYRIGHT_NOTICE = "CeCILL-B-BSD compatible";
     private Studio studio_;
-    private Mat imgRef_Mat;
+    private Mat imgRef_Mat = null;
 
     private static final String SEARCH_RANGE = "SearchRange_um";
     private static final String CROP_FACTOR = "CropFactor";
@@ -106,24 +108,39 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             positionDict = new HashMap<String, Mat>();
         }
 
-        for (MultiStagePosition position : studio_.positions().getPositionList()) {
-            if (!positionDict.containsKey(position)) {
-                core.snapImage();
-                TaggedImage imagePosition = core.getTaggedImage();
-                Mat mat16Pos = convert(imagePosition);
-                Mat mat8Pos = new Mat(mat16Pos.cols(), mat16Pos.rows(), CvType.CV_8UC1);
-                mat16Pos.convertTo(mat8Pos, CvType.CV_8UC1);
-                Mat mat8PosSet = DriftCorrection.equalizeImages(mat8Pos);
-                positionDict.put(position, mat8PosSet);
-            }
+//        for (MultiStagePosition position : studio_.positions().getPositionList()) {
+
+        core.snapImage();
+        TaggedImage imagePosition = core.getTaggedImage();
+        System.out.println("TAGS : " + imagePosition.tags.get("Position"));
+//        Object position = imagePosition.tags.get("Position");
+
+        String position = core.getXYStageDevice();
+        System.out.println("XY Stage Device : " + position);
+
+        PositionList positions = studio_.positions().getPositionList();
+        System.out.println("Positions List : " + positions);
+        String positionsLabel = positions.generateLabel();
+        System.out.println("XY MSP Label : " + positionsLabel);
+        System.out.println(core.getPosition());
+
+        if (!positionDict.containsKey(position)) {
+            Mat mat16Pos = convert(imagePosition);
+            Mat mat8Pos = new Mat(mat16Pos.cols(), mat16Pos.rows(), CvType.CV_8UC1);
+            mat16Pos.convertTo(mat8Pos, CvType.CV_8UC1);
+            Mat mat8PosSet = DriftCorrection.equalizeImages(mat8Pos);
+            positionDict.put(position, mat8PosSet);
+            imgRef_Mat = mat8PosSet;
         }
 
-        if (!pathOfReferenceImage.equals("")) {
-            ReportingUtils.logMessage("Loading reference image :" + pathOfReferenceImage);
-            imgRef_Mat = DriftCorrection.readImage(pathOfReferenceImage);
-        }else{
-            imgRef_Mat= toMat(IJ.getImage().getProcessor().convertToShortProcessor());
-        }
+
+
+//        if (!pathOfReferenceImage.equals("")) {
+//            ReportingUtils.logMessage("Loading reference image :" + pathOfReferenceImage);
+//            imgRef_Mat = DriftCorrection.readImage(pathOfReferenceImage);
+//        }else{
+//            imgRef_Mat= toMat(IJ.getImage().getProcessor().convertToShortProcessor());
+//        }
 
         //ReportingUtils.logMessage("Original ROI: " + oldROI);
         int w = (int) (oldROI.width * cropFactor);
@@ -173,6 +190,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             core.waitForDevice(core.getCameraDevice());
             core.snapImage();
             final TaggedImage currentImg = core.getTaggedImage();
+
             mat16 = convert(currentImg);
             mat8 = new Mat(mat16.cols(), mat16.rows(), CvType.CV_8UC1);
             mat16.convertTo(mat8, CvType.CV_8UC1);//, alpha);
