@@ -1,6 +1,5 @@
 package edu.univ_tlse3;
 
-import com.google.common.collect.Multiset;
 import ij.IJ;
 import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
@@ -57,8 +56,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private double cropFactor = 1;
     private String channel = "BF";
     private double exposure = 10;
-    private String show = "Yes";
-    private String incremental = "Yes";
+    private String show = "No";
+    private String incremental = "No";
     private int imageCount_;
     private double step = 0.3;
     private String pathOfReferenceImage = "";
@@ -112,24 +111,24 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         core.snapImage();
         TaggedImage imagePosition = core.getTaggedImage();
-        System.out.println("TAGS : " + imagePosition.tags.get("Position"));
-//        Object position = imagePosition.tags.get("Position");
+//        System.out.println("TAGS : " + imagePosition.tags.get("XY"));
 
         String position = core.getXYStageDevice();
         System.out.println("XY Stage Device : " + position);
 
         PositionList positions = studio_.positions().getPositionList();
-        System.out.println("Positions List : " + positions);
-        String positionsLabel = positions.generateLabel();
-        System.out.println("XY MSP Label : " + positionsLabel);
-        System.out.println(core.getPosition());
+//        System.out.println("Positions List : " + positions);
+//        String positionsLabel = positions.generateLabel();
+//        System.out.println("XY MSP Label : " + positionsLabel);
+        double corePosition = core.getPosition();
+        System.out.println("Core get position : " + corePosition);
 
-        if (!positionDict.containsKey(position)) {
+        if (!positionDict.containsKey(corePosition)) {
             Mat mat16Pos = convert(imagePosition);
             Mat mat8Pos = new Mat(mat16Pos.cols(), mat16Pos.rows(), CvType.CV_8UC1);
             mat16Pos.convertTo(mat8Pos, CvType.CV_8UC1);
             Mat mat8PosSet = DriftCorrection.equalizeImages(mat8Pos);
-            positionDict.put(position, mat8PosSet);
+            positionDict.put(corePosition, mat8PosSet);
             imgRef_Mat = mat8PosSet;
         }
 
@@ -193,9 +192,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
             mat16 = convert(currentImg);
             mat8 = new Mat(mat16.cols(), mat16.rows(), CvType.CV_8UC1);
-            mat16.convertTo(mat8, CvType.CV_8UC1);//, alpha);
-//            mat8Set = DriftCorrection.equalizeImages(mat8);
-            mat8Set = DriftCorrection.readImage("/home/dataNolwenn/Résultats/06-03-2018/ImagesFocus/19-5.tif");
+            mat16.convertTo(mat8, CvType.CV_8UC1, alpha);
+            mat8Set = DriftCorrection.equalizeImages(mat8);
+//            mat8Set = DriftCorrection.readImage("/home/dataNolwenn/Résultats/06-03-2018/ImagesFocus/19-5.tif");
             imageCount_++;
             jobs[i] = es.submit(new ThreadAttribution(imgRef_Mat, mat8Set));
 
@@ -282,7 +281,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             final TaggedImage focusImg = core.getTaggedImage();
             mat16 = convert(focusImg);
             mat8 = new Mat(mat16.cols(), mat16.rows(), CvType.CV_8UC1);
-            mat16.convertTo(mat8, CvType.CV_8UC1);//, alpha);
+            mat16.convertTo(mat8, CvType.CV_8UC1, alpha);
             mat8Set = DriftCorrection.equalizeImages(mat8);
             imgRef_Mat = mat8Set;
         }
@@ -509,7 +508,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         Mat mat = new Mat(h, w, CvType.CV_16UC1);
         mat.put(0,0, (short[]) sp.getPixels());
         Mat res = new Mat(h, w, CvType.CV_8UC1);
-        mat.convertTo(res, CvType.CV_8UC1);//, BFAutofocus.alpha);
+        mat.convertTo(res, CvType.CV_8UC1, alpha);
         Mat resSet = DriftCorrection.equalizeImages(res);
         return resSet;
     }
