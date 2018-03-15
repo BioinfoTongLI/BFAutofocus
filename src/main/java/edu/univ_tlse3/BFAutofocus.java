@@ -55,7 +55,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
     private double searchRange = 10;
     private double cropFactor = 1;
-    private String channel = "BF";
+    private String channel = "";
     private double exposure = 10;
     private String show = "No";
     private String incremental = "No";
@@ -118,16 +118,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         String label = positionList.getPosition(positionIndex).getLabel();
         System.out.println("Label Position : " + label);
 
-        //Define current image as reference for the position if it does not exist
-        if (!positionDict.containsKey(label)) {
-            Mat mat16Pos = convert(imagePosition);
-            Mat mat8Pos = new Mat(mat16Pos.cols(), mat16Pos.rows(), CvType.CV_8UC1);
-            mat16Pos.convertTo(mat8Pos, CvType.CV_8UC1);
-            Mat mat8PosSet = DriftCorrection.equalizeImages(mat8Pos);
-            positionDict.put(label, mat8PosSet);
-        }
+        //Incrementation of counter; does not work at another place
+        positionIndex += 1;
 
-        System.out.println("Positions dictionary : " + positionDict.toString());
+//        System.out.println("Positions dictionary : " + positionDict.toString());
 
         //Previous method to define reference image; useful when simulating; when deleting it, also delete lines 51, 63, 78 and 94;
 //        if (!pathOfReferenceImage.equals("")) {
@@ -177,10 +171,16 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         core.setAutoShutter(false);
         core.setShutterOpen(true);
 
-//        if(positionIndex == 0) {
-            //Define reference Image according to position
+        //Define current image as reference for the position if it does not exist
+        if (!positionDict.containsKey(label)) {
+            Mat mat16Pos = convert(imagePosition);
+            Mat mat8Pos = new Mat(mat16Pos.cols(), mat16Pos.rows(), CvType.CV_8UC1);
+            mat16Pos.convertTo(mat8Pos, CvType.CV_8UC1);
+            Mat mat8PosSet = DriftCorrection.equalizeImages(mat8Pos);
+            positionDict.put(label, mat8PosSet);
+        } else {
             imgRef_Mat = (Mat) positionDict.get(label);
-//        } else {
+
             double[] driftsCorrection = runAutofocusAlgorithm(zpositions, es, core);
             double xCorrection = driftsCorrection[0];
             double yCorrection = driftsCorrection[1];
@@ -192,8 +192,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             System.out.println("X Correction : " + xCorrection);
             System.out.println("Y Correction : " + yCorrection);
             System.out.println("absolute Z : " + z);
-//        }
-        positionIndex += 1;
+        }
 
         //Reinitialize origin ROI and all others parameters
         core.setAutoShutter(oldAutoShutterState);
