@@ -12,6 +12,7 @@ import org.micromanager.AutofocusPlugin;
 import org.micromanager.MultiStagePosition;
 import org.micromanager.PositionList;
 import org.micromanager.Studio;
+import org.micromanager.data.Coords;
 import org.micromanager.data.Datastore;
 import org.micromanager.data.Image;
 import org.micromanager.internal.utils.*;
@@ -109,9 +110,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             positionDict = new HashMap<String, Mat>();
         }
 
-//        for (MultiStagePosition position : studio_.positions().getPositionList()) {
-        positionIndex += 1;
-
         //Get an image to define reference image, for each position
         core.snapImage();
         TaggedImage imagePosition = core.getTaggedImage();
@@ -127,10 +125,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             mat16Pos.convertTo(mat8Pos, CvType.CV_8UC1);
             Mat mat8PosSet = DriftCorrection.equalizeImages(mat8Pos);
             positionDict.put(label, mat8PosSet);
-            imgRef_Mat = mat8PosSet;
         }
 
         System.out.println("Positions dictionary : " + positionDict.toString());
+
         //Previous method to define reference image; useful when simulating; when deleting it, also delete lines 51, 63, 78 and 94;
 //        if (!pathOfReferenceImage.equals("")) {
 //            ReportingUtils.logMessage("Loading reference image :" + pathOfReferenceImage);
@@ -138,6 +136,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 //        }else{
 //            imgRef_Mat= toMat(IJ.getImage().getProcessor().convertToShortProcessor());
 //        }
+
 
         //ReportingUtils.logMessage("Original ROI: " + oldROI);
         int w = (int) (oldROI.width * cropFactor);
@@ -169,23 +168,32 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double oldZ = core.getPosition(core.getFocusDevice());
 
         double[] zpositions = calculateZPositions(searchRange, step, oldZ);
+        double correctedXPosition = 0;
+        double correctedYPosition = 0;
+        double z = 0;
 
         //Set shutter parameters for acquisition
         boolean oldAutoShutterState = core.getAutoShutter();
         core.setAutoShutter(false);
         core.setShutterOpen(true);
 
-        double[] driftsCorrection = runAutofocusAlgorithm(zpositions, es, core);
-        double xCorrection = driftsCorrection[0];
-        double yCorrection = driftsCorrection[1];
-        double z = driftsCorrection[2];
+//        if(positionIndex == 0) {
+            //Define reference Image according to position
+            imgRef_Mat = (Mat) positionDict.get(label);
+//        } else {
+            double[] driftsCorrection = runAutofocusAlgorithm(zpositions, es, core);
+            double xCorrection = driftsCorrection[0];
+            double yCorrection = driftsCorrection[1];
+            z = driftsCorrection[2];
 
-        double correctedXPosition = core.getXPosition() - xCorrection;
-        double correctedYPosition = core.getYPosition() - yCorrection;
+            correctedXPosition = core.getXPosition() - xCorrection;
+            correctedYPosition = core.getYPosition() - yCorrection;
 
-        System.out.println("X Correction : " + xCorrection);
-        System.out.println("Y Correction : " + yCorrection);
-        System.out.println("absolute Z : " + z);
+            System.out.println("X Correction : " + xCorrection);
+            System.out.println("Y Correction : " + yCorrection);
+            System.out.println("absolute Z : " + z);
+//        }
+        positionIndex += 1;
 
         //Reinitialize origin ROI and all others parameters
         core.setAutoShutter(oldAutoShutterState);
@@ -206,7 +214,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             setXYPosition(correctedXPosition, correctedYPosition);
         }
 
-        //set autofocus incremental
+        //Set autofocus incremental
         if (Boolean.parseBoolean(incremental)){
             core.waitForDevice(core.getCameraDevice());
             core.snapImage();
@@ -266,7 +274,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
         es.shutdown();
         try {
-            es.awaitTermination(1, TimeUnit.MINUTES);
+            es.awaitTermination(5, TimeUnit.MINUTES);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
