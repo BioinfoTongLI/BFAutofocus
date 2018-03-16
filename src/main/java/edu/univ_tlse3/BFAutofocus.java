@@ -67,6 +67,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
     final static double alpha = 0.00390625;
     private int positionIndex = 0;
+    private double oldX = Double.NaN;
+    private double oldY = Double.NaN;
+    private double oldZ = Double.NaN;
 
     public BFAutofocus() {
         super.createProperty(SEARCH_RANGE, NumberUtils.doubleToDisplayString(searchRange));
@@ -105,6 +108,34 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         Rectangle oldROI = studio_.core().getROI();
         CMMCore core = studio_.getCMMCore();
 
+        //ReportingUtils.logMessage("Original ROI: " + oldROI);
+        int w = (int) (oldROI.width * cropFactor);
+        int h = (int) (oldROI.height * cropFactor);
+        int x = oldROI.x + (oldROI.width - w) / 2;
+        int y = oldROI.y + (oldROI.height - h) / 2;
+        Rectangle newROI = new Rectangle(x, y, w, h);
+        //ReportingUtils.logMessage("Setting ROI to: " + newROI);
+        Configuration oldState = null;
+        if (channel.length() > 0) {
+            String chanGroup = core.getChannelGroup();
+            oldState = core.getConfigGroupState(chanGroup);
+            core.setConfig(chanGroup, channel);
+        }
+
+        //Avoid wasting time on setting roi if it is the same
+        if (cropFactor < 1.0) {
+            studio_.app().setROI(newROI);
+            core.waitForDevice(core.getCameraDevice());
+        }
+
+        double oldExposure = core.getExposure();
+        core.setExposure(exposure);
+
+        setToLastCorrectedPosition();
+
+        double correctedZPosition = zDriftCorrection();
+
+
         //Initialization of positions dictionary
         if (positionDict == null){
             positionDict = new HashMap<String, Mat>();
@@ -136,28 +167,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 //        }
 
 
-        //ReportingUtils.logMessage("Original ROI: " + oldROI);
-        int w = (int) (oldROI.width * cropFactor);
-        int h = (int) (oldROI.height * cropFactor);
-        int x = oldROI.x + (oldROI.width - w) / 2;
-        int y = oldROI.y + (oldROI.height - h) / 2;
-        Rectangle newROI = new Rectangle(x, y, w, h);
-        //ReportingUtils.logMessage("Setting ROI to: " + newROI);
-        Configuration oldState = null;
-        if (channel.length() > 0) {
-            String chanGroup = core.getChannelGroup();
-            oldState = core.getConfigGroupState(chanGroup);
-            core.setConfig(chanGroup, channel);
-        }
-
-        //Avoid wasting time on setting roi if it is the same
-        if (cropFactor < 1.0) {
-            studio_.app().setROI(newROI);
-            core.waitForDevice(core.getCameraDevice());
-        }
-
-        double oldExposure = core.getExposure();
-        core.setExposure(exposure);
 
         //Initialization of parameters required for the stack
         int nThread = Runtime.getRuntime().availableProcessors() - 1;
@@ -175,6 +184,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         boolean oldAutoShutterState = core.getAutoShutter();
         core.setAutoShutter(false);
         core.setShutterOpen(true);
+
+        double[] xyDrifts = calculateXYDrifts();
 
         //Define current image as reference for the position if it does not exist
         if (!positionDict.containsKey(label)) {
@@ -218,8 +229,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         //Set X,Y and Z corrected values
         setZPosition(z);
         if (xy_correction.contentEquals("Yes")){
+            xyDrifts
             setXYPosition(correctedXPosition, correctedYPosition);
         }
+
+        refreshOldXYZposition(correctedXPosition, correctedYPosition, correctedZPosition);
 
         //Set autofocus incremental
         if (Boolean.parseBoolean(incremental)){
@@ -240,7 +254,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         return z;
     }
 
-    private double[] runAutofocusAlgorithm(double[] zpositions, ExecutorService es, CMMCore core) throws Exception {
+    private double[] runAutofocusAlgorithm( ExecutorService es, CMMCore core) throws Exception {
         double[] stdAtZPositions = new double[zpositions.length];
         Future[] jobs = new Future[zpositions.length];
         double[] goodMatchNumberArray = new double[zpositions.length];
