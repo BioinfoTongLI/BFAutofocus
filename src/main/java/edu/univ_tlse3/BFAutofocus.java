@@ -63,13 +63,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private double step = 0.3;
     private String pathOfReferenceImage = "";
     private String xy_correction = "Yes";
-    private Map positionDict = null;
+    private Map refImageDict = null;
+    private Map oldPositionsDict = null;
 
     final static double alpha = 0.00390625;
     private int positionIndex = 0;
-    private double oldX = Double.NaN;
-    private double oldY = Double.NaN;
-    private double oldZ = Double.NaN;
 
     public BFAutofocus() {
         super.createProperty(SEARCH_RANGE, NumberUtils.doubleToDisplayString(searchRange));
@@ -114,6 +112,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         int x = oldROI.x + (oldROI.width - w) / 2;
         int y = oldROI.y + (oldROI.height - h) / 2;
         Rectangle newROI = new Rectangle(x, y, w, h);
+
         //ReportingUtils.logMessage("Setting ROI to: " + newROI);
         Configuration oldState = null;
         if (channel.length() > 0) {
@@ -131,86 +130,82 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double oldExposure = core.getExposure();
         core.setExposure(exposure);
 
-        setToLastCorrectedPosition();
+      //Get labels of positions
+        PositionList positionList = studio_.positions().getPositionList();
+        String label = getLabelOfPositions(positionList);
+        System.out.println("Label Position : " + label);
 
-        double correctedZPosition = zDriftCorrection();
-
-
-        //Initialization of positions dictionary
-        if (positionDict == null){
-            positionDict = new HashMap<String, Mat>();
+        //Initialization of reference Images and old positions dictionaries
+        if (refImageDict == null){
+            refImageDict = new HashMap<String, Mat>();
         }
+
+        if (oldPositionsDict == null){
+            oldPositionsDict = new HashMap<String, double[]>();
+        }
+
+        //Incrementation of counter; does not work at another place
+        positionIndex += 1;
+
+        //Define positions if it does not exist
+        if (!oldPositionsDict.containsKey(label)) {
+            double[] currentPositions = new double[3];
+            currentPositions[0] = core.getXPosition();
+            currentPositions[1] = core.getYPosition();
+            String focusDevice = core.getFocusDevice();
+            currentPositions[2] = core.getPosition(focusDevice);
+            oldPositionsDict.put(label, currentPositions);
+        }
+
+        //Get X, Y and Z of a given position
+        double[] xyzPosition = getXYZPosition(label);
+        double oldX = xyzPosition[0];
+        double oldY = xyzPosition[1];
+        double oldZ = xyzPosition[2];
+
+        //Set to the last good position calculated
+        setToLastCorrectedPosition(core, xyzPosition, oldX, oldY, oldZ);
+        System.out.println("old x : " + oldX);
+        System.out.println("old y : " + oldY);
+        System.out.println("old z : " + oldZ);
+
+        //Calculate Focus
+        double correctedZPosition = zDriftCorrection(core, oldZ);
 
         //Get an image to define reference image, for each position
         core.snapImage();
         TaggedImage imagePosition = core.getTaggedImage();
 
-        PositionList positionList = studio_.positions().getPositionList();
 
-        if (positionIndex == positionList.getNumberOfPositions() ) {
-            positionIndex = 0;
-        }
-        String label = positionList.getPosition(positionIndex).getLabel();
-        System.out.println("Label Position : " + label);
+//        //Initialization of parameters required for the stack
+//        int nThread = Runtime.getRuntime().availableProcessors() - 1;
+//        ExecutorService es = Executors.newFixedThreadPool(nThread);
 
-        //Incrementation of counter; does not work at another place
-        positionIndex += 1;
+        double currentXPosition = core.getXPosition();
+        double currentYPosition = core.getYPosition();
 
-//        System.out.println("Positions dictionary : " + positionDict.toString());
-
-        //Previous method to define reference image; useful when simulating; when deleting it, also delete lines 51, 63, 78 and 94;
-//        if (!pathOfReferenceImage.equals("")) {
-//            ReportingUtils.logMessage("Loading reference image :" + pathOfReferenceImage);
-//            imgRef_Mat = DriftCorrection.readImage(pathOfReferenceImage);
-//        }else{
-//            imgRef_Mat= toMat(IJ.getImage().getProcessor().convertToShortProcessor());
-//        }
-
-
-
-        //Initialization of parameters required for the stack
-        int nThread = Runtime.getRuntime().availableProcessors() - 1;
-        ExecutorService es = Executors.newFixedThreadPool(nThread);
-
-        double oldZ = core.getPosition(core.getFocusDevice());
-
-        double[] zpositions = calculateZPositions(searchRange, step, oldZ);
-        double correctedXPosition = core.getXPosition();
-        double correctedYPosition = core.getYPosition();
-        String focusDevice = core.getFocusDevice();
-        double z = core.getPosition(focusDevice);
+        double correctedXPosition = currentXPosition;
+        double correctedYPosition = currentYPosition;
 
         //Set shutter parameters for acquisition
         boolean oldAutoShutterState = core.getAutoShutter();
         core.setAutoShutter(false);
         core.setShutterOpen(true);
 
-        double[] xyDrifts = calculateXYDrifts();
-
         //Define current image as reference for the position if it does not exist
-        if (!positionDict.containsKey(label)) {
-            Mat mat16Pos = convertToMat(imagePosition);
-            Mat mat8Pos = new Mat(mat16Pos.cols(), mat16Pos.rows(), CvType.CV_8UC1);
-            mat16Pos.convertTo(mat8Pos, CvType.CV_8UC1, alpha);
-            Mat mat8PosSet = DriftCorrection.equalizeImages(mat8Pos);
-            positionDict.put(label, mat8PosSet);
+        if (!refImageDict.containsKey(label)) {
+            Mat mat8RefPos = convertTo8BitsMat(imagePosition);
+            refImageDict.put(label, mat8RefPos);
         } else {
-            imgRef_Mat = (Mat) positionDict.get(label);
-
-            double[] driftsCorrection = runAutofocusAlgorithm(zpositions, es, core);
-            double xCorrection = driftsCorrection[0];
-            double yCorrection = driftsCorrection[1];
-            z = driftsCorrection[2];
-
-            correctedXPosition = core.getXPosition() - xCorrection;
-            correctedYPosition = core.getYPosition() - yCorrection;
-
-            System.out.println("X Correction : " + xCorrection);
-            System.out.println("Y Correction : " + yCorrection);
-            System.out.println("absolute Z : " + z);
+            imgRef_Mat = (Mat) refImageDict.get(label);
+            double[] xyDrifts = calculateXYDrifts(core);
+            double xCorrection = xyDrifts[0];
+            double yCorrection = xyDrifts[1];
+            correctedXPosition = currentXPosition - xCorrection;
+            correctedYPosition = currentYPosition - yCorrection;
         }
 
-        //Reinitialize origin ROI and all others parameters
+        //Reinitialize origin ROI and all other parameters
         core.setAutoShutter(oldAutoShutterState);
 
         if (cropFactor < 1.0) {
@@ -227,114 +222,108 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         System.out.println("Ycorrected : " + correctedYPosition);
 
         //Set X,Y and Z corrected values
-        setZPosition(z);
+        setZPosition(correctedZPosition);
         if (xy_correction.contentEquals("Yes")){
-            xyDrifts
             setXYPosition(correctedXPosition, correctedYPosition);
         }
 
-        refreshOldXYZposition(correctedXPosition, correctedYPosition, correctedZPosition);
+        refreshOldXYZposition(correctedXPosition, correctedYPosition, correctedZPosition, label);
 
         //Set autofocus incremental
         if (Boolean.parseBoolean(incremental)){
             core.waitForDevice(core.getCameraDevice());
             core.snapImage();
             final TaggedImage focusImg = core.getTaggedImage();
-            Mat mat16Incremental = convertToMat(focusImg);
-            Mat mat8Incremental = new Mat(mat16Incremental.cols(), mat16Incremental.rows(), CvType.CV_8UC1);
-            mat16Incremental.convertTo(mat8Incremental, CvType.CV_8UC1, alpha);
-            Mat mat8SetIncremental = DriftCorrection.equalizeImages(mat8Incremental);
-            imgRef_Mat = mat8SetIncremental;
+            imgRef_Mat = convertTo8BitsMat(focusImg);
         }
 
 //        writeOutput(startTime, drifts, xCorrection, yCorrection, correctedXPosition, correctedYPosition, z);
         long endTime = new Date().getTime();
         long timeElapsed = endTime - startTime;
         System.out.println("Time Elapsed : " + timeElapsed);
-        return z;
+        return correctedZPosition;
     }
 
-    private double[] runAutofocusAlgorithm( ExecutorService es, CMMCore core) throws Exception {
-        double[] stdAtZPositions = new double[zpositions.length];
-        Future[] jobs = new Future[zpositions.length];
-        double[] goodMatchNumberArray = new double[zpositions.length];
-        Mat mat16;
-        Mat mat8;
-        Mat mat8Set;
+    private double[] getXYZPosition(String label) {
+        return (double[]) oldPositionsDict.get(label);
+    }
 
-        for (int i = 0; i < zpositions.length ;i++) {
+    private String getLabelOfPositions(PositionList positionList) {
+        if (positionIndex == positionList.getNumberOfPositions() ) {
+            positionIndex = 0;
+        }
+        return positionList.getPosition(positionIndex).getLabel();
+    }
+
+    private void refreshOldXYZposition(double correctedXPosition, double correctedYPosition, double correctedZPosition, String label) {
+        double[] refreshedXYZposition = new double[3];
+        refreshedXYZposition[0] = correctedXPosition;
+        refreshedXYZposition[1] = correctedYPosition;
+        refreshedXYZposition[2] = correctedZPosition;
+        oldPositionsDict.replace(label, refreshedXYZposition);
+    }
+
+    private void setToLastCorrectedPosition(CMMCore core, double[] xyzPosition, double oldX, double oldY, double oldZ) throws Exception {
+        if (xyzPosition.length == 0) {
+            setXYPosition(core.getXPosition(), core.getYPosition());
+            String focusDevice = core.getFocusDevice();
+            double currentZ = core.getPosition(focusDevice);
+            setZPosition(currentZ);
+        } else {
+            setXYPosition(oldX, oldY);
+            setZPosition(oldZ);
+        }
+    }
+
+    private double zDriftCorrection(CMMCore core, double oldZ) throws Exception {
+        double[] zpositions = calculateZPositions(searchRange, step, oldZ);
+        double[] stdAtZPositions = new double[zpositions.length];
+        TaggedImage currentImg;
+
+        boolean oldAutoShutterState = core.getAutoShutter();
+        core.setAutoShutter(false);
+        core.setShutterOpen(true);
+
+        for (int i =0; i< zpositions.length ;i++){
             setZPosition(zpositions[i]);
             core.waitForDevice(core.getCameraDevice());
             core.snapImage();
-            final TaggedImage currentImg = core.getTaggedImage();
-
-            mat16 = convertToMat(currentImg);
-            mat8 = new Mat(mat16.cols(), mat16.rows(), CvType.CV_8UC1);
-            mat16.convertTo(mat8, CvType.CV_8UC1, alpha);
-            mat8Set = DriftCorrection.equalizeImages(mat8);
-            //uncomment next line before simulation:
-            //mat8Set = DriftCorrection.readImage("/home/dataNolwenn/Résultats/06-03-2018/ImagesFocus/19-5.tif");
+            currentImg = core.getTaggedImage();
             imageCount_++;
-            jobs[i] = es.submit(new ThreadAttribution(imgRef_Mat, mat8Set));
-
             Image img = studio_.data().convertTaggedImage(currentImg);
             stdAtZPositions[i] = studio_.data().ij().createProcessor(img).getStatistics().stdDev;
-
-            showImage(currentImg);
-        }
-
-        //Get results of each slice
-        List<double[]> drifts = new ArrayList<>();
-        try {
-            for (int i = 0; i < jobs.length ;i++) {
-                drifts.add(i, (double[]) jobs[i].get());
-                goodMatchNumberArray[i] = drifts.get(i)[3];
+            if (show.contentEquals("Yes")) {
+                showImage(currentImg);
             }
-        } catch (InterruptedException | ExecutionException e) {
-            ReportingUtils.logError("Can not calculate drifts");
-        }
-        es.shutdown();
-        try {
-            es.awaitTermination(5, TimeUnit.MINUTES);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
         }
 
-//        //Calcul of focus by best distance
-//        double[] distances = calculateDistances(drifts);
-//        int indexOfMinDistance = getIndexOfBestDistance(distances);
-//        double[] bestDistance = drifts.get(indexOfMinDistance);
-//        double xCorrection = bestDistance[0];
-//        double yCorrection = bestDistance[1];
-//        double numberOfGoodMatchesBestDist = bestDistance[3];
-//        System.out.println("Good Matches of best distance : " + numberOfGoodMatchesBestDist);
-//
-//        //Calcul of focus by number of Good Matches
-//        int indexOfMaxNumberGoodMatches = getIndexOfMaxNumberGoodMatches(goodMatchNumberArray);
-//        double[] maxNumberGoodMatches = drifts.get(indexOfMaxNumberGoodMatches);
-//        double zMaxNumberGoodMatches = zpositions[indexOfMaxNumberGoodMatches];
-//
-//        //Calcul of focus by StdDev
-//        int indexFocusStdDev = getMinZfocus(stdAtZPositions);
-//        double[] stdDevFocus = drifts.get(indexFocusStdDev);
-//        double zOptimizedStdDev = optimizeZFocus(indexFocusStdDev, stdAtZPositions, zpositions);
+        core.setAutoShutter(oldAutoShutterState);
+        int rawIndex = getZfocus(stdAtZPositions);
+        return optimizeZFocus(rawIndex, stdAtZPositions, zpositions);
+    }
 
-        //Calcul of focus by SD and number of good matches
-        int indexOfBestFocus = getindexOfBestFocus(stdAtZPositions, zpositions, goodMatchNumberArray, drifts);
+    public static int getZfocus (double[] stdArray){
+        double min = Double.MAX_VALUE;
+        int maxIdx = Integer.MAX_VALUE;
+        for (int i = 0; i < stdArray.length; i++){
+            if (stdArray[i] < min){
+                maxIdx = i;
+                min = stdArray[i];
+            }
+        }
+        return maxIdx;
+    }
 
-        //Get X and Y Correction according to best focus position in arrays
-        double[] bestFocus = drifts.get(indexOfBestFocus);
-        double deltaX = bestFocus[0];
-        double deltaY = bestFocus[1];
-        double z = zpositions[indexOfBestFocus];
-        System.out.println("absolute Z position : " + indexOfBestFocus);
+    private double[] calculateXYDrifts(CMMCore core) throws Exception {
+        TaggedImage currentImg;
+        core.snapImage();
+        currentImg = core.getTaggedImage();
 
-        double[] driftsCorrection = new double[3];
-        driftsCorrection[0] = deltaX;
-        driftsCorrection[1] = deltaY;
-        driftsCorrection[2] = z;
+        Mat currentImgMat = convertTo8BitsMat(currentImg);
+        //uncomment next line before simulation:
+        //mat8Set = DriftCorrection.readImage("/home/dataNolwenn/Résultats/06-03-2018/ImagesFocus/19-5.tif");
 
-        return driftsCorrection;
+        return DriftCorrection.driftCorrection(imgRef_Mat, currentImgMat);
     }
 
     private void showImage(TaggedImage currentImg) {
@@ -349,58 +338,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             });
         }
     }
-
-    @Override
-    public double incrementalFocus() {
-        throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public int getNumberOfImages() {
-        return imageCount_;
-    }
-
-    @Override
-    public String getVerboseStatus() {
-        throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public double getCurrentFocusScore() {
-        throw new UnsupportedOperationException("Not supported yet. You have to take z-stack.");
-    }
-
-    @Override
-    public double computeScore(ImageProcessor imageProcessor) {
-        return imageProcessor.getStatistics().stdDev;
-    }
-
-    @Override
-    public void setContext(Studio studio) {
-        studio_ = studio;
-        studio_.events().registerForEvents(this);
-    }
-
-    @Override
-    public String getName() {
-        return NAME;
-    }
-
-    @Override
-    public String getHelpText() {
-        return HELPTEXT;
-    }
-
-    @Override
-    public String getVersion() {
-        return VERSION_INFO;
-    }
-
-    @Override
-    public String getCopyright() {
-        return COPYRIGHT_NOTICE;
-    }
-
 
     private void setXYPosition(double x, double y) throws Exception {
         CMMCore core = studio_.getCMMCore();
@@ -495,9 +432,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 //        double zOptimizedStdDev = optimizeZFocus(indexFocusStdDev, stdAtZPositions, zpositions);
 
         //Get the mean of the 2 focus found
-        int indexOfBestFocus = (indexOfMaxNumberGoodMatches + indexFocusStdDev) / 2;
 
-        return  indexOfBestFocus;
+        return (indexOfMaxNumberGoodMatches + indexFocusStdDev) / 2;
     }
 
     private double[] getVariances(List<double[]> xysList) {
@@ -557,6 +493,14 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         return mat;
     }
 
+    //Convert MM TaggedImage to OpenCV 8 bits Mat
+    private static Mat convertTo8BitsMat(TaggedImage taggedImage) throws JSONException {
+        Mat mat16 = convertToMat(taggedImage);
+        Mat mat8 = new Mat(mat16.cols(), mat16.rows(), CvType.CV_8UC1);
+        mat16.convertTo(mat8, CvType.CV_8UC1, alpha);
+        return DriftCorrection.equalizeImages(mat8);
+    }
+
     //Convert MM Short Processor to OpenCV Mat
     private static Mat toMat(ShortProcessor sp) {
         final int w = sp.getWidth();
@@ -565,8 +509,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         mat.put(0,0, (short[]) sp.getPixels());
         Mat res = new Mat(h, w, CvType.CV_8UC1);
         mat.convertTo(res, CvType.CV_8UC1, alpha);
-        Mat resSet = DriftCorrection.equalizeImages(res);
-        return resSet;
+        return DriftCorrection.equalizeImages(res);
     }
 
     private void writeOutput(long startTime, List<double[]> drifts, double xCorrection, double yCorrection, double correctedXPosition, double correctedYPosition, double z) throws IOException {
@@ -605,6 +548,57 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         fw1.write(xVariance + "," + yVariance + "," + xCorrection + "," + yCorrection + ","
                 + correctedXPosition + "," + correctedYPosition + "," + z + "," + timeElapsed + "\n");
         fw1.close();
+    }
+
+    @Override
+    public double incrementalFocus() {
+        throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public int getNumberOfImages() {
+        return imageCount_;
+    }
+
+    @Override
+    public String getVerboseStatus() {
+        throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public double getCurrentFocusScore() {
+        throw new UnsupportedOperationException("Not supported yet. You have to take z-stack.");
+    }
+
+    @Override
+    public double computeScore(ImageProcessor imageProcessor) {
+        return imageProcessor.getStatistics().stdDev;
+    }
+
+    @Override
+    public void setContext(Studio studio) {
+        studio_ = studio;
+        studio_.events().registerForEvents(this);
+    }
+
+    @Override
+    public String getName() {
+        return NAME;
+    }
+
+    @Override
+    public String getHelpText() {
+        return HELPTEXT;
+    }
+
+    @Override
+    public String getVersion() {
+        return VERSION_INFO;
+    }
+
+    @Override
+    public String getCopyright() {
+        return COPYRIGHT_NOTICE;
     }
 
     @Override
