@@ -55,7 +55,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
     private double searchRange = 10;
     private double cropFactor = 1;
-    private String channel = "";
+    private String channel = "BF";
     private double exposure = 10;
     private String show = "No";
     private String incremental = "No";
@@ -115,6 +115,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         TaggedImage imagePosition = core.getTaggedImage();
 
         PositionList positionList = studio_.positions().getPositionList();
+
+        if (positionIndex == positionList.getNumberOfPositions() ) {
+            positionIndex = 0;
+        }
         String label = positionList.getPosition(positionIndex).getLabel();
         System.out.println("Label Position : " + label);
 
@@ -162,9 +166,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double oldZ = core.getPosition(core.getFocusDevice());
 
         double[] zpositions = calculateZPositions(searchRange, step, oldZ);
-        double correctedXPosition = 0;
-        double correctedYPosition = 0;
-        double z = 0;
+        double correctedXPosition = core.getXPosition();
+        double correctedYPosition = core.getYPosition();
+        String focusDevice = core.getFocusDevice();
+        double z = core.getPosition(focusDevice);
 
         //Set shutter parameters for acquisition
         boolean oldAutoShutterState = core.getAutoShutter();
@@ -173,9 +178,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         //Define current image as reference for the position if it does not exist
         if (!positionDict.containsKey(label)) {
-            Mat mat16Pos = convert(imagePosition);
+            Mat mat16Pos = convertToMat(imagePosition);
             Mat mat8Pos = new Mat(mat16Pos.cols(), mat16Pos.rows(), CvType.CV_8UC1);
-            mat16Pos.convertTo(mat8Pos, CvType.CV_8UC1);
+            mat16Pos.convertTo(mat8Pos, CvType.CV_8UC1, alpha);
             Mat mat8PosSet = DriftCorrection.equalizeImages(mat8Pos);
             positionDict.put(label, mat8PosSet);
         } else {
@@ -207,6 +212,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
         core.setExposure(oldExposure);
 
+        System.out.println("Xcorrected : " + correctedXPosition);
+        System.out.println("Ycorrected : " + correctedYPosition);
+
         //Set X,Y and Z corrected values
         setZPosition(z);
         if (xy_correction.contentEquals("Yes")){
@@ -218,7 +226,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             core.waitForDevice(core.getCameraDevice());
             core.snapImage();
             final TaggedImage focusImg = core.getTaggedImage();
-            Mat mat16Incremental = convert(focusImg);
+            Mat mat16Incremental = convertToMat(focusImg);
             Mat mat8Incremental = new Mat(mat16Incremental.cols(), mat16Incremental.rows(), CvType.CV_8UC1);
             mat16Incremental.convertTo(mat8Incremental, CvType.CV_8UC1, alpha);
             Mat mat8SetIncremental = DriftCorrection.equalizeImages(mat8Incremental);
@@ -246,7 +254,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             core.snapImage();
             final TaggedImage currentImg = core.getTaggedImage();
 
-            mat16 = convert(currentImg);
+            mat16 = convertToMat(currentImg);
             mat8 = new Mat(mat16.cols(), mat16.rows(), CvType.CV_8UC1);
             mat16.convertTo(mat8, CvType.CV_8UC1, alpha);
             mat8Set = DriftCorrection.equalizeImages(mat8);
@@ -466,14 +474,14 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     public static int getindexOfBestFocus(double[] stdAtZPositions, double[] zpositions, double[] numberOfMatches, List<double[]> drifts) {
         //Calcul of focus by number of Good Matches
         int indexOfMaxNumberGoodMatches = getIndexOfMaxNumberGoodMatches(numberOfMatches);
-        double zMaxNumberGoodMatches = zpositions[indexOfMaxNumberGoodMatches];
+//        double zMaxNumberGoodMatches = zpositions[indexOfMaxNumberGoodMatches];
 
         //Calcul of focus by StdDev
         int indexFocusStdDev = getMinZfocus(stdAtZPositions);
-        double zOptimizedStdDev = optimizeZFocus(indexFocusStdDev, stdAtZPositions, zpositions);
+//        double zOptimizedStdDev = optimizeZFocus(indexFocusStdDev, stdAtZPositions, zpositions);
 
         //Get the mean of the 2 focus found
-        int indexOfBestFocus = (int) (zMaxNumberGoodMatches + zOptimizedStdDev) / 2;
+        int indexOfBestFocus = (indexOfMaxNumberGoodMatches + indexFocusStdDev) / 2;
 
         return  indexOfBestFocus;
     }
@@ -527,7 +535,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     }
 
     //Convert MM TaggedImage to OpenCV Mat
-    private static Mat convert(TaggedImage img) throws JSONException {
+    private static Mat convertToMat(TaggedImage img) throws JSONException {
         int width = img.tags.getInt("Width");
         int height = img.tags.getInt("Height");
         Mat mat = new Mat(height, width, CvType.CV_16UC1);
