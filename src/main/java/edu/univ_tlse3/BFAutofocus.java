@@ -130,7 +130,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double oldExposure = core.getExposure();
         core.setExposure(exposure);
 
-      //Get labels of positions
+        //Get label of position
         PositionList positionList = studio_.positions().getPositionList();
         String label = getLabelOfPositions(positionList);
         System.out.println("Label Position : " + label);
@@ -155,6 +155,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             String focusDevice = core.getFocusDevice();
             currentPositions[2] = core.getPosition(focusDevice);
             oldPositionsDict.put(label, currentPositions);
+            System.out.println("Old positions dictionary : " + oldPositionsDict.toString());
         }
 
         //Get X, Y and Z of a given position
@@ -171,6 +172,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         //Calculate Focus
         double correctedZPosition = zDriftCorrection(core, oldZ);
+        //Set to the focus
+        setZPosition(correctedZPosition);
 
         //Get an image to define reference image, for each position
         core.snapImage();
@@ -221,8 +224,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         System.out.println("Xcorrected : " + correctedXPosition);
         System.out.println("Ycorrected : " + correctedYPosition);
 
-        //Set X,Y and Z corrected values
-        setZPosition(correctedZPosition);
+        //Set X, Y and Z corrected values
         if (xy_correction.contentEquals("Yes")){
             setXYPosition(correctedXPosition, correctedYPosition);
         }
@@ -264,15 +266,15 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     }
 
     private void setToLastCorrectedPosition(CMMCore core, double[] xyzPosition, double oldX, double oldY, double oldZ) throws Exception {
-        if (xyzPosition.length == 0) {
-            setXYPosition(core.getXPosition(), core.getYPosition());
-            String focusDevice = core.getFocusDevice();
-            double currentZ = core.getPosition(focusDevice);
-            setZPosition(currentZ);
-        } else {
+//        if (xyzPosition.length == 0) {
+//            setXYPosition(core.getXPosition(), core.getYPosition());
+//            String focusDevice = core.getFocusDevice();
+//            double currentZ = core.getPosition(focusDevice);
+//            setZPosition(currentZ);
+//        } else {
             setXYPosition(oldX, oldY);
             setZPosition(oldZ);
-        }
+//        }
     }
 
     private double zDriftCorrection(CMMCore core, double oldZ) throws Exception {
@@ -321,7 +323,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         Mat currentImgMat = convertTo8BitsMat(currentImg);
         //uncomment next line before simulation:
-        //mat8Set = DriftCorrection.readImage("/home/dataNolwenn/Résultats/06-03-2018/ImagesFocus/19-5.tif");
+        //Mat currentImgMat = DriftCorrection.readImage("/home/dataNolwenn/Résultats/06-03-2018/ImagesFocus/19-5.tif");
 
         return DriftCorrection.driftCorrection(imgRef_Mat, currentImgMat);
     }
@@ -378,6 +380,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     public static double optimizeZFocus(int rawZidx, double[] stdArray, double[] zpositionArray){
         int oneLower = rawZidx-1;
         int oneHigher = rawZidx+1;
+        System.out.println("One lower : " + oneLower);
+        System.out.println("One higher : " + oneHigher);
         double lowerVarDiff = stdArray[oneLower] - stdArray[rawZidx];
         double upperVarDiff = stdArray[rawZidx] - stdArray[oneHigher];
         if (lowerVarDiff * lowerVarDiff < upperVarDiff * upperVarDiff){
