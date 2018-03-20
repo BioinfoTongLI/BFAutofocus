@@ -1,6 +1,5 @@
 package edu.univ_tlse3;
 
-import ij.IJ;
 import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
 import mmcorej.CMMCore;
@@ -9,11 +8,8 @@ import mmcorej.StrVector;
 import mmcorej.TaggedImage;
 import org.json.JSONException;
 import org.micromanager.AutofocusPlugin;
-import org.micromanager.MultiStagePosition;
 import org.micromanager.PositionList;
 import org.micromanager.Studio;
-import org.micromanager.data.Coords;
-import org.micromanager.data.Datastore;
 import org.micromanager.data.Image;
 import org.micromanager.internal.utils.*;
 import org.opencv.core.CvType;
@@ -27,9 +23,11 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.*;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.Map;
+import java.util.concurrent.Callable;
 
 @Plugin(type = AutofocusPlugin.class)
 public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJavaPlugin {
@@ -155,7 +153,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             String focusDevice = core.getFocusDevice();
             currentPositions[2] = core.getPosition(focusDevice);
             oldPositionsDict.put(label, currentPositions);
-            System.out.println("Old positions dictionary : " + oldPositionsDict.toString());
         }
 
         //Get X, Y and Z of a given position
@@ -178,7 +175,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         //Get an image to define reference image, for each position
         core.snapImage();
         TaggedImage imagePosition = core.getTaggedImage();
-
+        Mat currentMat8Set = convertTo8BitsMat(imagePosition);
 
 //        //Initialization of parameters required for the stack
 //        int nThread = Runtime.getRuntime().availableProcessors() - 1;
@@ -190,6 +187,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double correctedXPosition = currentXPosition;
         double correctedYPosition = currentYPosition;
 
+        double xCorrection = 0;
+        double yCorrection = 0;
+
         //Set shutter parameters for acquisition
         boolean oldAutoShutterState = core.getAutoShutter();
         core.setAutoShutter(false);
@@ -197,13 +197,12 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         //Define current image as reference for the position if it does not exist
         if (!refImageDict.containsKey(label)) {
-            Mat mat8RefPos = convertTo8BitsMat(imagePosition);
-            refImageDict.put(label, mat8RefPos);
+            refImageDict.put(label, currentMat8Set);
         } else {
             imgRef_Mat = (Mat) refImageDict.get(label);
-            double[] xyDrifts = calculateXYDrifts(core);
-            double xCorrection = xyDrifts[0];
-            double yCorrection = xyDrifts[1];
+            double[] xyDrifts = calculateXYDrifts(currentMat8Set);
+            xCorrection = xyDrifts[0];
+            yCorrection = xyDrifts[1];
             correctedXPosition = currentXPosition - xCorrection;
             correctedYPosition = currentYPosition - yCorrection;
         }
@@ -223,6 +222,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         System.out.println("Xcorrected : " + correctedXPosition);
         System.out.println("Ycorrected : " + correctedYPosition);
+        System.out.println("Zcorrected : " + correctedZPosition);
 
         //Set X, Y and Z corrected values
         if (xy_correction.contentEquals("Yes")){
@@ -239,7 +239,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             imgRef_Mat = convertTo8BitsMat(focusImg);
         }
 
-//        writeOutput(startTime, drifts, xCorrection, yCorrection, correctedXPosition, correctedYPosition, z);
+//        writeOutput(startTime, label, xCorrection, yCorrection, oldX, oldY, oldZ, correctedXPosition, correctedYPosition, correctedZPosition);
         long endTime = new Date().getTime();
         long timeElapsed = endTime - startTime;
         System.out.println("Time Elapsed : " + timeElapsed);
@@ -316,15 +316,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         return maxIdx;
     }
 
-    private double[] calculateXYDrifts(CMMCore core) throws Exception {
-        TaggedImage currentImg;
-        core.snapImage();
-        currentImg = core.getTaggedImage();
-
-        Mat currentImgMat = convertTo8BitsMat(currentImg);
+    private double[] calculateXYDrifts(Mat currentImgMat) throws Exception {
         //uncomment next line before simulation:
         //Mat currentImgMat = DriftCorrection.readImage("/home/dataNolwenn/Résultats/06-03-2018/ImagesFocus/19-5.tif");
-
         return DriftCorrection.driftCorrection(imgRef_Mat, currentImgMat);
     }
 
@@ -380,8 +374,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     public static double optimizeZFocus(int rawZidx, double[] stdArray, double[] zpositionArray){
         int oneLower = rawZidx-1;
         int oneHigher = rawZidx+1;
-        System.out.println("One lower : " + oneLower);
-        System.out.println("One higher : " + oneHigher);
         double lowerVarDiff = stdArray[oneLower] - stdArray[rawZidx];
         double upperVarDiff = stdArray[rawZidx] - stdArray[oneHigher];
         if (lowerVarDiff * lowerVarDiff < upperVarDiff * upperVarDiff){
@@ -516,41 +508,15 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         return DriftCorrection.equalizeImages(res);
     }
 
-    private void writeOutput(long startTime, List<double[]> drifts, double xCorrection, double yCorrection, double correctedXPosition, double correctedYPosition, double z) throws IOException {
-        double[] listOfVariances = getVariances(drifts);
-        double xVariance = listOfVariances[0];
-        double yVariance = listOfVariances[1];
-
-        System.out.println("\nCorrected X Position : " + correctedXPosition);
-        System.out.println("Corrected Y Position : " + correctedYPosition);
-        System.out.println("Z Best Position : " + z);
-
+    private void writeOutput(long startTime, String label, double xCorrection, double yCorrection, double oldX, double oldY, double oldZ, double correctedXPosition, double correctedYPosition, double correctedZPosition) throws IOException {
         long endTime = new Date().getTime();
         long timeElapsed = endTime - startTime;
-        System.out.println("\nDuration in milliseconds : " + timeElapsed);
-
-        System.out.println("X Variance : " + xVariance);
-        System.out.println("Y Variance : " + yVariance);
 
         //For "statistics" tests
-        File f = new File("/home/dataNolwenn/ImagesTest/Stats.csv");
-        FileWriter fw = new FileWriter(f, true);
-
-        for (int i = 0; i < drifts.size(); i++) {
-            double[] driftArray = drifts.get(i);
-            float xDrift = (float) driftArray[0];
-            float yDrift = (float) driftArray[1];
-            int numberMatches = (int) driftArray[2];
-            int numberGoodMatches = (int) driftArray[3];
-            fw.write((i+1) + "," + numberMatches + "," + numberGoodMatches + "," + xDrift + "," + yDrift + "\n");
-        }
-        fw.write("**,*****,***,***********,**********\n");
-        fw.close();
-
-        File f1 = new File("/home/dataNolwenn/ImagesTest/StatsTot.csv");
+        File f1 = new File("D:\\DATA\\Nolwenn\\19-03-2018_AF_Brisk\\Stats.csv");
         FileWriter fw1 = new FileWriter(f1, true);
-        fw1.write(xVariance + "," + yVariance + "," + xCorrection + "," + yCorrection + ","
-                + correctedXPosition + "," + correctedYPosition + "," + z + "," + timeElapsed + "\n");
+        fw1.write(label + "," + xCorrection + "," + yCorrection + "," + oldX + "," + oldY + "," + oldZ + ","
+                + correctedXPosition + "," + correctedYPosition + "," + correctedZPosition + "," + timeElapsed + "\n");
         fw1.close();
     }
 

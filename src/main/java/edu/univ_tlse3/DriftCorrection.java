@@ -197,10 +197,11 @@ public class DriftCorrection {
 
     //Convert Descriptors to CV_32F
     static  Mat convertMatDescriptorToCV32F(Mat descriptor) {
+        Mat descriptor32F = new Mat(descriptor.cols(), descriptor.rows(), CvType.CV_32F);
         if (descriptor.type() != CvType.CV_32F) {
-            descriptor.convertTo(descriptor, CvType.CV_32F);
+            descriptor.convertTo(descriptor32F, CvType.CV_32F,-0.01050420168067226890756302521008);
         }
-        return descriptor;
+        return descriptor32F;
     }
 
     //Method to not filter matches
