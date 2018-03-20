@@ -10,6 +10,7 @@ import org.json.JSONException;
 import org.micromanager.AutofocusPlugin;
 import org.micromanager.PositionList;
 import org.micromanager.Studio;
+import org.micromanager.data.Datastore;
 import org.micromanager.data.Image;
 import org.micromanager.internal.utils.*;
 import org.opencv.core.CvType;
@@ -19,9 +20,7 @@ import org.scijava.plugin.SciJavaPlugin;
 
 import javax.swing.*;
 import java.awt.*;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.text.ParseException;
 import java.util.Date;
 import java.util.HashMap;
@@ -67,6 +66,13 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     final static double alpha = 0.00390625;
     private int positionIndex = 0;
 
+    private PrintStream psError;
+    private PrintStream psOutput;
+    private PrintStream curr_err;
+    private PrintStream curr_out;
+    private String savingPath = "D:\\DATA\\Nolwenn\\20-03-2018_AF_Brisk\\";
+    private Datastore storeNonCorrectedImages = null;
+
     public BFAutofocus() {
         super.createProperty(SEARCH_RANGE, NumberUtils.doubleToDisplayString(searchRange));
         super.createProperty(CROP_FACTOR, NumberUtils.doubleToDisplayString(cropFactor));
@@ -76,7 +82,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         super.createProperty(XY_CORRECTION_TEXT, xy_correction, XY_CORRECTION);
         super.createProperty(STEP_SIZE, NumberUtils.doubleToDisplayString(step));
         super.createProperty(CHANNEL, channel);
-        super.createProperty(PATH_REFIMAGE, pathOfReferenceImage);
+//        super.createProperty(PATH_REFIMAGE, pathOfReferenceImage);
         nu.pattern.OpenCV.loadShared();
     }
 
@@ -91,7 +97,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             show = getPropertyValue(SHOW_IMAGES);
             incremental = getPropertyValue(INCREMENTAL);
             xy_correction = getPropertyValue(XY_CORRECTION_TEXT);
-            pathOfReferenceImage = getPropertyValue(PATH_REFIMAGE);
+//            pathOfReferenceImage = getPropertyValue(PATH_REFIMAGE);
         } catch (MMException | ParseException ex) {
             studio_.logs().logError(ex);
         }
@@ -128,6 +134,17 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double oldExposure = core.getExposure();
         core.setExposure(exposure);
 
+        try {
+            psError = new PrintStream(savingPath + File.separator + "Error.LOG");
+            psOutput = new PrintStream(savingPath + File.separator + "Output.LOG");
+            curr_err = System.err;
+            curr_out = System.out;
+            System.setOut(psOutput);
+            System.setErr(psError);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+
         //Get label of position
         PositionList positionList = studio_.positions().getPositionList();
         String label = getLabelOfPositions(positionList);
@@ -141,6 +158,19 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         if (oldPositionsDict == null){
             oldPositionsDict = new HashMap<String, double[]>();
         }
+
+        //Initialization of Datastore, to store non corrected images
+        if (storeNonCorrectedImages == null) {
+            storeNonCorrectedImages = studio_.data().createSinglePlaneTIFFSeriesDatastore(savingPath);
+        }
+
+        //Add current non-corrected image to the datastore
+        core.snapImage();
+        TaggedImage nonCorrectedTaggedImage = core.getTaggedImage();
+        Image nonCorrectedImage = studio_.data().convertTaggedImage(nonCorrectedTaggedImage);
+        storeNonCorrectedImages.putImage(nonCorrectedImage);
+
+        System.out.println("DataStore Number Of Images : " + storeNonCorrectedImages.getNumImages());
 
         //Incrementation of counter; does not work at another place
         positionIndex += 1;
@@ -176,6 +206,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         core.snapImage();
         TaggedImage imagePosition = core.getTaggedImage();
         Mat currentMat8Set = convertTo8BitsMat(imagePosition);
+        System.out.println("Position Index current TaggedImage : " + imagePosition.tags.getString("PositionIndex"));
+        System.out.println("Frame Index current TaggedImage : " + imagePosition.tags.getString("FrameIndex"));
+        System.out.println("Slice Index current TaggedImage : " + imagePosition.tags.getString("SliceIndex"));
+        System.out.println("Time and Date current TaggedImage : " + imagePosition.tags.getString("Time"));
 
 //        //Initialization of parameters required for the stack
 //        int nThread = Runtime.getRuntime().availableProcessors() - 1;
@@ -245,6 +279,12 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         long endTime = new Date().getTime();
         long timeElapsed = endTime - startTime;
         System.out.println("Time Elapsed : " + timeElapsed);
+
+        psError.close();
+        psOutput.close();
+        System.setOut(curr_out);
+        System.setErr(curr_err);
+
         return correctedZPosition;
     }
 
@@ -321,12 +361,15 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private double[] calculateXYDrifts(Mat currentImgMat) throws Exception {
         //uncomment next line before simulation:
         //currentImgMat = DriftCorrection.readImage("/home/dataNolwenn/Résultats/06-03-2018/ImagesFocus/19-5.tif");
-        int nThread = Runtime.getRuntime().availableProcessors() - 1;
-        ExecutorService es = Executors.newFixedThreadPool(nThread);
+        ExecutorService es = Executors.newSingleThreadExecutor();
         Future job = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat));
         double[] xyDrifts = (double[]) job.get();
         es.shutdown();
-        System.out.println("Calculate XYDrifts result : " + xyDrifts.toString());
+        try {
+            es.awaitTermination(1, TimeUnit.MINUTES);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
         return xyDrifts;
     }
 
@@ -531,7 +574,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double numberOfGoodMatchesORB = xyDrifts[7];
 
         //For "statistics" tests
-        File f1 = new File("D:\\DATA\\Nolwenn\\19-03-2018_AF_Brisk\\Stats" + label + ".csv");
+        File f1 = new File(savingPath + "Stats" + label + ".csv");
         if (!f1.exists()) {
             f1.createNewFile();
             FileWriter fw = new FileWriter(f1);
