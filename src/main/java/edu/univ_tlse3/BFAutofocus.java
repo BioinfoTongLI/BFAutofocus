@@ -70,7 +70,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private PrintStream psOutput;
     private PrintStream curr_err;
     private PrintStream curr_out;
-    private String savingPath = "D:\\DATA\\Nolwenn\\20-03-2018_AF_Brisk\\";
+    private String savingPath = "D:\\DATA\\Nolwenn\\21-03-2018_AF_Brisk\\";
     private Datastore storeNonCorrectedImages = null;
 
     public BFAutofocus() {
@@ -134,13 +134,13 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double oldExposure = core.getExposure();
         core.setExposure(exposure);
 
+        //Save logs of outputs and errors
         try {
             psError = new PrintStream(savingPath + File.separator + "Error.LOG");
             psOutput = new PrintStream(savingPath + File.separator + "Output.LOG");
             curr_err = System.err;
             curr_out = System.out;
             System.setOut(psOutput);
-            System.setErr(psError);
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         }
@@ -160,17 +160,17 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
 
         //Initialization of Datastore, to store non corrected images
-        if (storeNonCorrectedImages == null) {
-            storeNonCorrectedImages = studio_.data().createSinglePlaneTIFFSeriesDatastore(savingPath);
-        }
+//        if (storeNonCorrectedImages == null) {
+//            storeNonCorrectedImages = studio_.data().createSinglePlaneTIFFSeriesDatastore(savingPath);
+//        }
 
         //Add current non-corrected image to the datastore
-        core.snapImage();
-        TaggedImage nonCorrectedTaggedImage = core.getTaggedImage();
-        Image nonCorrectedImage = studio_.data().convertTaggedImage(nonCorrectedTaggedImage);
-        storeNonCorrectedImages.putImage(nonCorrectedImage);
-
-        System.out.println("DataStore Number Of Images : " + storeNonCorrectedImages.getNumImages());
+//        core.snapImage();
+//        TaggedImage nonCorrectedTaggedImage = core.getTaggedImage();
+//        Image nonCorrectedImage = studio_.data().convertTaggedImage(nonCorrectedTaggedImage);
+//        storeNonCorrectedImages.putImage(nonCorrectedImage);
+//
+//        System.out.println("DataStore Number Of Images : " + storeNonCorrectedImages.getNumImages());
 
         //Incrementation of counter; does not work at another place
         positionIndex += 1;
@@ -209,7 +209,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         System.out.println("Position Index current TaggedImage : " + imagePosition.tags.getString("PositionIndex"));
         System.out.println("Frame Index current TaggedImage : " + imagePosition.tags.getString("FrameIndex"));
         System.out.println("Slice Index current TaggedImage : " + imagePosition.tags.getString("SliceIndex"));
-        System.out.println("Time and Date current TaggedImage : " + imagePosition.tags.getString("Time"));
+//        System.out.println("Time and Date current TaggedImage : " + imagePosition.tags.getString("Time"));
 
 //        //Initialization of parameters required for the stack
 //        int nThread = Runtime.getRuntime().availableProcessors() - 1;
@@ -243,6 +243,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             System.out.println("Xcorrected : " + correctedXPosition);
             System.out.println("Ycorrected : " + correctedYPosition);
             System.out.println("Zcorrected : " + correctedZPosition);
+            core.snapImage();
+            TaggedImage newRefTaggedImage = core.getTaggedImage();
+            Mat newRefImage_Mat = convertToMat(newRefTaggedImage);
+            refImageDict.replace(label, newRefImage_Mat);
         }
 
         //Reinitialize origin ROI and all other parameters
@@ -423,6 +427,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     }
 
     public static double optimizeZFocus(int rawZidx, double[] stdArray, double[] zpositionArray){
+        if (rawZidx == zpositionArray.length-1 || rawZidx == 0){
+            return zpositionArray[rawZidx];
+        }
         int oneLower = rawZidx-1;
         int oneHigher = rawZidx+1;
         double lowerVarDiff = stdArray[oneLower] - stdArray[rawZidx];
@@ -581,16 +588,16 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             fw.write("labelOfPosition" + "," + "xCorrection" + "," + "yCorrection" + "," + "oldX" + "," + "oldY" + "," + "oldZ" + ","
                     + "correctedXPosition" + "," + "correctedYPosition" + "," + "correctedZPosition" + "," + "timeElapsed" + ","
                     + "meanXdisplacementBRISK" + "," + "meanYdisplacementBRISK" + "," + "numberOfMatchesBRISK" + "," + "numberOfGoodMatchesBRISK" + ","
-                    + "meanXdisplacementORB" + "," + "meanYdisplacementORB" + "," + "numberOfMatchesORB" + "," + "numberOfGoodMatchesORB" + "\n");
+                    + "meanXdisplacementORB" + "," + "meanYdisplacementORB" + "," + "numberOfMatchesORB" + "," + "numberOfGoodMatchesORB" + System.lineSeparator());
             fw.close();
+        } else {
+            FileWriter fw1 = new FileWriter(f1, true);
+            fw1.write(label + "," + xCorrection + "," + yCorrection + "," + oldX + "," + oldY + "," + oldZ + ","
+                    + correctedXPosition + "," + correctedYPosition + "," + correctedZPosition + "," + timeElapsed + ","
+                    + meanXdisplacementBRISK + "," + meanYdisplacementBRISK + "," + numberOfMatchesBRISK + "," + numberOfGoodMatchesBRISK + ","
+                    + meanXdisplacementORB + "," + meanYdisplacementORB + "," + numberOfMatchesORB + "," + numberOfGoodMatchesORB + System.lineSeparator());
+            fw1.close();
         }
-
-        FileWriter fw1 = new FileWriter(f1, true);
-        fw1.write(label + "," + xCorrection + "," + yCorrection + "," + oldX + "," + oldY + "," + oldZ + ","
-                + correctedXPosition + "," + correctedYPosition + "," + correctedZPosition + "," + timeElapsed + ","
-                + meanXdisplacementBRISK + "," + meanYdisplacementBRISK + "," + numberOfMatchesBRISK + "," + numberOfGoodMatchesBRISK + ","
-                + meanXdisplacementORB + "," + meanYdisplacementORB + "," + numberOfMatchesORB + "," + numberOfGoodMatchesORB + "\n");
-        fw1.close();
     }
 
     @Override
