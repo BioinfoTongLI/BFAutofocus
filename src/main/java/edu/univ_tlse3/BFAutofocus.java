@@ -68,7 +68,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private PrintStream psOutput;
     private PrintStream curr_err;
     private PrintStream curr_out;
-    private String savingPath = "D:\\DATA\\Nolwenn\\21-03-2018_AF_Brisk\\";
+    private String savingPath;
     private Datastore storeNonCorrectedImages = null;
 
     public BFAutofocus() {
@@ -108,6 +108,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         Rectangle oldROI = studio_.core().getROI();
         CMMCore core = studio_.getCMMCore();
 
+        savingPath = studio_.acquisitions().getAcquisitionSettings().root;
+        System.out.println("Saving path : " + savingPath);
+
         //ReportingUtils.logMessage("Original ROI: " + oldROI);
         int w = (int) (oldROI.width * cropFactor);
         int h = (int) (oldROI.height * cropFactor);
@@ -135,10 +138,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         //Save logs of outputs and errors
         try {
             psError = new PrintStream(savingPath + File.separator + "Error.LOG");
-            psOutput = new PrintStream(savingPath + File.separator + "Output.LOG");
+//            psOutput = new PrintStream(savingPath + File.separator + "Output.LOG");
             curr_err = System.err;
-            curr_out = System.out;
-            System.setOut(psOutput);
+//            curr_out = System.out;
+//            System.setOut(psOutput);
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         }
@@ -147,6 +150,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         PositionList positionList = studio_.positions().getPositionList();
         String label = getLabelOfPositions(positionList);
         System.out.println("Label Position : " + label);
+
+        //Incrementation of position counter; does not work at another place
+        positionIndex += 1;
 
         //Initialization of reference Images and old positions dictionaries
         if (refImageDict == null){
@@ -157,41 +163,28 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             oldPositionsDict = new HashMap<String, double[]>();
         }
 
-        //Initialization of DataStore, to store non corrected images
-        if (storeNonCorrectedImages == null) {
-            storeNonCorrectedImages = studio_.data().createSinglePlaneTIFFSeriesDatastore(savingPath);
-        }
+//        //Initialization of DataStore, to store non corrected images
+//        if (storeNonCorrectedImages == null) {
+//            storeNonCorrectedImages = studio_.data().createSinglePlaneTIFFSeriesDatastore(savingPath);
+//        }
+//
+//        //Add current non-corrected image to the DataStore
+//        core.snapImage();
+//        TaggedImage nonCorrectedTaggedImage = core.getTaggedImage();
+//        Image nonCorrectedImage = studio_.data().convertTaggedImage(nonCorrectedTaggedImage);
+//        storeNonCorrectedImages.putImage(nonCorrectedImage);
+//        System.out.println("DataStore getSavePath : " + storeNonCorrectedImages.getSavePath());
+//        System.out.println("DataStore Number Of Images : " + storeNonCorrectedImages.getNumImages());
 
-        //Add current non-corrected image to the DataStore
-        core.snapImage();
-        TaggedImage nonCorrectedTaggedImage = core.getTaggedImage();
-        Image nonCorrectedImage = studio_.data().convertTaggedImage(nonCorrectedTaggedImage);
-        storeNonCorrectedImages.putImage(nonCorrectedImage);
-        System.out.println("DataStore getSavePath : " + storeNonCorrectedImages.getSavePath());
-        System.out.println("DataStore Number Of Images : " + storeNonCorrectedImages.getNumImages());
-
-        //Show positionList
-        studio_.app().showPositionList();
         //Some tests with acquisition settings :
         double intervalMs = studio_.acquisitions().getAcquisitionSettings().intervalMs;
-        System.out.println("Interval en ms : " + intervalMs);
-        int numFrames = studio_.acquisitions().getAcquisitionSettings().numFrames;
-        System.out.println("Num Frames : " + numFrames);
-        boolean saveAcq = studio_.acquisitions().getAcquisitionSettings().save;
-        System.out.println("Save Acquisition images : " + saveAcq);
-        int cameraTimeout = studio_.acquisitions().getAcquisitionSettings().cameraTimeout;
-        System.out.println("Camera TimeOut : " + cameraTimeout);
-        String prefix = studio_.acquisitions().getAcquisitionSettings().prefix;
-        System.out.println("Prefix : " + prefix);
-        String rootAcq = studio_.acquisitions().getAcquisitionSettings().root;
-        System.out.println("Root Acq : " + rootAcq);
-        boolean slicesFirst = studio_.acquisitions().getAcquisitionSettings().slicesFirst;
-        System.out.println("Slices First : " + slicesFirst);
-        boolean timeFirst = studio_.acquisitions().getAcquisitionSettings().timeFirst;
-        System.out.println("Time First : " + timeFirst);
+        System.out.println("Interval in ms : " + intervalMs);
 
-        //Incrementation of position counter; does not work at another place
-        positionIndex += 1;
+//        boolean saveAcq = studio_.acquisitions().getAcquisitionSettings().save;
+//        System.out.println("Save Acquisition images : " + saveAcq);
+//
+//        String prefix = studio_.acquisitions().getAcquisitionSettings().prefix;
+//        System.out.println("Prefix : " + prefix);
 
         //Define positions if it does not exist
         if (!oldPositionsDict.containsKey(label)) {
@@ -225,14 +218,17 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         core.snapImage();
         TaggedImage taggedImagePosition = core.getTaggedImage();
         Mat currentMat8Set = convertTo8BitsMat(taggedImagePosition);
-        Image imagePosition = studio_.data().convertTaggedImage(taggedImagePosition);
-        System.out.println("Position Index current TaggedImage : " + taggedImagePosition.tags.getString("PositionIndex"));
-        System.out.println("Frame Index current TaggedImage : " + taggedImagePosition.tags.getString("FrameIndex"));
-        System.out.println("Slice Index current TaggedImage : " + taggedImagePosition.tags.getString("SliceIndex"));
+//        Image imagePosition = studio_.data().convertTaggedImage(taggedImagePosition);
+//        System.out.println("Position Index current TaggedImage : " + taggedImagePosition.tags.getString("PositionIndex"));
+//        System.out.println("Frame Index current TaggedImage : " + taggedImagePosition.tags.getString("FrameIndex"));
+//        System.out.println("Slice Index current TaggedImage : " + taggedImagePosition.tags.getString("SliceIndex"));
 //        System.out.println("Time and Date current TaggedImage : " + imagePosition.tags.getString("Time"));
 
-        Metadata imagePosition_Metadata = studio_.acquisitions().generateMetadata(imagePosition, true);
-        System.out.println("Metadata : " + imagePosition_Metadata.toString());
+//        Metadata imagePosition_Metadata = studio_.acquisitions().generateMetadata(imagePosition, true);
+//        System.out.println("Metadata : " + imagePosition_Metadata.toString());
+//
+//        String metadata = imagePosition_Metadata.getReceivedTime();
+//        System.out.println("Received Time : " + metadata);
 
         double currentXPosition = core.getXPosition();
         double currentYPosition = core.getYPosition();
@@ -282,7 +278,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             setXYPosition(correctedXPosition, correctedYPosition);
         }
 
-        studio_.app().refreshGUIFromCache(); //Not sure about the utility; may be useful for Metadata;
+//        studio_.app().refreshGUIFromCache(); //Not sure about the utility; may be useful for Metadata?;
 
         //Refresh positions in position dictionary
         refreshOldXYZposition(correctedXPosition, correctedYPosition, correctedZPosition, label);
@@ -309,8 +305,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         System.out.println("Time Elapsed : " + timeElapsed);
 
         psError.close();
-        psOutput.close();
-        System.setOut(curr_out);
+//        psOutput.close();
+//        System.setOut(curr_out);
         System.setErr(curr_err);
 
         return correctedZPosition;
@@ -389,16 +385,18 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private double[] calculateXYDrifts(Mat currentImgMat) throws Exception {
         //uncomment next line before simulation:
         //currentImgMat = DriftCorrection.readImage("/home/dataNolwenn/Résultats/06-03-2018/ImagesFocus/19-5.tif");
-        ExecutorService es = Executors.newSingleThreadExecutor();
-        Future job = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat));
-        double[] xyDrifts = (double[]) job.get();
-        es.shutdown();
-        try {
-            es.awaitTermination(1, TimeUnit.MINUTES);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        return xyDrifts;
+
+//        ExecutorService es = Executors.newSingleThreadExecutor();
+//        Future job = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat));
+//        double[] xyDrifts = (double[]) job.get();
+//        es.shutdown();
+//        try {
+//            es.awaitTermination(1, TimeUnit.MINUTES);
+//        } catch (InterruptedException e) {
+//            e.printStackTrace();
+//        }
+//        return xyDrifts;
+        return DriftCorrection.driftCorrection(imgRef_Mat, currentImgMat);
     }
 
     private void showImage(TaggedImage currentImg) {

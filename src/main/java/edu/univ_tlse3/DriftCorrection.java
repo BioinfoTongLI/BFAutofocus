@@ -28,7 +28,7 @@ public class DriftCorrection {
     public static Mat readImage(String pathOfImage) {
         Mat img = Imgcodecs.imread(pathOfImage, CvType.CV_16UC1);
         Mat img1 = new Mat(img.cols(), img.rows(), CvType.CV_8UC1);
-        img.convertTo(img1, CvType.CV_8UC1);//, BFAutofocus.alpha);
+        img.convertTo(img1, CvType.CV_8UC1, BFAutofocus.alpha);
         Mat img2 = equalizeImages(img1);
         return img2;
     }
@@ -201,7 +201,7 @@ public class DriftCorrection {
     static  Mat convertMatDescriptorToCV32F(Mat descriptor) {
         Mat descriptor32F = new Mat(descriptor.cols(), descriptor.rows(), CvType.CV_32F);
         if (descriptor.type() != CvType.CV_32F) {
-            descriptor.convertTo(descriptor32F, CvType.CV_32F,-0.01050420168067226890756302521008);
+            descriptor.convertTo(descriptor32F, CvType.CV_32F);//,-0.01050420168067226890756302521008);
         }
         return descriptor32F;
     }
@@ -292,10 +292,14 @@ public class DriftCorrection {
         /* 1 - Detect keypoints */
         MatOfKeyPoint keypoints1 = findKeypoints(img1, DETECTORALGO);
         MatOfKeyPoint keypoints2 = findKeypoints(img2, DETECTORALGO);
+        System.out.println("Keypoints img ref : " + keypoints1.rows());
+        System.out.println("Keypoints img 2 : " + keypoints2.rows());
 
         /* for ORB algo */
         MatOfKeyPoint keypoints1ORB = findKeypoints(img1, DETECTORALGO_ORB);
         MatOfKeyPoint keypoints2ORB = findKeypoints(img2, DETECTORALGO_ORB);
+        System.out.println("Keypoints ORB img ref : " + keypoints1ORB.rows());
+        System.out.println("Keypoints ORB img 2 : " + keypoints2ORB.rows());
 
         /* 2 - Calculate descriptors */
         Mat img1_descriptors = calculDescriptors(img1, keypoints1, DESCRIPTOREXTRACTOR);
@@ -310,6 +314,14 @@ public class DriftCorrection {
         if(img2_descriptors.empty()){
             System.out.println("Descriptor image 2 empty");
         }
+
+        if(img1_descriptorsORB.empty()) {
+            System.out.println("ORB Descriptor ref image empty");
+        }
+        if(img2_descriptorsORB.empty()){
+            System.out.println("ORB Descriptor image 2 empty");
+        }
+
         /* 3 - Matching descriptor using FLANN matcher */
         MatOfDMatch matcher = matchingDescriptor(img1_descriptors, img2_descriptors, DESCRIPTORMATCHER);
         System.out.println("Number of Matches : " + matcher.rows());
