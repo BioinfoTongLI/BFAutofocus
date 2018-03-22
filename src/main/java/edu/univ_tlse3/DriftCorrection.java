@@ -15,8 +15,8 @@ import static org.opencv.features2d.Features2d.NOT_DRAW_SINGLE_POINTS;
 
 public class DriftCorrection {
 
-    public static final double UMPERMIN = 0.5;
-    public static final double INTERVALINMIN = 2;
+    public static double UMPERMIN = 50;
+    public static double INTERVALINMIN = 2;
     public static final double UMPERPIX = 0.065;
     public static final Integer DETECTORALGO = FeatureDetector.BRISK;
     public static final Integer DESCRIPTOREXTRACTOR = DescriptorExtractor.ORB;
