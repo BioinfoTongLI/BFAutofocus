@@ -33,6 +33,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private static final String HELPTEXT = "This simple autofocus is only designed to process transmitted-light (or DIC) images, Z-stack is required.";
     private static final String COPYRIGHT_NOTICE = "CeCILL-B-BSD compatible";
     private Studio studio_;
+    private CMMCore core_;
     private Mat imgRef_Mat = null;
 
     private static final String SEARCH_RANGE = "SearchRange_um";
@@ -106,7 +107,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         long startTime = new Date().getTime();
         applySettings();
         Rectangle oldROI = studio_.core().getROI();
-        CMMCore core = studio_.getCMMCore();
+        core_ = studio_.getCMMCore();
 
         savingPath = studio_.acquisitions().getAcquisitionSettings().root;
         System.out.println("Saving path : " + savingPath);
@@ -121,19 +122,19 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         //ReportingUtils.logMessage("Setting ROI to: " + newROI);
         Configuration oldState = null;
         if (channel.length() > 0) {
-            String chanGroup = core.getChannelGroup();
-            oldState = core.getConfigGroupState(chanGroup);
-            core.setConfig(chanGroup, channel);
+            String chanGroup = core_.getChannelGroup();
+            oldState = core_.getConfigGroupState(chanGroup);
+            core_.setConfig(chanGroup, channel);
         }
 
         //Avoid wasting time on setting roi if it is the same
         if (cropFactor < 1.0) {
             studio_.app().setROI(newROI);
-            core.waitForDevice(core.getCameraDevice());
+            core_.waitForDevice(core_.getCameraDevice());
         }
 
-        double oldExposure = core.getExposure();
-        core.setExposure(exposure);
+        double oldExposure = core_.getExposure();
+        core_.setExposure(exposure);
 
         //Save logs of outputs and errors
         try {
@@ -169,8 +170,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 //        }
 //
 //        //Add current non-corrected image to the DataStore
-//        core.snapImage();
-//        TaggedImage nonCorrectedTaggedImage = core.getTaggedImage();
+//        core_.snapImage();
+//        TaggedImage nonCorrectedTaggedImage = core_.getTaggedImage();
 //        Image nonCorrectedImage = studio_.data().convertTaggedImage(nonCorrectedTaggedImage);
 //        storeNonCorrectedImages.putImage(nonCorrectedImage);
 //        System.out.println("DataStore getSavePath : " + storeNonCorrectedImages.getSavePath());
@@ -189,10 +190,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         //Define positions if it does not exist
         if (!oldPositionsDict.containsKey(label)) {
             double[] currentPositions = new double[3];
-            currentPositions[0] = core.getXPosition();
-            currentPositions[1] = core.getYPosition();
-            String focusDevice = core.getFocusDevice();
-            currentPositions[2] = core.getPosition(focusDevice);
+            currentPositions[0] = core_.getXPosition();
+            currentPositions[1] = core_.getYPosition();
+            String focusDevice = core_.getFocusDevice();
+            currentPositions[2] = core_.getPosition(focusDevice);
             oldPositionsDict.put(label, currentPositions);
         }
 
@@ -203,20 +204,20 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double oldZ = xyzPosition[2];
 
         //Set to the last good position calculated
-        setToLastCorrectedPosition(core, xyzPosition, oldX, oldY, oldZ);
+        setToLastCorrectedPosition(oldX, oldY, oldZ);
         System.out.println("old x : " + oldX);
         System.out.println("old y : " + oldY);
         System.out.println("old z : " + oldZ);
 
         //Calculate Focus
-        double correctedZPosition = zDriftCorrection(core, oldZ);
+        double correctedZPosition = zDriftCorrection(oldZ);
 
         //Set to the focus
         setZPosition(correctedZPosition);
 
         //Get an image to define reference image, for each position
-        core.snapImage();
-        TaggedImage taggedImagePosition = core.getTaggedImage();
+        core_.snapImage();
+        TaggedImage taggedImagePosition = core_.getTaggedImage();
         Mat currentMat8Set = convertTo8BitsMat(taggedImagePosition);
 //        Image imagePosition = studio_.data().convertTaggedImage(taggedImagePosition);
 //        System.out.println("Position Index current TaggedImage : " + taggedImagePosition.tags.getString("PositionIndex"));
@@ -230,8 +231,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 //        String metadata = imagePosition_Metadata.getReceivedTime();
 //        System.out.println("Received Time : " + metadata);
 
-        double currentXPosition = core.getXPosition();
-        double currentYPosition = core.getYPosition();
+        double currentXPosition = core_.getXPosition();
+        double currentYPosition = core_.getYPosition();
 
         double correctedXPosition = currentXPosition;
         double correctedYPosition = currentYPosition;
@@ -241,9 +242,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double[] xyDrifts = new double[8];
 
         //Set shutter parameters for acquisition
-        boolean oldAutoShutterState = core.getAutoShutter();
-        core.setAutoShutter(false);
-        core.setShutterOpen(true);
+        boolean oldAutoShutterState = core_.getAutoShutter();
+        core_.setAutoShutter(false);
+        core_.setShutterOpen(true);
 
         //Define current image as reference for the position if it does not exist
         if (!refImageDict.containsKey(label)) {
@@ -261,17 +262,17 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
 
         //Reinitialize origin ROI and all other parameters
-        core.setAutoShutter(oldAutoShutterState);
+        core_.setAutoShutter(oldAutoShutterState);
 
         if (cropFactor < 1.0) {
             studio_.app().setROI(oldROI);
-            core.waitForDevice(core.getCameraDevice());
+            core_.waitForDevice(core_.getCameraDevice());
         }
 
         if (oldState != null) {
-            core.setSystemState(oldState);
+            core_.setSystemState(oldState);
         }
-        core.setExposure(oldExposure);
+        core_.setExposure(oldExposure);
 
         //Set X, Y and Z corrected values
         if (xy_correction.contentEquals("Yes")){
@@ -285,9 +286,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         //Redefine reference image if autofocus is incremental
         if (Boolean.parseBoolean(incremental)){
-            core.waitForDevice(core.getCameraDevice());
-            core.snapImage();
-            TaggedImage newRefTaggedImage = core.getTaggedImage();
+            core_.waitForDevice(core_.getCameraDevice());
+            core_.snapImage();
+            TaggedImage newRefTaggedImage = core_.getTaggedImage();
             Mat newRefImage_Mat = convertTo8BitsMat(newRefTaggedImage);
             refImageDict.replace(label, newRefImage_Mat);
             DriftCorrection.UMPERMIN = 1;
@@ -331,11 +332,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         oldPositionsDict.replace(label, refreshedXYZposition);
     }
 
-    private void setToLastCorrectedPosition(CMMCore core, double[] xyzPosition, double oldX, double oldY, double oldZ) throws Exception {
+    private void setToLastCorrectedPosition(double oldX, double oldY, double oldZ) throws Exception {
 //        if (xyzPosition.length == 0) {
-//            setXYPosition(core.getXPosition(), core.getYPosition());
-//            String focusDevice = core.getFocusDevice();
-//            double currentZ = core.getPosition(focusDevice);
+//            setXYPosition(core_.getXPosition(), core_.getYPosition());
+//            String focusDevice = core_.getFocusDevice();
+//            double currentZ = core_.getPosition(focusDevice);
 //            setZPosition(currentZ);
 //        } else {
         setXYPosition(oldX, oldY);
@@ -343,20 +344,20 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 //        }
     }
 
-    private double zDriftCorrection(CMMCore core, double oldZ) throws Exception {
+    private double zDriftCorrection(double oldZ) throws Exception {
         double[] zpositions = calculateZPositions(searchRange, step, oldZ);
         double[] stdAtZPositions = new double[zpositions.length];
         TaggedImage currentImg;
 
-        boolean oldAutoShutterState = core.getAutoShutter();
-        core.setAutoShutter(false);
-        core.setShutterOpen(true);
+        boolean oldAutoShutterState = core_.getAutoShutter();
+        core_.setAutoShutter(false);
+        core_.setShutterOpen(true);
 
         for (int i =0; i< zpositions.length ;i++){
             setZPosition(zpositions[i]);
-            core.waitForDevice(core.getCameraDevice());
-            core.snapImage();
-            currentImg = core.getTaggedImage();
+            core_.waitForDevice(core_.getCameraDevice());
+            core_.snapImage();
+            currentImg = core_.getTaggedImage();
             imageCount_++;
             Image img = studio_.data().convertTaggedImage(currentImg);
             stdAtZPositions[i] = studio_.data().ij().createProcessor(img).getStatistics().stdDev;
@@ -365,7 +366,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             }
         }
 
-        core.setAutoShutter(oldAutoShutterState);
+        core_.setAutoShutter(oldAutoShutterState);
         int rawIndex = getZfocus(stdAtZPositions);
         return optimizeZFocus(rawIndex, stdAtZPositions, zpositions);
     }
@@ -413,17 +414,17 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     }
 
     private void setXYPosition(double x, double y) throws Exception {
-        CMMCore core = studio_.getCMMCore();
-        String xyDevice = core.getXYStageDevice();
-        core.setXYPosition(x,y);
-        core.waitForDevice(xyDevice);
+//        CMMCore core_ = studio_.getCMMCore();
+        String xyDevice = core_.getXYStageDevice();
+        core_.setXYPosition(x,y);
+        core_.waitForDevice(xyDevice);
     }
 
     private void setZPosition(double z) throws Exception {
-        CMMCore core = studio_.getCMMCore();
-        String focusDevice = core.getFocusDevice();
-        core.setPosition(focusDevice, z);
-        core.waitForDevice(focusDevice);
+//        CMMCore core_ = studio_.getCMMCore();
+        String focusDevice = core_.getFocusDevice();
+        core_.setPosition(focusDevice, z);
+        core_.waitForDevice(focusDevice);
     }
 
     public static double[] calculateZPositions(double searchRange, double step, double startZUm){
@@ -674,9 +675,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
     @Override
     public PropertyItem[] getProperties() {
-        CMMCore core = studio_.getCMMCore();
-        String channelGroup = core.getChannelGroup();
-        StrVector channels = core.getAvailableConfigs(channelGroup);
+//        CMMCore core_ = studio_.getCMMCore();
+        String channelGroup = core_.getChannelGroup();
+        StrVector channels = core_.getAvailableConfigs(channelGroup);
         String allowedChannels[] = new String[(int)channels.size() + 1];
         allowedChannels[0] = "";
 
