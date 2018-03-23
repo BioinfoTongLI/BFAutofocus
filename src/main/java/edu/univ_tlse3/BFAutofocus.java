@@ -13,6 +13,7 @@ import org.micromanager.data.Metadata;
 import org.micromanager.internal.utils.*;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
+import org.opencv.imgcodecs.Imgcodecs;
 import org.scijava.plugin.Plugin;
 import org.scijava.plugin.SciJavaPlugin;
 
@@ -36,6 +37,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private CMMCore core_;
     private Mat imgRef_Mat = null;
 
+    private double calibration = 0;
     private static final String SEARCH_RANGE = "SearchRange_um";
     private static final String CROP_FACTOR = "CropFactor";
     private static final String CHANNEL = "Channel";
@@ -49,12 +51,12 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private static final String[] XY_CORRECTION = {"Yes", "No"};
     private static final String[] INCREMENTAL_VALUES = {"Yes", "No"};
 
-    private double searchRange = 10;
+    private double searchRange = 5;
     private double cropFactor = 1;
     private String channel = "BF";
     private double exposure = 10;
     private String show = "No";
-    private String incremental = "Yes";
+    private String incremental = "No";
     private int imageCount_;
     private double step = 0.3;
     private String pathOfReferenceImage = "";
@@ -109,7 +111,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         Rectangle oldROI = studio_.core().getROI();
         core_ = studio_.getCMMCore();
 
-        savingPath = studio_.acquisitions().getAcquisitionSettings().root;
+        calibration = core_.getPixelSizeUm();
+        savingPath = studio_.acquisitions().getAcquisitionSettings().root + File.separator;
         System.out.println("Saving path : " + savingPath);
 
         //ReportingUtils.logMessage("Original ROI: " + oldROI);
@@ -138,8 +141,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         //Save logs of outputs and errors
         try {
-            psError = new PrintStream(savingPath + File.separator + "Error.LOG");
-//            psOutput = new PrintStream(savingPath + File.separator + "Output.LOG");
+            psError = new PrintStream(savingPath + "Error.LOG");
+//            psOutput = new PrintStream(savingPath + "Output.LOG");
             curr_err = System.err;
 //            curr_out = System.out;
 //            System.setOut(psOutput);
@@ -387,17 +390,17 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         //uncomment next line before simulation:
         //currentImgMat = DriftCorrection.readImage("/home/dataNolwenn/Résultats/06-03-2018/ImagesFocus/19-5.tif");
 
-//        ExecutorService es = Executors.newSingleThreadExecutor();
-//        Future job = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat));
-//        double[] xyDrifts = (double[]) job.get();
-//        es.shutdown();
-//        try {
-//            es.awaitTermination(1, TimeUnit.MINUTES);
-//        } catch (InterruptedException e) {
-//            e.printStackTrace();
-//        }
-//        return xyDrifts;
-        return DriftCorrection.driftCorrection(imgRef_Mat, currentImgMat);
+        ExecutorService es = Executors.newSingleThreadExecutor();
+        Future job = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration));
+        double[] xyDrifts = (double[]) job.get();
+        es.shutdown();
+        try {
+            es.awaitTermination(1, TimeUnit.MINUTES);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        return xyDrifts;
+//        return DriftCorrection.driftCorrection(imgRef_Mat, currentImgMat);
     }
 
     private void showImage(TaggedImage currentImg) {
@@ -573,7 +576,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private static Mat convertTo8BitsMat(TaggedImage taggedImage) throws JSONException {
         Mat mat16 = convertToMat(taggedImage);
         Mat mat8 = new Mat(mat16.cols(), mat16.rows(), CvType.CV_8UC1);
-        mat16.convertTo(mat8, CvType.CV_8UC1, alpha);
+        mat16.convertTo(mat8, CvType.CV_8UC1);//, alpha);
         return DriftCorrection.equalizeImages(mat8);
     }
 
@@ -603,14 +606,18 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double numberOfGoodMatchesORB = xyDrifts[7];
 
         //For "statistics" tests
-        File f1 = new File(savingPath + "Stats" + label + ".csv");
+        File f1 = new File(savingPath + "Stats_" + label + ".csv");
         if (!f1.exists()) {
             f1.createNewFile();
             FileWriter fw = new FileWriter(f1);
-            fw.write("labelOfPosition" + "," + "xCorrection" + "," + "yCorrection" + "," + "oldX" + "," + "oldY" + "," + "oldZ" + ","
-                    + "correctedXPosition" + "," + "correctedYPosition" + "," + "correctedZPosition" + "," + "timeElapsed" + ","
-                    + "meanXdisplacementBRISK" + "," + "meanYdisplacementBRISK" + "," + "numberOfMatchesBRISK" + "," + "numberOfGoodMatchesBRISK" + ","
-                    + "meanXdisplacementORB" + "," + "meanYdisplacementORB" + "," + "numberOfMatchesORB" + "," + "numberOfGoodMatchesORB" + System.lineSeparator());
+            String[] headersOfFile = new String[]{"labelOfPosition", "xCorrection", "yCorrection", "oldX", "oldY" , "oldZ",
+                    "correctedXPosition", "correctedYPosition", "correctedZPosition", "timeElapsed", "meanXdisplacementBRISK", "meanYdisplacementBRISK",
+                    "numberOfMatchesBRISK", "numberOfGoodMatchesBRISK", "meanXdisplacementORB", "meanYdisplacementORB", "numberOfMatchesORB", "numberOfGoodMatchesORB"} ;
+            fw.write(String.join(",", headersOfFile) + System.lineSeparator());
+//            fw.write("labelOfPosition" + "," + "xCorrection" + "," + "yCorrection" + "," + "oldX" + "," + "oldY" + "," + "oldZ" + ","
+//                    + "correctedXPosition" + "," + "correctedYPosition" + "," + "correctedZPosition" + "," + "timeElapsed" + ","
+//                    + "meanXdisplacementBRISK" + "," + "meanYdisplacementBRISK" + "," + "numberOfMatchesBRISK" + "," + "numberOfGoodMatchesBRISK" + ","
+//                    + "meanXdisplacementORB" + "," + "meanYdisplacementORB" + "," + "numberOfMatchesORB" + "," + "numberOfGoodMatchesORB" + System.lineSeparator());
             fw.close();
         } else {
             FileWriter fw1 = new FileWriter(f1, true);
@@ -675,9 +682,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
     @Override
     public PropertyItem[] getProperties() {
-//        CMMCore core_ = studio_.getCMMCore();
-        String channelGroup = core_.getChannelGroup();
-        StrVector channels = core_.getAvailableConfigs(channelGroup);
+        CMMCore core = studio_.getCMMCore();
+        String channelGroup = core.getChannelGroup();
+        StrVector channels = core.getAvailableConfigs(channelGroup);
         String allowedChannels[] = new String[(int)channels.size() + 1];
         allowedChannels[0] = "";
 
@@ -707,15 +714,17 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         private Mat img1_;
         private Mat img2_;
+        private double calibration_;
 
-        ThreadAttribution(Mat img1, Mat img2) {
+        ThreadAttribution(Mat img1, Mat img2, double calibration) {
             img1_ = img1;
             img2_ = img2;
+            calibration_ = calibration;
         }
 
         @Override
         public double[] call() {
-            return DriftCorrection.driftCorrection(img1_, img2_);
+            return DriftCorrection.driftCorrection(img1_, img2_, calibration_);
         }
     }
 

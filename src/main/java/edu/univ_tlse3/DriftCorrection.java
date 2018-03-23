@@ -17,7 +17,7 @@ public class DriftCorrection {
 
     public static double UMPERMIN = 50;
     public static double INTERVALINMIN = 2;
-    public static final double UMPERPIX = 0.065;
+//    public static final double UMPERPIX = 0.108;
     public static final Integer DETECTORALGO = FeatureDetector.BRISK;
     public static final Integer DESCRIPTOREXTRACTOR = DescriptorExtractor.ORB;
     public static final Integer DESCRIPTORMATCHER = DescriptorMatcher.FLANNBASED;
@@ -288,7 +288,7 @@ public class DriftCorrection {
         return imgGoodMatches;
     }
 
-    public static double[] driftCorrection(Mat img1, Mat img2) {
+    public static double[] driftCorrection(Mat img1, Mat img2, double calibration) {
         /* 1 - Detect keypoints */
         MatOfKeyPoint keypoints1 = findKeypoints(img1, DETECTORALGO);
         MatOfKeyPoint keypoints2 = findKeypoints(img2, DETECTORALGO);
@@ -330,10 +330,10 @@ public class DriftCorrection {
         System.out.println("Number of Matches ORB : " + matcherORB.rows());
 
         /* 4 - Select and display Good Matches */
-        ArrayList<DMatch> good_matchesList = selectGoodMatches(matcher, keypoints1, keypoints2, UMPERMIN, UMPERPIX, INTERVALINMIN);
+        ArrayList<DMatch> good_matchesList = selectGoodMatches(matcher, keypoints1, keypoints2, UMPERMIN, calibration, INTERVALINMIN);
         System.out.println("Number of Good Matches : " + good_matchesList.size());
 
-        ArrayList<DMatch> good_matchesListORB = selectGoodMatches(matcherORB, keypoints1ORB, keypoints2ORB, UMPERMIN, UMPERPIX, INTERVALINMIN);
+        ArrayList<DMatch> good_matchesListORB = selectGoodMatches(matcherORB, keypoints1ORB, keypoints2ORB, UMPERMIN, calibration, INTERVALINMIN);
         System.out.println("Number of Good Matches ORB : " + good_matchesListORB.size());
 
 //        Mat imgGoodMatches = drawGoodMatches(img1, img2, keypoints1, keypoints2, good_matchesList);
