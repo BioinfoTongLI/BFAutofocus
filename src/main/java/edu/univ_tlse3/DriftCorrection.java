@@ -9,14 +9,15 @@ import org.opencv.imgproc.Imgproc;
 import java.awt.image.BufferedImage;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 import static org.opencv.features2d.Features2d.NOT_DRAW_SINGLE_POINTS;
 
 public class DriftCorrection {
 
-    public static double UMPERMIN = 50;
-    public static double INTERVALINMIN = 2;
+//    public static double UMPERMIN = 50;
+//    public static double INTERVALINMIN = 0;
 //    public static final double UMPERPIX = 0.108;
     public static final Integer DETECTORALGO = FeatureDetector.BRISK;
     public static final Integer DESCRIPTOREXTRACTOR = DescriptorExtractor.ORB;
@@ -62,8 +63,8 @@ public class DriftCorrection {
         return matcher;
     }
 
-    //Calculate distance (in pixels) between each pair of points :
-    public static ArrayList<Double> getDistances(MatOfDMatch matcher, MatOfKeyPoint keyPoint1, MatOfKeyPoint keyPoint2) {
+    //Calculate distance (in um) between each pair of points :
+    public static ArrayList<Double> getDistancesInUm(MatOfDMatch matcher, MatOfKeyPoint keyPoint1, MatOfKeyPoint keyPoint2, double calibration) {
         DMatch[] matcherArray = matcher.toArray();
         KeyPoint[] keypoint1Array = keyPoint1.toArray();
         KeyPoint[] keypoint2Array = keyPoint2.toArray();
@@ -83,15 +84,16 @@ public class DriftCorrection {
 
             x1 = keypoint1Array[dmQuery].pt.x;
             x2 = keypoint2Array[dmTrain].pt.x;
-            x = x2 - x1;
+            x = (x2 - x1) * calibration;
 
             y1 = keypoint1Array[dmQuery].pt.y;
             y2 = keypoint2Array[dmTrain].pt.y;
-            y = y2 - y1;
+            y = (y2 - y1) * calibration;
 
             d = Math.hypot(x, y);
             listOfDistances.add(d);
         }
+        //Get min and max distances
         for (int i = 0; i < listOfDistances.size(); i++) {
             if (listOfDistances.get(i) < min) {
                 min = listOfDistances.get(i);
@@ -100,15 +102,20 @@ public class DriftCorrection {
                 max = listOfDistances.get(i);
             }
         }
+        System.out.println("Min dist : " + min);
+        System.out.println("Max dist : " + max);
         return listOfDistances;
     }
 
-    public  static ArrayList<DMatch> selectGoodMatches(MatOfDMatch matcher, MatOfKeyPoint keyPoint1, MatOfKeyPoint keyPoint2, double umPerMin, double umPerPixel, double intervalInMin) {
+    public  static ArrayList<DMatch> selectGoodMatches(MatOfDMatch matcher, MatOfKeyPoint keyPoint1, MatOfKeyPoint keyPoint2, double umPerStep, double calibration, double intervalInMin) {
         DMatch[] matcherArray = matcher.toArray();
-        ArrayList<Double> listOfDistances = getDistances(matcher, keyPoint1, keyPoint2);
+        ArrayList<Double> listOfDistancesInUm = getDistancesInUm(matcher, keyPoint1, keyPoint2, calibration);
+//        ArrayList<Double> listOfDistancesInUm = new ArrayList<>();
         ArrayList<DMatch> good_matchesList = new ArrayList<>();
         for (int i = 0; i < matcherArray.length; i++) {
-            if (listOfDistances.get(i) <= (umPerMin/umPerPixel)* intervalInMin) {
+//            Double distanceInUm = listOfDistancesInPx.get(i) * calibration;
+//            listOfDistancesInUm.add(distanceInUm);
+            if (listOfDistancesInUm.get(i) <= umPerStep/intervalInMin) {
                 good_matchesList.add(matcherArray[i]);
             }
         }
@@ -201,7 +208,7 @@ public class DriftCorrection {
     static  Mat convertMatDescriptorToCV32F(Mat descriptor) {
         Mat descriptor32F = new Mat(descriptor.cols(), descriptor.rows(), CvType.CV_32F);
         if (descriptor.type() != CvType.CV_32F) {
-            descriptor.convertTo(descriptor32F, CvType.CV_32F);//,-0.01050420168067226890756302521008);
+            descriptor.convertTo(descriptor32F, CvType.CV_32F);
         }
         return descriptor32F;
     }
@@ -288,25 +295,19 @@ public class DriftCorrection {
         return imgGoodMatches;
     }
 
-    public static double[] driftCorrection(Mat img1, Mat img2, double calibration) {
+    public static double[] driftCorrection(Mat img1, Mat img2, double calibration, double intervalInMin, double umPerStep) {
+        long startBriskTime = new Date().getTime();
+
+        //BRISK ALGORITHM
         /* 1 - Detect keypoints */
         MatOfKeyPoint keypoints1 = findKeypoints(img1, DETECTORALGO);
         MatOfKeyPoint keypoints2 = findKeypoints(img2, DETECTORALGO);
         System.out.println("Keypoints img ref : " + keypoints1.rows());
         System.out.println("Keypoints img 2 : " + keypoints2.rows());
 
-        /* for ORB algo */
-        MatOfKeyPoint keypoints1ORB = findKeypoints(img1, DETECTORALGO_ORB);
-        MatOfKeyPoint keypoints2ORB = findKeypoints(img2, DETECTORALGO_ORB);
-        System.out.println("Keypoints ORB img ref : " + keypoints1ORB.rows());
-        System.out.println("Keypoints ORB img 2 : " + keypoints2ORB.rows());
-
         /* 2 - Calculate descriptors */
         Mat img1_descriptors = calculDescriptors(img1, keypoints1, DESCRIPTOREXTRACTOR);
         Mat img2_descriptors = calculDescriptors(img2, keypoints2, DESCRIPTOREXTRACTOR);
-
-        Mat img1_descriptorsORB = calculDescriptors(img1, keypoints1ORB, DESCRIPTOREXTRACTOR_ORB);
-        Mat img2_descriptorsORB = calculDescriptors(img2, keypoints2ORB, DESCRIPTOREXTRACTOR_ORB);
 
         if(img1_descriptors.empty()) {
             System.out.println("Descriptor ref image empty");
@@ -315,26 +316,13 @@ public class DriftCorrection {
             System.out.println("Descriptor image 2 empty");
         }
 
-        if(img1_descriptorsORB.empty()) {
-            System.out.println("ORB Descriptor ref image empty");
-        }
-        if(img2_descriptorsORB.empty()){
-            System.out.println("ORB Descriptor image 2 empty");
-        }
-
         /* 3 - Matching descriptor using FLANN matcher */
         MatOfDMatch matcher = matchingDescriptor(img1_descriptors, img2_descriptors, DESCRIPTORMATCHER);
         System.out.println("Number of Matches : " + matcher.rows());
 
-        MatOfDMatch matcherORB = matchingDescriptor(img1_descriptorsORB, img2_descriptorsORB, DESCRIPTORMATCHER);
-        System.out.println("Number of Matches ORB : " + matcherORB.rows());
-
         /* 4 - Select and display Good Matches */
-        ArrayList<DMatch> good_matchesList = selectGoodMatches(matcher, keypoints1, keypoints2, UMPERMIN, calibration, INTERVALINMIN);
+        ArrayList<DMatch> good_matchesList = selectGoodMatches(matcher, keypoints1, keypoints2, umPerStep, calibration, intervalInMin);
         System.out.println("Number of Good Matches : " + good_matchesList.size());
-
-        ArrayList<DMatch> good_matchesListORB = selectGoodMatches(matcherORB, keypoints1ORB, keypoints2ORB, UMPERMIN, calibration, INTERVALINMIN);
-        System.out.println("Number of Good Matches ORB : " + good_matchesListORB.size());
 
 //        Mat imgGoodMatches = drawGoodMatches(img1, img2, keypoints1, keypoints2, good_matchesList);
 //        displayImageIJ("Good Matches", imgGoodMatches);
@@ -346,32 +334,66 @@ public class DriftCorrection {
         ArrayList<Float> img2_keypoints_xCoordinates = getGoodMatchesXCoordinates(keypoints2, good_matchesList,false);
         ArrayList<Float> img2_keypoints_yCoordinates = getGoodMatchesYCoordinates(keypoints2, good_matchesList, false);
 
-        ArrayList<Float> img1_keypoints_xCoordinatesORB = getGoodMatchesXCoordinates(keypoints1ORB, good_matchesListORB,true);
-        ArrayList<Float> img1_keypoints_yCoordinatesORB = getGoodMatchesYCoordinates(keypoints1ORB, good_matchesListORB, true);
-
-        ArrayList<Float> img2_keypoints_xCoordinatesORB = getGoodMatchesXCoordinates(keypoints2ORB, good_matchesListORB,false);
-        ArrayList<Float> img2_keypoints_yCoordinatesORB = getGoodMatchesYCoordinates(keypoints2ORB, good_matchesListORB, false);
-
-
         /* 6 - Get X and Y mean displacements */
         float meanXdisplacement = getMeanXDisplacement(img1_keypoints_xCoordinates, img2_keypoints_xCoordinates);
         float meanYdisplacement = getMeanYDisplacement(img1_keypoints_yCoordinates, img2_keypoints_yCoordinates);
         System.out.println("X mean displacement : " + meanXdisplacement);
         System.out.println("Y mean displacement : " + meanYdisplacement + "\n");
 
+        long endBRISKTime = new Date().getTime();
+        long briskAlgorithmDuration = endBRISKTime - startBriskTime;
+
+        //ORB ALGORITHM
+        long startOrbTime = new Date().getTime();
+
+        /* 1 - Detect keypoints */
+        MatOfKeyPoint keypoints1ORB = findKeypoints(img1, DETECTORALGO_ORB);
+        MatOfKeyPoint keypoints2ORB = findKeypoints(img2, DETECTORALGO_ORB);
+        System.out.println("Keypoints ORB img ref : " + keypoints1ORB.rows());
+        System.out.println("Keypoints ORB img 2 : " + keypoints2ORB.rows());
+
+        /* 2 - Calculate descriptors */
+        Mat img1_descriptorsORB = calculDescriptors(img1, keypoints1ORB, DESCRIPTOREXTRACTOR_ORB);
+        Mat img2_descriptorsORB = calculDescriptors(img2, keypoints2ORB, DESCRIPTOREXTRACTOR_ORB);
+
+        if(img1_descriptorsORB.empty()) {
+            System.out.println("ORB Descriptor ref image empty");
+        }
+        if(img2_descriptorsORB.empty()){
+            System.out.println("ORB Descriptor image 2 empty");
+        }
+
+        /* 3 - Matching descriptor using FLANN matcher */
+        MatOfDMatch matcherORB = matchingDescriptor(img1_descriptorsORB, img2_descriptorsORB, DESCRIPTORMATCHER);
+        System.out.println("Number of Matches ORB : " + matcherORB.rows());
+
+        /* 4 - Select and display Good Matches */
+        ArrayList<DMatch> good_matchesListORB = selectGoodMatches(matcherORB, keypoints1ORB, keypoints2ORB, umPerStep, calibration, intervalInMin);
+        System.out.println("Number of Good Matches ORB : " + good_matchesListORB.size());
+
+        /* 5 - Get coordinates of GoodMatches Keypoints */
+        ArrayList<Float> img1_keypoints_xCoordinatesORB = getGoodMatchesXCoordinates(keypoints1ORB, good_matchesListORB,true);
+        ArrayList<Float> img1_keypoints_yCoordinatesORB = getGoodMatchesYCoordinates(keypoints1ORB, good_matchesListORB, true);
+
+        ArrayList<Float> img2_keypoints_xCoordinatesORB = getGoodMatchesXCoordinates(keypoints2ORB, good_matchesListORB,false);
+        ArrayList<Float> img2_keypoints_yCoordinatesORB = getGoodMatchesYCoordinates(keypoints2ORB, good_matchesListORB, false);
+
+        /* 6 - Get X and Y mean displacements */
         float meanXdisplacementORB = getMeanXDisplacement(img1_keypoints_xCoordinatesORB, img2_keypoints_xCoordinatesORB);
         float meanYdisplacementORB = getMeanYDisplacement(img1_keypoints_yCoordinatesORB, img2_keypoints_yCoordinatesORB);
         System.out.println("X mean displacement ORB : " + meanXdisplacement);
         System.out.println("Y mean displacement ORB : " + meanYdisplacement + "\n");
 
-
+        long endOrbTime = new Date().getTime();
+        long orbAlgorithmDuration = endOrbTime - startOrbTime;
 //        double xVariance = getXVariance(img1_keypoints_xCoordinates, img2_keypoints_xCoordinates, meanXdisplacement);
 //        double yVariance = getYVariance(img1_keypoints_yCoordinates, img2_keypoints_yCoordinates, meanYdisplacement);
 //        System.out.println("X variance : " + xVariance);
 //        System.out.println("Y variance : " + yVariance + "\n");
 
         return new double[]{(double) meanXdisplacement, (double) meanYdisplacement, (double) matcher.rows(), (double) good_matchesList.size(),
-                (double) meanXdisplacementORB, (double) meanYdisplacementORB, (double) matcherORB.rows(), (double) good_matchesListORB.size()};
+                (double) meanXdisplacementORB, (double) meanYdisplacementORB, (double) matcherORB.rows(), (double) good_matchesListORB.size(),
+                (double) briskAlgorithmDuration, (double) orbAlgorithmDuration};
     }
 }
 
