@@ -9,11 +9,12 @@ import org.micromanager.PositionList;
 import org.micromanager.Studio;
 import org.micromanager.data.Datastore;
 import org.micromanager.data.Image;
-import org.micromanager.data.Metadata;
 import org.micromanager.internal.utils.*;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
-import org.opencv.imgcodecs.Imgcodecs;
+import org.opencv.features2d.DescriptorExtractor;
+import org.opencv.features2d.DescriptorMatcher;
+import org.opencv.features2d.FeatureDetector;
 import org.scijava.plugin.Plugin;
 import org.scijava.plugin.SciJavaPlugin;
 
@@ -77,7 +78,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private double intervalInMin =0;
     private int positionIndex = 0;
 
-//    private PrintStream psError;
+    //    private PrintStream psError;
 //    private PrintStream psOutput;
 //    private PrintStream curr_err;
 //    private PrintStream curr_out;
@@ -200,6 +201,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 //        String prefix = studio_.acquisitions().getAcquisitionSettings().prefix;
 //        System.out.println("Prefix : " + prefix);
 
+        double[] oldCorrectedPositions;
+        double oldX = 0;
+        double oldY = 0;
+        double oldZ = 0;
+
         //Define positions if it does not exist
         if (!oldPositionsDict.containsKey(label)) {
             double[] currentPositions = new double[3];
@@ -208,22 +214,22 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             String focusDevice = core_.getFocusDevice();
             currentPositions[2] = core_.getPosition(focusDevice);
             oldPositionsDict.put(label, currentPositions);
+        } else {
+            //Get old calculated X, Y and Z of a given position
+            oldCorrectedPositions = getXYZPosition(label);
+            oldX = oldCorrectedPositions[0];
+            oldY = oldCorrectedPositions[1];
+            oldZ = oldCorrectedPositions[2];
+
+            //Set to the last good position calculated
+            setToLastCorrectedPosition(oldX, oldY, oldZ);
+            System.out.println("old x : " + oldX);
+            System.out.println("old y : " + oldY);
+            System.out.println("old z : " + oldZ);
         }
 
-        //Get X, Y and Z of a given position
-        double[] xyzPosition = getXYZPosition(label);
-        double oldX = xyzPosition[0];
-        double oldY = xyzPosition[1];
-        double oldZ = xyzPosition[2];
-
-        //Set to the last good position calculated
-        setToLastCorrectedPosition(oldX, oldY, oldZ);
-        System.out.println("old x : " + oldX);
-        System.out.println("old y : " + oldY);
-        System.out.println("old z : " + oldZ);
-
         //Calculate Focus
-        double correctedZPosition = zDriftCorrection(oldZ);
+        double correctedZPosition = calculateZFocus(oldZ);
 
         //Set to the focus
         setZPosition(correctedZPosition);
@@ -244,34 +250,72 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 //        String metadata = imagePosition_Metadata.getReceivedTime();
 //        System.out.println("Received Time : " + metadata);
 
+        //Set shutter parameters for acquisition
+        boolean oldAutoShutterState = core_.getAutoShutter();
+        core_.setAutoShutter(false);
+        core_.setShutterOpen(true);
+
+
+        //Calcul of XY Drifts only if the parameter "Correct XY at same time" is set to Yes;
         double currentXPosition = core_.getXPosition();
         double currentYPosition = core_.getYPosition();
 
         double correctedXPosition = currentXPosition;
         double correctedYPosition = currentYPosition;
 
-        double xCorrection = 0;
-        double yCorrection = 0;
-        double[] xyDrifts = new double[8];
+        double xCorrection;
+        double yCorrection;
 
-        //Set shutter parameters for acquisition
-        boolean oldAutoShutterState = core_.getAutoShutter();
-        core_.setAutoShutter(false);
-        core_.setShutterOpen(true);
+        double[] xyDriftsBRISKORB = new double[5];
 
-        //Define current image as reference for the position if it does not exist
-        if (!refImageDict.containsKey(label)) {
-            refImageDict.put(label, currentMat8Set);
-        } else {
-            imgRef_Mat = (Mat) refImageDict.get(label);
-            xyDrifts = calculateXYDrifts(currentMat8Set);
-            xCorrection = xyDrifts[0];
-            yCorrection = xyDrifts[1];
-            correctedXPosition = currentXPosition - xCorrection;
-            correctedYPosition = currentYPosition - yCorrection;
-            System.out.println("Xcorrected : " + correctedXPosition);
-            System.out.println("Ycorrected : " + correctedYPosition);
-            System.out.println("Zcorrected : " + correctedZPosition);
+        double[] xyDriftsORBORB = new double[5];
+
+        double[] xyDriftsORBBRISK = new double[5];
+
+        double[] xyDriftsBRISKBRISK = new double[5];
+
+        double[] xyDriftsAKAZEBRISK = new double[5];
+
+        double[] xyDriftsAKAZEORB = new double[5];
+
+        double[] xyDriftsAKAZEAKAZE = new double[5];
+
+        if (xy_correction.contentEquals("Yes")){
+            //Define current image as reference for the position if it does not exist
+            if (!refImageDict.containsKey(label)) {
+                refImageDict.put(label, currentMat8Set);
+            } else {
+                //Or calculate XY drift
+                imgRef_Mat = (Mat) refImageDict.get(label);
+                xyDriftsBRISKORB = calculateXYDrifts(currentMat8Set, FeatureDetector.BRISK, DescriptorExtractor.ORB, DescriptorMatcher.FLANNBASED);
+                xCorrection = xyDriftsBRISKORB[0];
+                yCorrection = xyDriftsBRISKORB[1];
+                correctedXPosition = currentXPosition + xCorrection;
+                correctedYPosition = currentYPosition + yCorrection;
+                System.out.println("Xcorrected : " + correctedXPosition);
+                System.out.println("Ycorrected : " + correctedYPosition);
+                System.out.println("Zcorrected : " + correctedZPosition);
+
+                xyDriftsORBORB = calculateXYDrifts(currentMat8Set, FeatureDetector.ORB, DescriptorExtractor.ORB, DescriptorMatcher.FLANNBASED);
+
+                xyDriftsORBBRISK = calculateXYDrifts(currentMat8Set, FeatureDetector.ORB, DescriptorExtractor.BRISK, DescriptorMatcher.FLANNBASED);
+
+                xyDriftsBRISKBRISK = calculateXYDrifts(currentMat8Set, FeatureDetector.BRISK, DescriptorExtractor.BRISK, DescriptorMatcher.FLANNBASED);
+
+                xyDriftsAKAZEBRISK = calculateXYDrifts(currentMat8Set, FeatureDetector.AKAZE, DescriptorExtractor.BRISK, DescriptorMatcher.FLANNBASED);
+
+                xyDriftsAKAZEORB = calculateXYDrifts(currentMat8Set, FeatureDetector.AKAZE, DescriptorExtractor.ORB, DescriptorMatcher.FLANNBASED);
+
+                xyDriftsAKAZEAKAZE = calculateXYDrifts(currentMat8Set, FeatureDetector.AKAZE, DescriptorExtractor.AKAZE, DescriptorMatcher.FLANNBASED);
+            }
+            setXYPosition(correctedXPosition, correctedYPosition);
+
+            //Reference image incremental
+            core_.waitForDevice(core_.getCameraDevice());
+            core_.snapImage();
+            TaggedImage newRefTaggedImage = core_.getTaggedImage();
+            Mat newRefMat = convertTo8BitsMat(newRefTaggedImage);
+            refImageDict.replace(label, newRefMat);
         }
 
         //Reinitialize origin ROI and all other parameters
@@ -287,31 +331,28 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
         core_.setExposure(oldExposure);
 
-        //Set X, Y and Z corrected values
-        if (xy_correction.contentEquals("Yes")){
-            setXYPosition(correctedXPosition, correctedYPosition);
-        }
-
 //        studio_.app().refreshGUIFromCache(); //Not sure about the utility; may be useful for Metadata?;
 
         //Refresh positions in position dictionary
         refreshOldXYZposition(correctedXPosition, correctedYPosition, correctedZPosition, label);
 
-        //Redefine reference image if autofocus is incremental
-        if (Boolean.parseBoolean(incremental)){
-            core_.waitForDevice(core_.getCameraDevice());
-            core_.snapImage();
-            TaggedImage newRefTaggedImage = core_.getTaggedImage();
-            Mat newRefImage_Mat = convertTo8BitsMat(newRefTaggedImage);
-            refImageDict.replace(label, newRefImage_Mat);
-        }
+//        //Redefine reference image if autofocus is incremental
+//        if (Boolean.parseBoolean(incremental)){
+//            core_.waitForDevice(core_.getCameraDevice());
+//            core_.snapImage();
+//            TaggedImage newRefTaggedImage = core_.getTaggedImage();
+//            Mat newRefImage_Mat = convertTo8BitsMat(newRefTaggedImage);
+//            refImageDict.replace(label, newRefImage_Mat);
+//        }
 
         long endTime = new Date().getTime();
         long acquisitionTimeElapsed = endTime - startTime;
         System.out.println("Acquisition duration in ms : " + acquisitionTimeElapsed);
 
-        writeOutput(acquisitionTimeElapsed, label, xCorrection, yCorrection, oldX, oldY, oldZ,
-                correctedXPosition, correctedYPosition, correctedZPosition, xyDrifts);
+        writeOutput(acquisitionTimeElapsed, label, oldX, oldY, oldZ,
+                currentXPosition, correctedXPosition, currentYPosition, correctedYPosition, correctedZPosition,
+                xyDriftsBRISKORB, xyDriftsORBORB, xyDriftsORBBRISK, xyDriftsBRISKBRISK,
+                xyDriftsAKAZEBRISK, xyDriftsAKAZEORB, xyDriftsAKAZEAKAZE);
 //        psError.close();
 //        psOutput.close();
 //        System.setOut(curr_out);
@@ -351,7 +392,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 //        }
     }
 
-    private double zDriftCorrection(double oldZ) throws Exception {
+    private double calculateZFocus(double oldZ) throws Exception {
         double[] zpositions = calculateZPositions(searchRange, step, oldZ);
         double[] stdAtZPositions = new double[zpositions.length];
         TaggedImage currentImg;
@@ -390,12 +431,13 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         return maxIdx;
     }
 
-    private double[] calculateXYDrifts(Mat currentImgMat) throws Exception {
+    private double[] calculateXYDrifts(Mat currentImgMat, Integer detectorAlgo, Integer descriptorExtractor, Integer descriptorMatcher) throws Exception {
         //uncomment next line before simulation:
         //currentImgMat = DriftCorrection.readImage("/home/dataNolwenn/Résultats/06-03-2018/ImagesFocus/19-5.tif");
 
         ExecutorService es = Executors.newSingleThreadExecutor();
-        Future job = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration, intervalInMin, umPerStep));
+        Future job = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
+                intervalInMin, umPerStep, detectorAlgo, descriptorExtractor, descriptorMatcher));
         double[] xyDrifts = (double[]) job.get();
         es.shutdown();
         try {
@@ -595,17 +637,28 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         return DriftCorrection.equalizeImages(res);
     }
 
-    private void writeOutput(long acquisitionDuration, String label, double xCorrection, double yCorrection, double oldX,
-                             double oldY, double oldZ, double correctedXPosition, double correctedYPosition,
-                             double correctedZPosition, double[] xyDrifts) throws IOException {
-        //For "statistics" tests
+    private void writeOutput(long acquisitionDuration, String label, double oldX,
+                             double oldY, double oldZ, double currentXPosition, double correctedXPosition, double currentYPosition,
+                             double correctedYPosition, double correctedZPosition, double[] xyDriftsBRISKORB,
+                             double[] xyDriftsORBORB, double[] xyDriftsORBBRISK, double[] xyDriftsBRISKBRISK,
+                             double[] xyDriftsAKAZEAKAZE, double[] xyDriftsAKAZEBRISK, double[] xyDriftsAKAZEORB) throws IOException {
+        //For "statistics"
         File f1 = new File(savingPath + "Stats_" + label + ".csv");
         if (!f1.exists()) {
             f1.createNewFile();
             FileWriter fw = new FileWriter(f1);
-            String[] headersOfFile = new String[]{"labelOfPosition", "xCorrection", "yCorrection", "oldX", "oldY" , "oldZ",
-                    "correctedXPosition", "correctedYPosition", "correctedZPosition", "acquisitionDuration(ms)", "meanXdisplacementBRISK", "meanYdisplacementBRISK",
-                    "numberOfMatchesBRISK", "numberOfGoodMatchesBRISK", "briskAlgorithmDuration(ms)", "meanXdisplacementORB", "meanYdisplacementORB", "numberOfMatchesORB", "numberOfGoodMatchesORB", "orbAlgorithmDuration(ms)"} ;
+            String[] headersOfFile = new String[]{"labelOfPosition", "xCorrection", "yCorrection", "oldX", "oldY", "oldZ",
+                    "currentXPosition", "correctedXPosition", "currentYPosition", "correctedYPosition",
+                    "correctedZPosition", "acquisitionDuration(ms)",
+                    "meanXdisplacementBRISKORB", "meanYdisplacementBRISKORB", "numberOfMatchesBRISKORB", "numberOfGoodMatchesBRISKORB", "algorithmDurationBRISKORB(ms)",
+                    "meanXdisplacementORBORB", "meanYdisplacementORBORB", "numberOfMatchesORBORB", "numberOfGoodMatchesORBORB", "algorithmDurationORBORB(ms)",
+                    "meanXdisplacementORBBRISK", "meanYdisplacementORBBRISK", "numberOfMatchesORBBRISK", "numberOfGoodMatchesORBBRISK", "algorithmDurationORBBRISK(ms)",
+                    "meanXdisplacementBRISKBRISK", "meanYdisplacementBRISKBRISK", "numberOfMatchesBRISKBRISK", "numberOfGoodMatchesBRISKBRISK", "algorithmDurationBRISKBRISK(ms)",
+                    "meanXdisplacementAKAZEBRISK", "meanYdisplacementAKAZEBRISK", "numberOfMatchesAKAZEBRISK", "numberOfGoodMatchesAKAZEBRISK", "algorithmDurationAKAZEBRISK(ms)",
+                    "meanXdisplacementAKAZEORB", "meanYdisplacementAKAZEORB", "numberOfMatchesAKAZEORB", "numberOfGoodMatchesAKAZEORB", "algorithmDurationAKAZEORB(ms)",
+                    "meanXdisplacementAKAZEAKAZE", "meanYdisplacementAKAZEAKAZE", "numberOfMatchesAKAZEAKAZE", "numberOfGoodMatchesAKAZEAKAZE", "algorithmDurationAKAZEAKAZE(ms)",
+            } ;
+
             fw.write(String.join(",", headersOfFile) + System.lineSeparator());
 //            fw.write("labelOfPosition" + "," + "xCorrection" + "," + "yCorrection" + "," + "oldX" + "," + "oldY" + "," + "oldZ" + ","
 //                    + "correctedXPosition" + "," + "correctedYPosition" + "," + "correctedZPosition" + "," + "timeElapsed" + ","
@@ -613,23 +666,75 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 //                    + "meanXdisplacementORB" + "," + "meanYdisplacementORB" + "," + "numberOfMatchesORB" + "," + "numberOfGoodMatchesORB" + System.lineSeparator());
             fw.close();
         } else {
-            double meanXdisplacementBRISK = xyDrifts[0];
-            double meanYdisplacementBRISK = xyDrifts[1];
-            double numberOfMatchesBRISK = xyDrifts[2];
-            double numberOfGoodMatchesBRISK = xyDrifts[3];
-            double meanXdisplacementORB = xyDrifts[4];
-            double meanYdisplacementORB = xyDrifts[5];
-            double numberOfMatchesORB = xyDrifts[6];
-            double numberOfGoodMatchesORB = xyDrifts[7];
-            double briskAlgorithmDuration = xyDrifts[8];
-            double orbAlgorithmDuration = xyDrifts[9];
+            double meanXdisplacementBRISKORB = xyDriftsBRISKORB[0];
+            double meanYdisplacementBRISKORB = xyDriftsBRISKORB[1];
+            double numberOfMatchesBRISKORB = xyDriftsBRISKORB[2];
+            double numberOfGoodMatchesBRISKORB = xyDriftsBRISKORB[3];
+            double algorithmDurationBRISKORB = xyDriftsBRISKORB[4];
+
+            double meanXdisplacementORBORB = xyDriftsORBORB[0];
+            double meanYdisplacementORBORB = xyDriftsORBORB[1];
+            double numberOfMatchesORBORB = xyDriftsORBORB[2];
+            double numberOfGoodMatchesORBORB = xyDriftsORBORB[3];
+            double algorithmDurationORBORB = xyDriftsORBORB[4];
+
+            double meanXdisplacementORBBRISK = xyDriftsORBBRISK[0];
+            double meanYdisplacementORBBRISK = xyDriftsORBBRISK[1];
+            double numberOfMatchesORBBRISK = xyDriftsORBBRISK[2];
+            double numberOfGoodMatchesORBBRISK = xyDriftsORBBRISK[3];
+            double algorithmDurationORBBRISK = xyDriftsORBBRISK[4];
+
+            double meanXdisplacementBRISKBRISK = xyDriftsBRISKBRISK[0];
+            double meanYdisplacementBRISKBRISK = xyDriftsBRISKBRISK[1];
+            double numberOfMatchesBRISKBRISK = xyDriftsBRISKBRISK[2];
+            double numberOfGoodMatchesBRISKBRISK = xyDriftsBRISKBRISK[3];
+            double algorithmDurationBRISKBRISK = xyDriftsBRISKBRISK[4];
+
+            double meanXdisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[0];
+            double meanYdisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[1];
+            double numberOfMatchesAKAZEBRISK = xyDriftsAKAZEBRISK[2];
+            double numberOfGoodMatchesAKAZEBRISK = xyDriftsAKAZEBRISK[3];
+            double algorithmDurationAKAZEBRISK = xyDriftsAKAZEBRISK[4];
+
+            double meanXdisplacementAKAZEORB = xyDriftsAKAZEORB[0];
+            double meanYdisplacementAKAZEORB = xyDriftsAKAZEORB[1];
+            double numberOfMatchesAKAZEORB = xyDriftsAKAZEORB[2];
+            double numberOfGoodMatchesAKAZEORB = xyDriftsAKAZEORB[3];
+            double algorithmDurationAKAZEORB = xyDriftsAKAZEORB[4];
+
+            double meanXdisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[0];
+            double meanYdisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[1];
+            double numberOfMatchesAKAZEAKAZE = xyDriftsAKAZEAKAZE[2];
+            double numberOfGoodMatchesAKAZEAKAZE = xyDriftsAKAZEAKAZE[3];
+            double algorithmDurationAKAZEAKAZE = xyDriftsAKAZEAKAZE[4];
+
             FileWriter fw1 = new FileWriter(f1, true);
-            fw1.write(label + "," + xCorrection + "," + yCorrection + "," + oldX + "," + oldY + "," + oldZ + ","
-                    + correctedXPosition + "," + correctedYPosition + "," + correctedZPosition + "," + acquisitionDuration + ","
-                    + meanXdisplacementBRISK + "," + meanYdisplacementBRISK + "," + numberOfMatchesBRISK + ","
-                    + numberOfGoodMatchesBRISK + "," + briskAlgorithmDuration + ","
-                    + meanXdisplacementORB + "," + meanYdisplacementORB + "," + numberOfMatchesORB + ","
-                    + numberOfGoodMatchesORB + "," + orbAlgorithmDuration + System.lineSeparator());
+            fw1.write(label + "," + oldX + "," + oldY + "," + oldZ + ","
+                    + currentXPosition + "," + correctedXPosition + "," + currentYPosition + "," + correctedYPosition + ","
+                    + correctedZPosition + "," + acquisitionDuration + ","
+
+                    + meanXdisplacementBRISKORB + "," + meanYdisplacementBRISKORB + "," + numberOfMatchesBRISKORB + ","
+                    + numberOfGoodMatchesBRISKORB + "," + algorithmDurationBRISKORB + ","
+
+                    + meanXdisplacementORBORB + "," + meanYdisplacementORBORB + "," + numberOfMatchesORBORB + ","
+                    + numberOfGoodMatchesORBORB + "," + algorithmDurationORBORB
+
+                    + meanXdisplacementORBBRISK + "," + meanYdisplacementORBBRISK + "," + numberOfMatchesORBBRISK + ","
+                    + numberOfGoodMatchesORBBRISK + "," + algorithmDurationORBBRISK
+
+                    + meanXdisplacementBRISKBRISK + "," + meanYdisplacementBRISKBRISK + "," + numberOfMatchesBRISKBRISK + ","
+                    + numberOfGoodMatchesBRISKBRISK + "," + algorithmDurationBRISKBRISK
+
+                    + meanXdisplacementAKAZEBRISK + "," + meanYdisplacementAKAZEBRISK + "," + numberOfMatchesAKAZEBRISK + ","
+                    + numberOfGoodMatchesAKAZEBRISK + "," + algorithmDurationAKAZEBRISK
+
+                    + meanXdisplacementAKAZEORB + "," + meanYdisplacementAKAZEORB + "," + numberOfMatchesAKAZEORB + ","
+                    + numberOfGoodMatchesAKAZEORB + "," + algorithmDurationAKAZEORB
+
+                    + meanXdisplacementAKAZEAKAZE + "," + meanYdisplacementAKAZEAKAZE + "," + numberOfMatchesAKAZEAKAZE + ","
+                    + numberOfGoodMatchesAKAZEAKAZE + "," + algorithmDurationAKAZEAKAZE
+
+                    + System.lineSeparator());
             fw1.close();
         }
     }
@@ -722,18 +827,25 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         private double calibration_;
         private double intervalInMs_;
         private double umPerStep_;
+        private Integer detectorAlgo_;
+        private Integer descriptorExtractor_;
+        private Integer descriptorMatcher_;
 
-        ThreadAttribution(Mat img1, Mat img2, double calibration, double intervalInMs, double umPerStep) {
+        ThreadAttribution(Mat img1, Mat img2, double calibration, double intervalInMs, double umPerStep,
+                          Integer detectorAlgo, Integer descriptorExtractor, Integer descriptorMatcher) {
             img1_ = img1;
             img2_ = img2;
             calibration_ = calibration;
             intervalInMs_ = intervalInMs;
             umPerStep_ = umPerStep;
+            detectorAlgo_ = detectorAlgo;
+            descriptorExtractor_ = descriptorExtractor;
+            descriptorMatcher_ = descriptorMatcher;
         }
 
         @Override
         public double[] call() {
-            return DriftCorrection.driftCorrection(img1_, img2_, calibration_, intervalInMs_, umPerStep_);
+            return DriftCorrection.driftCorrection(img1_, img2_, calibration_, intervalInMs_, umPerStep_, detectorAlgo_, descriptorExtractor_, descriptorMatcher_);
         }
     }
 
