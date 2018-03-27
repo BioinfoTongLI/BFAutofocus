@@ -381,8 +381,8 @@ public class DriftCorrection {
         /* 6 - Get X and Y mean displacements */
         float meanXdisplacementORB = getMeanXDisplacement(img1_keypoints_xCoordinatesORB, img2_keypoints_xCoordinatesORB);
         float meanYdisplacementORB = getMeanYDisplacement(img1_keypoints_yCoordinatesORB, img2_keypoints_yCoordinatesORB);
-        System.out.println("X mean displacement ORB : " + meanXdisplacement);
-        System.out.println("Y mean displacement ORB : " + meanYdisplacement + "\n");
+        System.out.println("X mean displacement ORB : " + meanXdisplacementORB);
+        System.out.println("Y mean displacement ORB : " + meanYdisplacementORB + "\n");
 
         long endOrbTime = new Date().getTime();
         long orbAlgorithmDuration = endOrbTime - startOrbTime;
@@ -391,9 +391,9 @@ public class DriftCorrection {
 //        System.out.println("X variance : " + xVariance);
 //        System.out.println("Y variance : " + yVariance + "\n");
 
-        return new double[]{(double) meanXdisplacement, (double) meanYdisplacement, (double) matcher.rows(), (double) good_matchesList.size(),
-                (double) meanXdisplacementORB, (double) meanYdisplacementORB, (double) matcherORB.rows(), (double) good_matchesListORB.size(),
-                (double) briskAlgorithmDuration, (double) orbAlgorithmDuration};
+        return new double[]{meanXdisplacement, meanYdisplacement, matcher.rows(), good_matchesList.size(),
+                meanXdisplacementORB, meanYdisplacementORB, matcherORB.rows(), good_matchesListORB.size(),
+                briskAlgorithmDuration, orbAlgorithmDuration};
     }
 }
 

@@ -62,7 +62,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private String xy_correction = "Yes";
     private Map refImageDict = null;
     private Map oldPositionsDict = null;
-    private double umPerStep = 1;
+    private double umPerStep = 50;
     private String pathOfReferenceImage = "";
 
     //Constant
@@ -77,10 +77,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private double intervalInMin =0;
     private int positionIndex = 0;
 
-    private PrintStream psError;
-    private PrintStream psOutput;
-    private PrintStream curr_err;
-    private PrintStream curr_out;
+//    private PrintStream psError;
+//    private PrintStream psOutput;
+//    private PrintStream curr_err;
+//    private PrintStream curr_out;
     private String savingPath;
     private Datastore storeNonCorrectedImages = null;
 
@@ -153,16 +153,16 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double oldExposure = core_.getExposure();
         core_.setExposure(exposure);
 
-        //Save logs of outputs and errors
-        try {
-            psError = new PrintStream(savingPath + "Error.LOG");
-//            psOutput = new PrintStream(savingPath + "Output.LOG");
-            curr_err = System.err;
-//            curr_out = System.out;
-//            System.setOut(psOutput);
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        }
+//        //Save logs of outputs and errors
+//        try {
+//            psError = new PrintStream(savingPath + "Error.LOG");
+////            psOutput = new PrintStream(savingPath + "Output.LOG");
+//            curr_err = System.err;
+////            curr_out = System.out;
+////            System.setOut(psOutput);
+//        } catch (FileNotFoundException e) {
+//            e.printStackTrace();
+//        }
 
         //Get label of position
         PositionList positionList = studio_.positions().getPositionList();
@@ -312,10 +312,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         writeOutput(acquisitionTimeElapsed, label, xCorrection, yCorrection, oldX, oldY, oldZ,
                 correctedXPosition, correctedYPosition, correctedZPosition, xyDrifts);
-        psError.close();
+//        psError.close();
 //        psOutput.close();
 //        System.setOut(curr_out);
-        System.setErr(curr_err);
+//        System.setErr(curr_err);
 
         return correctedZPosition;
     }
@@ -598,24 +598,14 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private void writeOutput(long acquisitionDuration, String label, double xCorrection, double yCorrection, double oldX,
                              double oldY, double oldZ, double correctedXPosition, double correctedYPosition,
                              double correctedZPosition, double[] xyDrifts) throws IOException {
-        double meanXdisplacementBRISK = xyDrifts[0];
-        double meanYdisplacementBRISK = xyDrifts[1];
-        double numberOfMatchesBRISK = xyDrifts[2];
-        double numberOfGoodMatchesBRISK = xyDrifts[3];
-        double meanXdisplacementORB = xyDrifts[4];
-        double meanYdisplacementORB = xyDrifts[5];
-        double numberOfMatchesORB = xyDrifts[6];
-        double numberOfGoodMatchesORB = xyDrifts[7];
-        double briskAlgorithmDuration = xyDrifts[8];
-        double orbAlgorithmDuration = xyDrifts[9];
         //For "statistics" tests
         File f1 = new File(savingPath + "Stats_" + label + ".csv");
         if (!f1.exists()) {
             f1.createNewFile();
             FileWriter fw = new FileWriter(f1);
             String[] headersOfFile = new String[]{"labelOfPosition", "xCorrection", "yCorrection", "oldX", "oldY" , "oldZ",
-                    "correctedXPosition", "correctedYPosition", "correctedZPosition", "acquisitionDuration", "meanXdisplacementBRISK", "meanYdisplacementBRISK",
-                    "numberOfMatchesBRISK", "numberOfGoodMatchesBRISK", "briskAlgorithmDuration", "meanXdisplacementORB", "meanYdisplacementORB", "numberOfMatchesORB", "numberOfGoodMatchesORB"} ;
+                    "correctedXPosition", "correctedYPosition", "correctedZPosition", "acquisitionDuration(ms)", "meanXdisplacementBRISK", "meanYdisplacementBRISK",
+                    "numberOfMatchesBRISK", "numberOfGoodMatchesBRISK", "briskAlgorithmDuration(ms)", "meanXdisplacementORB", "meanYdisplacementORB", "numberOfMatchesORB", "numberOfGoodMatchesORB", "orbAlgorithmDuration(ms)"} ;
             fw.write(String.join(",", headersOfFile) + System.lineSeparator());
 //            fw.write("labelOfPosition" + "," + "xCorrection" + "," + "yCorrection" + "," + "oldX" + "," + "oldY" + "," + "oldZ" + ","
 //                    + "correctedXPosition" + "," + "correctedYPosition" + "," + "correctedZPosition" + "," + "timeElapsed" + ","
@@ -623,6 +613,16 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 //                    + "meanXdisplacementORB" + "," + "meanYdisplacementORB" + "," + "numberOfMatchesORB" + "," + "numberOfGoodMatchesORB" + System.lineSeparator());
             fw.close();
         } else {
+            double meanXdisplacementBRISK = xyDrifts[0];
+            double meanYdisplacementBRISK = xyDrifts[1];
+            double numberOfMatchesBRISK = xyDrifts[2];
+            double numberOfGoodMatchesBRISK = xyDrifts[3];
+            double meanXdisplacementORB = xyDrifts[4];
+            double meanYdisplacementORB = xyDrifts[5];
+            double numberOfMatchesORB = xyDrifts[6];
+            double numberOfGoodMatchesORB = xyDrifts[7];
+            double briskAlgorithmDuration = xyDrifts[8];
+            double orbAlgorithmDuration = xyDrifts[9];
             FileWriter fw1 = new FileWriter(f1, true);
             fw1.write(label + "," + xCorrection + "," + yCorrection + "," + oldX + "," + oldY + "," + oldZ + ","
                     + correctedXPosition + "," + correctedYPosition + "," + correctedZPosition + "," + acquisitionDuration + ","
