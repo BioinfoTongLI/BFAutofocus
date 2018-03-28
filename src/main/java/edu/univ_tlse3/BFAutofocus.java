@@ -202,17 +202,16 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 //        System.out.println("Prefix : " + prefix);
 
         double[] oldCorrectedPositions;
-        double oldX = 0;
-        double oldY = 0;
-        double oldZ = 0;
+        double oldX = core_.getXPosition();
+        double oldY = core_.getYPosition();
+        double oldZ = getZPosition();
 
         //Define positions if it does not exist
         if (!oldPositionsDict.containsKey(label)) {
             double[] currentPositions = new double[3];
             currentPositions[0] = core_.getXPosition();
             currentPositions[1] = core_.getYPosition();
-            String focusDevice = core_.getFocusDevice();
-            currentPositions[2] = core_.getPosition(focusDevice);
+            currentPositions[2] = getZPosition();
             oldPositionsDict.put(label, currentPositions);
         } else {
             //Get old calculated X, Y and Z of a given position
@@ -230,7 +229,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         //Calculate Focus
         double correctedZPosition = calculateZFocus(oldZ);
-
+        System.out.println("Corrected Z Position : " + correctedZPosition);
         //Set to the focus
         setZPosition(correctedZPosition);
 
@@ -256,7 +255,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         core_.setShutterOpen(true);
 
 
-        //Calcul of XY Drifts only if the parameter "Correct XY at same time" is set to Yes;
+        //Calculation of XY Drifts only if the parameter "Correct XY at same time" is set to Yes;
         double currentXPosition = core_.getXPosition();
         double currentYPosition = core_.getYPosition();
 
@@ -294,7 +293,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                 correctedYPosition = currentYPosition + yCorrection;
                 System.out.println("Xcorrected : " + correctedXPosition);
                 System.out.println("Ycorrected : " + correctedYPosition);
-                System.out.println("Zcorrected : " + correctedZPosition);
 
                 xyDriftsORBORB = calculateXYDrifts(currentMat8Set, FeatureDetector.ORB, DescriptorExtractor.ORB, DescriptorMatcher.FLANNBASED);
 
@@ -361,6 +359,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         return correctedZPosition;
     }
 
+    private double getZPosition() throws Exception {
+        String focusDevice = core_.getFocusDevice();
+        double z = core_.getPosition(focusDevice);
+        return z;
+    }
     private double[] getXYZPosition(String label) {
         return (double[]) oldPositionsDict.get(label);
     }
@@ -647,16 +650,24 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         if (!f1.exists()) {
             f1.createNewFile();
             FileWriter fw = new FileWriter(f1);
-            String[] headersOfFile = new String[]{"labelOfPosition", "xCorrection", "yCorrection", "oldX", "oldY", "oldZ",
+            String[] headersOfFile = new String[]{"labelOfPosition", "oldX", "oldY", "oldZ",
                     "currentXPosition", "correctedXPosition", "currentYPosition", "correctedYPosition",
                     "correctedZPosition", "acquisitionDuration(ms)",
-                    "meanXdisplacementBRISKORB", "meanYdisplacementBRISKORB", "numberOfMatchesBRISKORB", "numberOfGoodMatchesBRISKORB", "algorithmDurationBRISKORB(ms)",
-                    "meanXdisplacementORBORB", "meanYdisplacementORBORB", "numberOfMatchesORBORB", "numberOfGoodMatchesORBORB", "algorithmDurationORBORB(ms)",
-                    "meanXdisplacementORBBRISK", "meanYdisplacementORBBRISK", "numberOfMatchesORBBRISK", "numberOfGoodMatchesORBBRISK", "algorithmDurationORBBRISK(ms)",
-                    "meanXdisplacementBRISKBRISK", "meanYdisplacementBRISKBRISK", "numberOfMatchesBRISKBRISK", "numberOfGoodMatchesBRISKBRISK", "algorithmDurationBRISKBRISK(ms)",
-                    "meanXdisplacementAKAZEBRISK", "meanYdisplacementAKAZEBRISK", "numberOfMatchesAKAZEBRISK", "numberOfGoodMatchesAKAZEBRISK", "algorithmDurationAKAZEBRISK(ms)",
-                    "meanXdisplacementAKAZEORB", "meanYdisplacementAKAZEORB", "numberOfMatchesAKAZEORB", "numberOfGoodMatchesAKAZEORB", "algorithmDurationAKAZEORB(ms)",
-                    "meanXdisplacementAKAZEAKAZE", "meanYdisplacementAKAZEAKAZE", "numberOfMatchesAKAZEAKAZE", "numberOfGoodMatchesAKAZEAKAZE", "algorithmDurationAKAZEAKAZE(ms)",
+                    "meanXdisplacementBRISKORB", "meanYdisplacementBRISKORB", "meanXdisplacementORBORB", "meanYdisplacementORBORB",
+                    "meanXdisplacementORBBRISK", "meanYdisplacementORBBRISK", "meanXdisplacementBRISKBRISK", "meanYdisplacementBRISKBRISK",
+                    "meanXdisplacementAKAZEBRISK", "meanYdisplacementAKAZEBRISK", "meanXdisplacementAKAZEORB", "meanYdisplacementAKAZEORB",
+                    "meanXdisplacementAKAZEAKAZE", "meanYdisplacementAKAZEAKAZE",
+
+                    "numberOfMatchesBRISKORB", "numberOfMatchesORBORB", "numberOfMatchesORBBRISK", "numberOfMatchesBRISKBRISK",
+                    "numberOfMatchesAKAZEBRISK", "numberOfMatchesAKAZEORB", "numberOfMatchesAKAZEAKAZE",
+
+                    "numberOfGoodMatchesBRISKORB", "numberOfGoodMatchesORBORB", "numberOfGoodMatchesORBBRISK",
+                    "numberOfGoodMatchesBRISKBRISK", "numberOfGoodMatchesAKAZEBRISK", "numberOfGoodMatchesAKAZEORB",
+                    "numberOfGoodMatchesAKAZEAKAZE",
+
+                    "algorithmDurationBRISKORB(ms)", "algorithmDurationORBORB(ms)", "algorithmDurationORBBRISK(ms)",
+                    "algorithmDurationBRISKBRISK(ms)", "algorithmDurationAKAZEBRISK(ms)", "algorithmDurationAKAZEORB(ms)",
+                    "algorithmDurationAKAZEAKAZE(ms)"
             } ;
 
             fw.write(String.join(",", headersOfFile) + System.lineSeparator());
@@ -713,26 +724,21 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     + currentXPosition + "," + correctedXPosition + "," + currentYPosition + "," + correctedYPosition + ","
                     + correctedZPosition + "," + acquisitionDuration + ","
 
-                    + meanXdisplacementBRISKORB + "," + meanYdisplacementBRISKORB + "," + numberOfMatchesBRISKORB + ","
-                    + numberOfGoodMatchesBRISKORB + "," + algorithmDurationBRISKORB + ","
+                    + meanXdisplacementBRISKORB + "," + meanYdisplacementBRISKORB + "," + meanXdisplacementORBORB + "," + meanYdisplacementORBORB + ","
+                    + meanXdisplacementORBBRISK + "," + meanYdisplacementORBBRISK + "," + meanXdisplacementBRISKBRISK + "," + meanYdisplacementBRISKBRISK + ","
+                    + meanXdisplacementAKAZEBRISK + "," + meanYdisplacementAKAZEBRISK + "," + meanXdisplacementAKAZEORB + "," + meanYdisplacementAKAZEORB + ","
+                    + meanXdisplacementAKAZEAKAZE + "," + meanYdisplacementAKAZEAKAZE + ","
 
-                    + meanXdisplacementORBORB + "," + meanYdisplacementORBORB + "," + numberOfMatchesORBORB + ","
-                    + numberOfGoodMatchesORBORB + "," + algorithmDurationORBORB
+                    + numberOfMatchesBRISKORB + "," + numberOfMatchesORBORB + "," + numberOfMatchesORBBRISK + "," + numberOfMatchesBRISKBRISK + ","
+                    + numberOfMatchesAKAZEBRISK + "," + numberOfMatchesAKAZEORB + "," + numberOfMatchesAKAZEAKAZE + ","
 
-                    + meanXdisplacementORBBRISK + "," + meanYdisplacementORBBRISK + "," + numberOfMatchesORBBRISK + ","
-                    + numberOfGoodMatchesORBBRISK + "," + algorithmDurationORBBRISK
+                    + numberOfGoodMatchesBRISKORB + "," + numberOfGoodMatchesORBORB + "," + numberOfGoodMatchesORBBRISK + ","
+                    + numberOfGoodMatchesBRISKBRISK + "," + numberOfGoodMatchesAKAZEBRISK + "," + numberOfGoodMatchesAKAZEORB + ","
+                    + numberOfGoodMatchesAKAZEAKAZE + ","
 
-                    + meanXdisplacementBRISKBRISK + "," + meanYdisplacementBRISKBRISK + "," + numberOfMatchesBRISKBRISK + ","
-                    + numberOfGoodMatchesBRISKBRISK + "," + algorithmDurationBRISKBRISK
-
-                    + meanXdisplacementAKAZEBRISK + "," + meanYdisplacementAKAZEBRISK + "," + numberOfMatchesAKAZEBRISK + ","
-                    + numberOfGoodMatchesAKAZEBRISK + "," + algorithmDurationAKAZEBRISK
-
-                    + meanXdisplacementAKAZEORB + "," + meanYdisplacementAKAZEORB + "," + numberOfMatchesAKAZEORB + ","
-                    + numberOfGoodMatchesAKAZEORB + "," + algorithmDurationAKAZEORB
-
-                    + meanXdisplacementAKAZEAKAZE + "," + meanYdisplacementAKAZEAKAZE + "," + numberOfMatchesAKAZEAKAZE + ","
-                    + numberOfGoodMatchesAKAZEAKAZE + "," + algorithmDurationAKAZEAKAZE
+                    + algorithmDurationBRISKORB + "," + algorithmDurationORBORB + "," + algorithmDurationORBBRISK + ","
+                    + algorithmDurationBRISKBRISK + "," + algorithmDurationAKAZEBRISK + "," + algorithmDurationAKAZEORB + ","
+                    + algorithmDurationAKAZEAKAZE
 
                     + System.lineSeparator());
             fw1.close();
