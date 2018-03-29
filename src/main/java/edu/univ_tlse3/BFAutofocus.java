@@ -222,14 +222,16 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         } else {
             //Get old calculated X, Y and Z of a given position
             oldCorrectedPositions = getXYZPosition(label);
-            oldX = oldCorrectedPositions[0];
-            oldY = oldCorrectedPositions[1];
+            oldX = core_.getXPosition();
+            oldY = core_.getYPosition();
+//            oldX = oldCorrectedPositions[0];
+//            oldY = oldCorrectedPositions[1];
             oldZ = oldCorrectedPositions[2];
 
             //Set to the last good position calculated
             setToLastCorrectedPosition(oldX, oldY, oldZ);
-            System.out.println("old x : " + oldX);
-            System.out.println("old y : " + oldY);
+//            System.out.println("old x : " + oldX);
+//            System.out.println("old y : " + oldY);
             System.out.println("old z : " + oldZ);
         }
 
@@ -653,8 +655,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                              double correctedYPosition, double correctedZPosition, double[] xyDriftsBRISKORB,
                              double[] xyDriftsORBORB, double[] xyDriftsORBBRISK, double[] xyDriftsBRISKBRISK,
                              double[] xyDriftsAKAZEAKAZE, double[] xyDriftsAKAZEBRISK, double[] xyDriftsAKAZEORB) throws IOException {
+
+        String prefix = studio_.acquisitions().getAcquisitionSettings().prefix;
         //For "statistics"
-        File f1 = new File(savingPath + "Stats_" + label + ".csv");
+        File f1 = new File(savingPath + prefix + "_Stats_" + label + ".csv");
         if (!f1.exists()) {
             f1.createNewFile();
             FileWriter fw = new FileWriter(f1);
