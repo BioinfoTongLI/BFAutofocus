@@ -9,6 +9,7 @@ import org.micromanager.PositionList;
 import org.micromanager.Studio;
 import org.micromanager.data.Datastore;
 import org.micromanager.data.Image;
+import org.micromanager.display.DisplayWindow;
 import org.micromanager.internal.utils.*;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
@@ -63,7 +64,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private String xy_correction = "Yes";
     private Map refImageDict = null;
     private Map oldPositionsDict = null;
-    private double umPerStep = 50;
+    private double umPerStep = 10;
     private String pathOfReferenceImage = "";
 
     //Constant
@@ -126,7 +127,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         core_ = studio_.getCMMCore();
 
         calibration = core_.getPixelSizeUm();
-        System.out.println("Calibration : " + calibration);
+//        System.out.println("Calibration : " + calibration);
         intervalInMin = (studio_.acquisitions().getAcquisitionSettings().intervalMs)/60000;
         savingPath = studio_.acquisitions().getAcquisitionSettings().root + File.separator;
 
@@ -182,24 +183,29 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             oldPositionsDict = new HashMap<String, double[]>();
         }
 
+//        String prefix = studio_.acquisitions().getAcquisitionSettings().prefix;
+//        System.out.println("Prefix : " + prefix);
+//
 //        //Initialization of DataStore, to store non corrected images
+//        Window displayWindow = (Window) studio_.displays().getCurrentWindow();
 //        if (storeNonCorrectedImages == null) {
-//            storeNonCorrectedImages = studio_.data().createSinglePlaneTIFFSeriesDatastore(savingPath);
+//            storeNonCorrectedImages = studio_.data().createSinglePlaneTIFFSeriesDatastore(savingPath + prefix + File.separator + "NonCorrectedImages");
 //        }
 //
 //        //Add current non-corrected image to the DataStore
 //        core_.snapImage();
 //        TaggedImage nonCorrectedTaggedImage = core_.getTaggedImage();
 //        Image nonCorrectedImage = studio_.data().convertTaggedImage(nonCorrectedTaggedImage);
-//        storeNonCorrectedImages.putImage(nonCorrectedImage);
+//        if (storeNonCorrectedImages.hasImage(nonCorrectedImage.getCoords())) {
+//            storeNonCorrectedImages.putImage(nonCorrectedImage);
+//        } else {
+//            System.out.println("Image did not move");
+//        }
 //        System.out.println("DataStore getSavePath : " + storeNonCorrectedImages.getSavePath());
 //        System.out.println("DataStore Number Of Images : " + storeNonCorrectedImages.getNumImages());
 
 //        boolean saveAcq = studio_.acquisitions().getAcquisitionSettings().save;
 //        System.out.println("Save Acquisition images : " + saveAcq);
-//
-//        String prefix = studio_.acquisitions().getAcquisitionSettings().prefix;
-//        System.out.println("Prefix : " + prefix);
 
         double[] oldCorrectedPositions;
         double oldX = core_.getXPosition();
@@ -356,6 +362,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 //        System.setOut(curr_out);
 //        System.setErr(curr_err);
 
+//        //Save Datastore
+//        storeNonCorrectedImages.save(displayWindow);
         return correctedZPosition;
     }
 
