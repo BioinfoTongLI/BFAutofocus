@@ -64,7 +64,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private String xy_correction = "Yes";
     private Map refImageDict = null;
     private Map oldPositionsDict = null;
-    private double umPerStep = 10;
+    private double umPerStep = 20;
     private String pathOfReferenceImage = "";
 
     //Constant
