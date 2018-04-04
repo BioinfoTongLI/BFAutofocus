@@ -295,12 +295,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                 //Or calculate XY drift
                 imgRef_Mat = (Mat) refImageDict.get(label);
                 xyDriftsBRISKORB = calculateXYDrifts(currentMat8Set, FeatureDetector.BRISK, DescriptorExtractor.ORB, DescriptorMatcher.FLANNBASED);
-                xCorrection = xyDriftsBRISKORB[0];
-                yCorrection = xyDriftsBRISKORB[1];
-                correctedXPosition = currentXPosition + xCorrection;
-                correctedYPosition = currentYPosition + yCorrection;
-                System.out.println("Xcorrected : " + correctedXPosition);
-                System.out.println("Ycorrected : " + correctedYPosition);
 
                 xyDriftsORBORB = calculateXYDrifts(currentMat8Set, FeatureDetector.ORB, DescriptorExtractor.ORB, DescriptorMatcher.FLANNBASED);
 
@@ -313,7 +307,14 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                 xyDriftsAKAZEORB = calculateXYDrifts(currentMat8Set, FeatureDetector.AKAZE, DescriptorExtractor.ORB, DescriptorMatcher.FLANNBASED);
 
                 xyDriftsAKAZEAKAZE = calculateXYDrifts(currentMat8Set, FeatureDetector.AKAZE, DescriptorExtractor.AKAZE, DescriptorMatcher.FLANNBASED);
-            }
+
+                xCorrection = xyDriftsAKAZEBRISK[0];
+                yCorrection = xyDriftsAKAZEBRISK[1];
+                correctedXPosition = currentXPosition + xCorrection;
+                correctedYPosition = currentYPosition + yCorrection;
+                System.out.println("Xcorrected : " + correctedXPosition);
+                System.out.println("Ycorrected : " + correctedYPosition);
+                            }
             setXYPosition(correctedXPosition, correctedYPosition);
 
             //Reference image incremental
