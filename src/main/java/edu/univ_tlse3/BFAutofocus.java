@@ -267,8 +267,14 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double currentXPosition = core_.getXPosition();
         double currentYPosition = core_.getYPosition();
 
+        System.out.println("Current X : " + currentXPosition);
+        System.out.println("Current Y : " + currentYPosition);
+
         double correctedXPosition = currentXPosition;
         double correctedYPosition = currentYPosition;
+
+        System.out.println("Initialization corrected X : " + correctedXPosition);
+        System.out.println("Initialization corrected Y : " + correctedYPosition);
 
         double xCorrection;
         double yCorrection;
