@@ -297,7 +297,7 @@ public class DriftCorrection {
 
     public static double[] driftCorrection(Mat img1, Mat img2, double calibration, double intervalInMin, double umPerStep,
                                            Integer detectorAlgo, Integer descriptorExtractor, Integer descriptorMatcher) {
-        long startBriskTime = new Date().getTime();
+        long startTime = new Date().getTime();
 
         /* 1 - Detect keypoints */
         MatOfKeyPoint keypoints1 = findKeypoints(img1, detectorAlgo);
@@ -316,7 +316,7 @@ public class DriftCorrection {
             System.out.println("Descriptor image 2 empty");
         }
 
-        /* 3 - Matching descriptor using FLANN matcher */
+        /* 3 - Matching descriptor */
         MatOfDMatch matcher = matchingDescriptor(img1_descriptors, img2_descriptors, descriptorMatcher);
         System.out.println("Number of Matches : " + matcher.rows());
 
@@ -340,59 +340,10 @@ public class DriftCorrection {
         System.out.println("X mean displacement : " + meanXdisplacement);
         System.out.println("Y mean displacement : " + meanYdisplacement + "\n");
 
-        long endBRISKTime = new Date().getTime();
-        long briskAlgorithmDuration = endBRISKTime - startBriskTime;
+        long endTime = new Date().getTime();
+        long algorithmDuration = endTime - startTime;
 
-//        //ORB ALGORITHM
-//        long startOrbTime = new Date().getTime();
-//
-//        /* 1 - Detect keypoints */
-//        MatOfKeyPoint keypoints1ORB = findKeypoints(img1, DETECTORALGO_ORB);
-//        MatOfKeyPoint keypoints2ORB = findKeypoints(img2, DETECTORALGO_ORB);
-//        System.out.println("Keypoints ORB img ref : " + keypoints1ORB.rows());
-//        System.out.println("Keypoints ORB img 2 : " + keypoints2ORB.rows());
-//
-//        /* 2 - Calculate descriptors */
-//        Mat img1_descriptorsORB = calculDescriptors(img1, keypoints1ORB, DESCRIPTOREXTRACTOR_ORB);
-//        Mat img2_descriptorsORB = calculDescriptors(img2, keypoints2ORB, DESCRIPTOREXTRACTOR_ORB);
-//
-//        if(img1_descriptorsORB.empty()) {
-//            System.out.println("ORB Descriptor ref image empty");
-//        }
-//        if(img2_descriptorsORB.empty()){
-//            System.out.println("ORB Descriptor image 2 empty");
-//        }
-//
-//        /* 3 - Matching descriptor using FLANN matcher */
-//        MatOfDMatch matcherORB = matchingDescriptor(img1_descriptorsORB, img2_descriptorsORB, DESCRIPTORMATCHER);
-//        System.out.println("Number of Matches ORB : " + matcherORB.rows());
-//
-//        /* 4 - Select and display Good Matches */
-//        ArrayList<DMatch> good_matchesListORB = selectGoodMatches(matcherORB, keypoints1ORB, keypoints2ORB, umPerStep, calibration, intervalInMin);
-//        System.out.println("Number of Good Matches ORB : " + good_matchesListORB.size());
-//
-//        /* 5 - Get coordinates of GoodMatches Keypoints */
-//        ArrayList<Float> img1_keypoints_xCoordinatesORB = getGoodMatchesXCoordinates(keypoints1ORB, good_matchesListORB,true);
-//        ArrayList<Float> img1_keypoints_yCoordinatesORB = getGoodMatchesYCoordinates(keypoints1ORB, good_matchesListORB, true);
-//
-//        ArrayList<Float> img2_keypoints_xCoordinatesORB = getGoodMatchesXCoordinates(keypoints2ORB, good_matchesListORB,false);
-//        ArrayList<Float> img2_keypoints_yCoordinatesORB = getGoodMatchesYCoordinates(keypoints2ORB, good_matchesListORB, false);
-//
-//        /* 6 - Get X and Y mean displacements */
-//        float meanXdisplacementORB = getMeanXDisplacement(img1_keypoints_xCoordinatesORB, img2_keypoints_xCoordinatesORB);
-//        float meanYdisplacementORB = getMeanYDisplacement(img1_keypoints_yCoordinatesORB, img2_keypoints_yCoordinatesORB);
-//        System.out.println("X mean displacement ORB : " + meanXdisplacementORB);
-//        System.out.println("Y mean displacement ORB : " + meanYdisplacementORB + "\n");
-//
-//        long endOrbTime = new Date().getTime();
-//        long orbAlgorithmDuration = endOrbTime - startOrbTime;
-
-//        double xVariance = getXVariance(img1_keypoints_xCoordinates, img2_keypoints_xCoordinates, meanXdisplacement);
-//        double yVariance = getYVariance(img1_keypoints_yCoordinates, img2_keypoints_yCoordinates, meanYdisplacement);
-//        System.out.println("X variance : " + xVariance);
-//        System.out.println("Y variance : " + yVariance + "\n");
-
-        return new double[]{meanXdisplacement, meanYdisplacement, matcher.rows(), good_matchesList.size(), briskAlgorithmDuration};
+        return new double[]{meanXdisplacement, meanYdisplacement, matcher.rows(), good_matchesList.size(), algorithmDuration};
     }
 }
 
