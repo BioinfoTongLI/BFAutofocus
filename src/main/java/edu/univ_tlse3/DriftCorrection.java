@@ -1,6 +1,7 @@
 package edu.univ_tlse3;
 
 import ij.ImagePlus;
+import org.apache.commons.math3.stat.descriptive.rank.Median;
 import org.opencv.core.*;
 import org.opencv.features2d.*;
 import org.opencv.imgcodecs.Imgcodecs;
@@ -8,9 +9,7 @@ import org.opencv.imgproc.Imgproc;
 
 import java.awt.image.BufferedImage;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 
 import static org.opencv.features2d.Features2d.NOT_DRAW_SINGLE_POINTS;
 
@@ -156,28 +155,69 @@ public class DriftCorrection {
         return img_yList;
     }
 
-    static Float getMeanXDisplacement(ArrayList<Float> img1_xCoordinates, ArrayList<Float> img2_xCoordinates) {
-        int totalNumberOfX = img1_xCoordinates.size();
+    static Float getMeanDisplacement(ArrayList<Float> img1_coordinates, ArrayList<Float> img2_coordinates) {
+        int totalNumberOfX = img1_coordinates.size();
         float sumXDistancesCoordinates = 0;
         float meanXDifferencesCoordinates;
-        for (int i = 0; i < img1_xCoordinates.size(); i++) {
-            float xDistance = img2_xCoordinates.get(i) - img1_xCoordinates.get(i);
+        double[] xDistances = new double[img1_coordinates.size()];
+        for (int i = 0; i < img1_coordinates.size(); i++) {
+            float xDistance = img2_coordinates.get(i) - img1_coordinates.get(i);
             sumXDistancesCoordinates += xDistance;
+            xDistances[i] = xDistance;
         }
         meanXDifferencesCoordinates = sumXDistancesCoordinates/totalNumberOfX;
+
         return meanXDifferencesCoordinates;
     }
 
-    static Float getMeanYDisplacement(ArrayList<Float> img1_yCoordinates, ArrayList<Float> img2_yCoordinates) {
-        int totalNumberOfY = img1_yCoordinates.size();
-        float sumYDistancesCoordinates = 0;
-        float meanYDifferencesCoordinates;
-        for (int i = 0; i < img1_yCoordinates.size(); i++) {
-            float yDifference = img2_yCoordinates.get(i) - img1_yCoordinates.get(i);
-            sumYDistancesCoordinates += yDifference;
+    static double getMedianDisplacement(ArrayList<Float> img1_coordinates, ArrayList<Float> img2_coordinates) {
+        double[] distances = new double[img1_coordinates.size()];
+        for (int i = 0; i < img1_coordinates.size(); i++) {
+            float distance = img2_coordinates.get(i) - img1_coordinates.get(i);
+            distances[i] = distance;
         }
-        meanYDifferencesCoordinates = sumYDistancesCoordinates/totalNumberOfY;
-        return meanYDifferencesCoordinates;
+        Median median = new Median();
+        double medianValue = median.evaluate(distances);
+        System.out.println("Median : " + medianValue);
+
+        return medianValue;
+    }
+
+    static List<Integer> getModeDisplacement(ArrayList<Float> img1_coordinates, ArrayList<Float> img2_coordinates) {
+        //Initializations
+        double[] distances = new double[img1_coordinates.size()];
+        List<Integer> modes = new ArrayList<>();
+        Map<Integer, Integer> countMap = new HashMap<Integer, Integer>();
+        int max  = (int) Double.MIN_VALUE;
+        //Calcul difference between img1 and img2 coordinates
+        for (int i = 0; i < img1_coordinates.size(); i++) {
+            float distance = img2_coordinates.get(i) - img1_coordinates.get(i);
+            distances[i] = distance;
+        }
+
+        for (int n = 0; n < distances.length; n++) {
+            //Create dictionary of values and associated count
+            int count = 0;
+            if (countMap.containsKey(n)) {
+                count = countMap.get(n) + 1;
+            } else {
+                count = 1;
+            }
+            countMap.put(n, count);
+
+            //Determine if the count is the max or not
+            if (count > max) {
+                max = count;
+            }
+        }
+
+        for (Map.Entry<Integer, Integer> tuple : countMap.entrySet()) {
+            if (tuple.getValue() == max) {
+                modes.add(tuple.getKey());
+            }
+        }
+
+        return modes;
     }
 
     static Float getXVariance(ArrayList<Float> img1_xCoordinates, ArrayList<Float> img2_xCoordinates, Float meanXDisplacement) {
@@ -335,15 +375,23 @@ public class DriftCorrection {
         ArrayList<Float> img2_keypoints_yCoordinates = getGoodMatchesYCoordinates(keypoints2, good_matchesList, false);
 
         /* 6 - Get X and Y mean displacements */
-        float meanXdisplacement = getMeanXDisplacement(img1_keypoints_xCoordinates, img2_keypoints_xCoordinates);
-        float meanYdisplacement = getMeanYDisplacement(img1_keypoints_yCoordinates, img2_keypoints_yCoordinates);
+        float meanXdisplacement = getMeanDisplacement(img1_keypoints_xCoordinates, img2_keypoints_xCoordinates);
+        float meanYdisplacement = getMeanDisplacement(img1_keypoints_yCoordinates, img2_keypoints_yCoordinates);
         System.out.println("X mean displacement : " + meanXdisplacement);
         System.out.println("Y mean displacement : " + meanYdisplacement + "\n");
+
+        /* Calculate some other statistics */
+        double medianXDisplacement = getMedianDisplacement(img1_keypoints_xCoordinates, img2_keypoints_xCoordinates);
+        double medianYDisplacement = getMedianDisplacement(img1_keypoints_yCoordinates, img2_keypoints_yCoordinates);
+
+        List<Integer> modesXDisplacements = getModeDisplacement(img1_keypoints_xCoordinates, img2_keypoints_xCoordinates);
+        List<Integer> modesYDisplacements = getModeDisplacement(img1_keypoints_yCoordinates, img2_keypoints_yCoordinates);
 
         long endTime = new Date().getTime();
         long algorithmDuration = endTime - startTime;
 
-        return new double[]{meanXdisplacement, meanYdisplacement, matcher.rows(), good_matchesList.size(), algorithmDuration};
+        return new double[]{meanXdisplacement, meanYdisplacement, matcher.rows(), good_matchesList.size(), algorithmDuration,
+                medianXDisplacement, medianYDisplacement};
     }
 }
 

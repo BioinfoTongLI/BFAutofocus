@@ -279,19 +279,19 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double xCorrection;
         double yCorrection;
 
-        double[] xyDriftsBRISKORB = new double[5];
+        double[] xyDriftsBRISKORB = new double[7];
 
-        double[] xyDriftsORBORB = new double[5];
+        double[] xyDriftsORBORB = new double[7];
 
-        double[] xyDriftsORBBRISK = new double[5];
+        double[] xyDriftsORBBRISK = new double[7];
 
-        double[] xyDriftsBRISKBRISK = new double[5];
+        double[] xyDriftsBRISKBRISK = new double[7];
 
-        double[] xyDriftsAKAZEBRISK = new double[5];
+        double[] xyDriftsAKAZEBRISK = new double[7];
 
-        double[] xyDriftsAKAZEORB = new double[5];
+        double[] xyDriftsAKAZEORB = new double[7];
 
-        double[] xyDriftsAKAZEAKAZE = new double[5];
+        double[] xyDriftsAKAZEAKAZE = new double[7];
 
         if (xy_correction.contentEquals("Yes")){
             //Define current image as reference for the position if it does not exist
@@ -314,8 +314,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
                 xyDriftsAKAZEAKAZE = calculateXYDrifts(currentMat8Set, FeatureDetector.AKAZE, DescriptorExtractor.AKAZE, DescriptorMatcher.FLANNBASED);
 
-                xCorrection = xyDriftsAKAZEBRISK[0];
-                yCorrection = xyDriftsAKAZEBRISK[1];
+                xCorrection = xyDriftsAKAZEBRISK[5];
+                yCorrection = xyDriftsAKAZEBRISK[6];
                 correctedXPosition = currentXPosition + xCorrection;
                 correctedYPosition = currentYPosition + yCorrection;
                 System.out.println("Xcorrected : " + correctedXPosition);
@@ -686,7 +686,15 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
                     "algorithmDurationBRISKORB(ms)", "algorithmDurationORBORB(ms)", "algorithmDurationORBBRISK(ms)",
                     "algorithmDurationBRISKBRISK(ms)", "algorithmDurationAKAZEBRISK(ms)", "algorithmDurationAKAZEORB(ms)",
-                    "algorithmDurationAKAZEAKAZE(ms)"
+                    "algorithmDurationAKAZEAKAZE(ms)",
+
+                    "medianXDisplacementBRISKORB", "medianXDisplacementORBORB", "medianXDisplacementORBBRISK",
+                    "medianXDisplacementBRISKBRISK", "medianXDisplacementAKAZEBRISK", "medianXDisplacementAKAZEORB",
+                    "medianXDisplacementAKAZEAKAZE",
+
+                    "medianYDisplacementBRISKORB", "medianYDisplacementORBORB", "medianYDisplacementORBBRISK",
+                    "medianYDisplacementBRISKBRISK", "medianYDisplacementAKAZEBRISK", "medianYDisplacementAKAZEORB",
+                    "medianYDisplacementAKAZEAKAZE"
             } ;
 
             fw.write(String.join(",", headersOfFile) + System.lineSeparator());
@@ -701,42 +709,57 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             double numberOfMatchesBRISKORB = xyDriftsBRISKORB[2];
             double numberOfGoodMatchesBRISKORB = xyDriftsBRISKORB[3];
             double algorithmDurationBRISKORB = xyDriftsBRISKORB[4];
+            double medianXDisplacementBRISKORB = xyDriftsBRISKORB[5];
+            double medianYDisplacementBRISKORB = xyDriftsBRISKORB[6];
+
 
             double meanXdisplacementORBORB = xyDriftsORBORB[0];
             double meanYdisplacementORBORB = xyDriftsORBORB[1];
             double numberOfMatchesORBORB = xyDriftsORBORB[2];
             double numberOfGoodMatchesORBORB = xyDriftsORBORB[3];
             double algorithmDurationORBORB = xyDriftsORBORB[4];
+            double medianXDisplacementORBORB = xyDriftsORBORB[5];
+            double medianYDisplacementORBORB = xyDriftsORBORB[6];
 
             double meanXdisplacementORBBRISK = xyDriftsORBBRISK[0];
             double meanYdisplacementORBBRISK = xyDriftsORBBRISK[1];
             double numberOfMatchesORBBRISK = xyDriftsORBBRISK[2];
             double numberOfGoodMatchesORBBRISK = xyDriftsORBBRISK[3];
             double algorithmDurationORBBRISK = xyDriftsORBBRISK[4];
+            double medianXDisplacementORBBRISK = xyDriftsORBBRISK[5];
+            double medianYDisplacementORBBRISK = xyDriftsORBBRISK[6];
 
             double meanXdisplacementBRISKBRISK = xyDriftsBRISKBRISK[0];
             double meanYdisplacementBRISKBRISK = xyDriftsBRISKBRISK[1];
             double numberOfMatchesBRISKBRISK = xyDriftsBRISKBRISK[2];
             double numberOfGoodMatchesBRISKBRISK = xyDriftsBRISKBRISK[3];
             double algorithmDurationBRISKBRISK = xyDriftsBRISKBRISK[4];
+            double medianXDisplacementBRISKBRISK = xyDriftsBRISKBRISK[5];
+            double medianYDisplacementBRISKBRISK = xyDriftsBRISKBRISK[6];
 
             double meanXdisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[0];
             double meanYdisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[1];
             double numberOfMatchesAKAZEBRISK = xyDriftsAKAZEBRISK[2];
             double numberOfGoodMatchesAKAZEBRISK = xyDriftsAKAZEBRISK[3];
             double algorithmDurationAKAZEBRISK = xyDriftsAKAZEBRISK[4];
+            double medianXDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[5];
+            double medianYDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[6];
 
             double meanXdisplacementAKAZEORB = xyDriftsAKAZEORB[0];
             double meanYdisplacementAKAZEORB = xyDriftsAKAZEORB[1];
             double numberOfMatchesAKAZEORB = xyDriftsAKAZEORB[2];
             double numberOfGoodMatchesAKAZEORB = xyDriftsAKAZEORB[3];
             double algorithmDurationAKAZEORB = xyDriftsAKAZEORB[4];
+            double medianXDisplacementAKAZEORB = xyDriftsAKAZEORB[5];
+            double medianYDisplacementAKAZEORB = xyDriftsAKAZEORB[6];
 
             double meanXdisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[0];
             double meanYdisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[1];
             double numberOfMatchesAKAZEAKAZE = xyDriftsAKAZEAKAZE[2];
             double numberOfGoodMatchesAKAZEAKAZE = xyDriftsAKAZEAKAZE[3];
             double algorithmDurationAKAZEAKAZE = xyDriftsAKAZEAKAZE[4];
+            double medianXDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[5];
+            double medianYDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[6];
 
             FileWriter fw1 = new FileWriter(f1, true);
             fw1.write(label + "," + oldX + "," + oldY + "," + oldZ + ","
@@ -757,7 +780,12 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
                     + algorithmDurationBRISKORB + "," + algorithmDurationORBORB + "," + algorithmDurationORBBRISK + ","
                     + algorithmDurationBRISKBRISK + "," + algorithmDurationAKAZEBRISK + "," + algorithmDurationAKAZEORB + ","
-                    + algorithmDurationAKAZEAKAZE
+                    + algorithmDurationAKAZEAKAZE + ","
+
+                    + medianXDisplacementBRISKORB + "," + medianYDisplacementBRISKORB + "," + medianXDisplacementORBORB + "," + medianYDisplacementORBORB + ","
+                    + medianXDisplacementORBBRISK + "," + medianYDisplacementORBBRISK + "," + medianXDisplacementBRISKBRISK + "," + medianYDisplacementBRISKBRISK + ","
+                    + medianXDisplacementAKAZEBRISK + "," + medianYDisplacementAKAZEBRISK + "," + medianXDisplacementAKAZEORB + "," + medianYDisplacementAKAZEORB + ","
+                    + medianXDisplacementAKAZEAKAZE + "," + medianYDisplacementAKAZEAKAZE + ","
 
                     + System.lineSeparator());
             fw1.close();
