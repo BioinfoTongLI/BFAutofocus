@@ -239,7 +239,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double correctedZPosition = calculateZFocus(oldZ);
         System.out.println("Corrected Z Position : " + correctedZPosition);
         //Set to the focus
-        setZPosition(correctedZPosition);
+        setZPosition(correctedZPosition-1);
 
         //Get an image to define reference image, for each position
         core_.snapImage();
@@ -279,19 +279,19 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double xCorrection;
         double yCorrection;
 
-        double[] xyDriftsBRISKORB = new double[7];
+        double[] xyDriftsBRISKORB = new double[9];
 
-        double[] xyDriftsORBORB = new double[7];
+        double[] xyDriftsORBORB = new double[9];
 
-        double[] xyDriftsORBBRISK = new double[7];
+        double[] xyDriftsORBBRISK = new double[9];
 
-        double[] xyDriftsBRISKBRISK = new double[7];
+        double[] xyDriftsBRISKBRISK = new double[9];
 
-        double[] xyDriftsAKAZEBRISK = new double[7];
+        double[] xyDriftsAKAZEBRISK = new double[9];
 
-        double[] xyDriftsAKAZEORB = new double[7];
+        double[] xyDriftsAKAZEORB = new double[9];
 
-        double[] xyDriftsAKAZEAKAZE = new double[7];
+        double[] xyDriftsAKAZEAKAZE = new double[9];
 
         if (xy_correction.contentEquals("Yes")){
             //Define current image as reference for the position if it does not exist
@@ -345,6 +345,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         core_.setExposure(oldExposure);
 
 //        studio_.app().refreshGUIFromCache(); //Not sure about the utility; may be useful for Metadata?;
+
+        //Set to the focus
+        setZPosition(correctedZPosition);
 
         //Refresh positions in position dictionary
         refreshOldXYZposition(correctedXPosition, correctedYPosition, correctedZPosition, label);
@@ -688,13 +691,15 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     "algorithmDurationBRISKBRISK(ms)", "algorithmDurationAKAZEBRISK(ms)", "algorithmDurationAKAZEORB(ms)",
                     "algorithmDurationAKAZEAKAZE(ms)",
 
-                    "medianXDisplacementBRISKORB", "medianXDisplacementORBORB", "medianXDisplacementORBBRISK",
-                    "medianXDisplacementBRISKBRISK", "medianXDisplacementAKAZEBRISK", "medianXDisplacementAKAZEORB",
-                    "medianXDisplacementAKAZEAKAZE",
+                    "medianXdisplacementBRISKORB", "medianYdisplacementBRISKORB", "medianXdisplacementORBORB", "medianYdisplacementORBORB",
+                    "medianXdisplacementORBBRISK", "medianYdisplacementORBBRISK", "medianXdisplacementBRISKBRISK", "medianYdisplacementBRISKBRISK",
+                    "medianXdisplacementAKAZEBRISK", "medianYdisplacementAKAZEBRISK", "medianXdisplacementAKAZEORB", "medianYdisplacementAKAZEORB",
+                    "medianXdisplacementAKAZEAKAZE", "medianYdisplacementAKAZEAKAZE",
 
-                    "medianYDisplacementBRISKORB", "medianYDisplacementORBORB", "medianYDisplacementORBBRISK",
-                    "medianYDisplacementBRISKBRISK", "medianYDisplacementAKAZEBRISK", "medianYDisplacementAKAZEORB",
-                    "medianYDisplacementAKAZEAKAZE"
+                    "minXdisplacementBRISKORB", "minYdisplacementBRISKORB", "minXdisplacementORBORB", "minYdisplacementORBORB",
+                    "minXdisplacementORBBRISK", "minYdisplacementORBBRISK", "minXdisplacementBRISKBRISK", "minYdisplacementBRISKBRISK",
+                    "minXdisplacementAKAZEBRISK", "minYdisplacementAKAZEBRISK", "minXdisplacementAKAZEORB", "minYdisplacementAKAZEORB",
+                    "minXdisplacementAKAZEAKAZE", "minYdisplacementAKAZEAKAZE"
             } ;
 
             fw.write(String.join(",", headersOfFile) + System.lineSeparator());
@@ -711,7 +716,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             double algorithmDurationBRISKORB = xyDriftsBRISKORB[4];
             double medianXDisplacementBRISKORB = xyDriftsBRISKORB[5];
             double medianYDisplacementBRISKORB = xyDriftsBRISKORB[6];
-
+            double minXDisplacementBRISKORB = xyDriftsBRISKORB[7];
+            double minYDisplacementBRISKORB = xyDriftsBRISKORB[8];
 
             double meanXdisplacementORBORB = xyDriftsORBORB[0];
             double meanYdisplacementORBORB = xyDriftsORBORB[1];
@@ -720,6 +726,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             double algorithmDurationORBORB = xyDriftsORBORB[4];
             double medianXDisplacementORBORB = xyDriftsORBORB[5];
             double medianYDisplacementORBORB = xyDriftsORBORB[6];
+            double minXDisplacementORBORB = xyDriftsORBORB[7];
+            double minYDisplacementORBORB = xyDriftsORBORB[8];
 
             double meanXdisplacementORBBRISK = xyDriftsORBBRISK[0];
             double meanYdisplacementORBBRISK = xyDriftsORBBRISK[1];
@@ -728,6 +736,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             double algorithmDurationORBBRISK = xyDriftsORBBRISK[4];
             double medianXDisplacementORBBRISK = xyDriftsORBBRISK[5];
             double medianYDisplacementORBBRISK = xyDriftsORBBRISK[6];
+            double minXDisplacementORBBRISK = xyDriftsORBBRISK[7];
+            double minYDisplacementORBBRISK = xyDriftsORBBRISK[8];
 
             double meanXdisplacementBRISKBRISK = xyDriftsBRISKBRISK[0];
             double meanYdisplacementBRISKBRISK = xyDriftsBRISKBRISK[1];
@@ -736,6 +746,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             double algorithmDurationBRISKBRISK = xyDriftsBRISKBRISK[4];
             double medianXDisplacementBRISKBRISK = xyDriftsBRISKBRISK[5];
             double medianYDisplacementBRISKBRISK = xyDriftsBRISKBRISK[6];
+            double minXDisplacementBRISKBRISK = xyDriftsBRISKBRISK[7];
+            double minYDisplacementBRISKBRISK = xyDriftsBRISKBRISK[8];
 
             double meanXdisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[0];
             double meanYdisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[1];
@@ -744,6 +756,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             double algorithmDurationAKAZEBRISK = xyDriftsAKAZEBRISK[4];
             double medianXDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[5];
             double medianYDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[6];
+            double minXDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[7];
+            double minYDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[8];
 
             double meanXdisplacementAKAZEORB = xyDriftsAKAZEORB[0];
             double meanYdisplacementAKAZEORB = xyDriftsAKAZEORB[1];
@@ -752,6 +766,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             double algorithmDurationAKAZEORB = xyDriftsAKAZEORB[4];
             double medianXDisplacementAKAZEORB = xyDriftsAKAZEORB[5];
             double medianYDisplacementAKAZEORB = xyDriftsAKAZEORB[6];
+            double minXDisplacementAKAZEORB = xyDriftsAKAZEORB[7];
+            double minYDisplacementAKAZEORB = xyDriftsAKAZEORB[8];
 
             double meanXdisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[0];
             double meanYdisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[1];
@@ -760,6 +776,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             double algorithmDurationAKAZEAKAZE = xyDriftsAKAZEAKAZE[4];
             double medianXDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[5];
             double medianYDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[6];
+            double minXDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[7];
+            double minYDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[8];
 
             FileWriter fw1 = new FileWriter(f1, true);
             fw1.write(label + "," + oldX + "," + oldY + "," + oldZ + ","
@@ -787,6 +805,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     + medianXDisplacementAKAZEBRISK + "," + medianYDisplacementAKAZEBRISK + "," + medianXDisplacementAKAZEORB + "," + medianYDisplacementAKAZEORB + ","
                     + medianXDisplacementAKAZEAKAZE + "," + medianYDisplacementAKAZEAKAZE + ","
 
+                    + minXDisplacementBRISKORB + "," + minYDisplacementBRISKORB + "," + minXDisplacementORBORB + "," + minYDisplacementORBORB + ","
+                    + minXDisplacementORBBRISK + "," + minYDisplacementORBBRISK + "," + minXDisplacementBRISKBRISK + "," + minYDisplacementBRISKBRISK + ","
+                    + minXDisplacementAKAZEBRISK + "," + minYDisplacementAKAZEBRISK + "," + minXDisplacementAKAZEORB + "," + minYDisplacementAKAZEORB + ","
+                    + minXDisplacementAKAZEAKAZE + "," + minYDisplacementAKAZEAKAZE
+                    
                     + System.lineSeparator());
             fw1.close();
         }

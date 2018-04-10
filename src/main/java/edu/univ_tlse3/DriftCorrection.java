@@ -68,6 +68,8 @@ public class DriftCorrection {
         KeyPoint[] keypoint1Array = keyPoint1.toArray();
         KeyPoint[] keypoint2Array = keyPoint2.toArray();
         ArrayList<Double> listOfDistances = new ArrayList<>();
+        ArrayList<Double> listOfDistancesX = new ArrayList<>();
+        ArrayList<Double> listOfDistancesY = new ArrayList<>();
         double x;
         double x1;
         double x2;
@@ -77,6 +79,8 @@ public class DriftCorrection {
         double d;
         double min = Double.MAX_VALUE;
         double max = Double.MIN_VALUE;
+        double minX = Double.MAX_VALUE;
+        double minY = Double.MAX_VALUE;
         for (int i =0; i < matcherArray.length; i++) {
             int dmQuery = matcherArray[i].queryIdx;
             int dmTrain = matcherArray[i].trainIdx;
@@ -84,25 +88,44 @@ public class DriftCorrection {
             x1 = keypoint1Array[dmQuery].pt.x;
             x2 = keypoint2Array[dmTrain].pt.x;
             x = (x2 - x1) * calibration;
+            listOfDistancesX.add(x);
 
             y1 = keypoint1Array[dmQuery].pt.y;
             y2 = keypoint2Array[dmTrain].pt.y;
             y = (y2 - y1) * calibration;
+            listOfDistancesY.add(y);
 
             d = Math.hypot(x, y);
             listOfDistances.add(d);
         }
-        //Get min and max distances
-        for (int i = 0; i < listOfDistances.size(); i++) {
-            if (listOfDistances.get(i) < min) {
-                min = listOfDistances.get(i);
-            }
-            if (listOfDistances.get(i) > max) {
-                max = listOfDistances.get(i);
+
+        //Get min x distances
+        for (int i = 0; i < listOfDistancesX.size(); i++) {
+            if (listOfDistancesX.get(i) < minX) {
+                minX = listOfDistancesX.get(i);
             }
         }
-        System.out.println("Min dist : " + min);
-        System.out.println("Max dist : " + max);
+
+        //Get min y distances
+        for (int i = 0; i < listOfDistancesY.size(); i++) {
+            if (listOfDistancesY.get(i) < minY) {
+                minY = listOfDistancesY.get(i);
+            }
+        }
+
+//        //Get min and max distances
+//        for (int i = 0; i < listOfDistances.size(); i++) {
+//            if (listOfDistances.get(i) < min) {
+//                min = listOfDistances.get(i);
+//            }
+//            if (listOfDistances.get(i) > max) {
+//                max = listOfDistances.get(i);
+//            }
+//        }
+        listOfDistances.add(minX);
+        listOfDistances.add(minY);
+        System.out.println("Min X dist : " + minX);
+        System.out.println("Min Y dist : " + minY);
         return listOfDistances;
     }
 
@@ -387,11 +410,15 @@ public class DriftCorrection {
         List<Integer> modesXDisplacements = getModeDisplacement(img1_keypoints_xCoordinates, img2_keypoints_xCoordinates);
         List<Integer> modesYDisplacements = getModeDisplacement(img1_keypoints_yCoordinates, img2_keypoints_yCoordinates);
 
+        ArrayList<Double> distancesInUm = getDistancesInUm(matcher, keypoints1, keypoints2, calibration);
+        double minXDisplacement = distancesInUm.get(distancesInUm.size() - 2);
+        double minYDisplacement = distancesInUm.get(distancesInUm.size() - 1);
+
         long endTime = new Date().getTime();
         long algorithmDuration = endTime - startTime;
 
         return new double[]{meanXdisplacement, meanYdisplacement, matcher.rows(), good_matchesList.size(), algorithmDuration,
-                medianXDisplacement, medianYDisplacement};
+                medianXDisplacement, medianYDisplacement, minXDisplacement, minYDisplacement};
     }
 }
 
