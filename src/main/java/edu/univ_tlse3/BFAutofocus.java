@@ -321,6 +321,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                 //Get Correction to apply : 0-1 = mean; 5-6 = median; 7-8 = min distance; 9-10 = mode;
                 xCorrection = xyDriftsAKAZEBRISK[5];
                 yCorrection = xyDriftsAKAZEBRISK[6];
+
+                System.out.println("X Correction : " + xCorrection);
+                System.out.println("Y Correction : " + yCorrection);
                 correctedXPosition = currentXPosition + xCorrection;
                 correctedYPosition = currentYPosition + yCorrection;
                 System.out.println("Xcorrected : " + correctedXPosition);
