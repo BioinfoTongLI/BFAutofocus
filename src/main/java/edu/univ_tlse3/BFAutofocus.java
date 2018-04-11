@@ -18,15 +18,14 @@ import org.opencv.features2d.DescriptorMatcher;
 import org.opencv.features2d.FeatureDetector;
 import org.scijava.plugin.Plugin;
 import org.scijava.plugin.SciJavaPlugin;
+import sun.security.krb5.internal.crypto.Des;
 
 import javax.swing.*;
 import java.awt.*;
 import java.io.*;
 import java.text.ParseException;
-import java.util.Date;
-import java.util.HashMap;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.*;
 
 @Plugin(type = AutofocusPlugin.class)
@@ -167,8 +166,15 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 //        }
 
         //Get label of position
+        String label = new String();
         PositionList positionList = studio_.positions().getPositionList();
-        String label = getLabelOfPositions(positionList);
+        if (positionList == null) {
+            studio_.positions().markCurrentPosition();
+            label = "Pos0";
+//            positionList.getPosition(0).setLabel(label);
+        } else {
+            label = getLabelOfPositions(positionList);
+        }
         System.out.println("Label Position : " + label);
 
         //Incrementation of position counter; does not work at another place
@@ -203,7 +209,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 //        }
 //        System.out.println("DataStore getSavePath : " + storeNonCorrectedImages.getSavePath());
 //        System.out.println("DataStore Number Of Images : " + storeNonCorrectedImages.getNumImages());
-
+//
 //        boolean saveAcq = studio_.acquisitions().getAcquisitionSettings().save;
 //        System.out.println("Save Acquisition images : " + saveAcq);
 
@@ -222,10 +228,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         } else {
             //Get old calculated X, Y and Z of a given position
             oldCorrectedPositions = getXYZPosition(label);
-            oldX = core_.getXPosition();
-            oldY = core_.getYPosition();
-//            oldX = oldCorrectedPositions[0];
-//            oldY = oldCorrectedPositions[1];
+//            oldX = core_.getXPosition();
+//            oldY = core_.getYPosition();
+            oldX = oldCorrectedPositions[0];
+            oldY = oldCorrectedPositions[1];
             oldZ = oldCorrectedPositions[2];
 
             //Set to the last good position calculated
@@ -239,7 +245,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double correctedZPosition = calculateZFocus(oldZ);
         System.out.println("Corrected Z Position : " + correctedZPosition);
         //Set to the focus
-        setZPosition(correctedZPosition-1);
+        setZPosition(correctedZPosition-0.5);
 
         //Get an image to define reference image, for each position
         core_.snapImage();
@@ -279,19 +285,13 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double xCorrection;
         double yCorrection;
 
-        double[] xyDriftsBRISKORB = new double[9];
-
-        double[] xyDriftsORBORB = new double[9];
-
-        double[] xyDriftsORBBRISK = new double[9];
-
-        double[] xyDriftsBRISKBRISK = new double[9];
-
-        double[] xyDriftsAKAZEBRISK = new double[9];
-
-        double[] xyDriftsAKAZEORB = new double[9];
-
-        double[] xyDriftsAKAZEAKAZE = new double[9];
+        double[] xyDriftsBRISKORB = new double[15];
+        double[] xyDriftsORBORB = new double[15];
+        double[] xyDriftsORBBRISK = new double[15];
+        double[] xyDriftsBRISKBRISK = new double[15];
+        double[] xyDriftsAKAZEBRISK = new double[15];
+        double[] xyDriftsAKAZEORB = new double[15];
+        double[] xyDriftsAKAZEAKAZE = new double[15];
 
         if (xy_correction.contentEquals("Yes")){
             //Define current image as reference for the position if it does not exist
@@ -300,27 +300,32 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             } else {
                 //Or calculate XY drift
                 imgRef_Mat = (Mat) refImageDict.get(label);
-                xyDriftsBRISKORB = calculateXYDrifts(currentMat8Set, FeatureDetector.BRISK, DescriptorExtractor.ORB, DescriptorMatcher.FLANNBASED);
+                List<double[]> drifts = getMultipleXYDrifts(currentMat8Set, FeatureDetector.BRISK, FeatureDetector.ORB, FeatureDetector.AKAZE,
+                        DescriptorExtractor.BRISK, DescriptorExtractor.ORB, DescriptorExtractor.AKAZE, DescriptorMatcher.FLANNBASED);
+                xyDriftsBRISKORB = drifts.get(0);
+                xyDriftsORBORB = drifts.get(1);
+                xyDriftsORBBRISK = drifts.get(2);
+                xyDriftsBRISKBRISK = drifts.get(3);
+                xyDriftsAKAZEBRISK = drifts.get(4);
+                xyDriftsAKAZEORB = drifts.get(5);
+                xyDriftsAKAZEAKAZE = drifts.get(6);
 
-                xyDriftsORBORB = calculateXYDrifts(currentMat8Set, FeatureDetector.ORB, DescriptorExtractor.ORB, DescriptorMatcher.FLANNBASED);
+//                xyDriftsBRISKORB = calculateXYDrifts(currentMat8Set, FeatureDetector.BRISK, DescriptorExtractor.ORB, DescriptorMatcher.FLANNBASED);
+//                xyDriftsORBORB = calculateXYDrifts(currentMat8Set, FeatureDetector.ORB, DescriptorExtractor.ORB, DescriptorMatcher.FLANNBASED);
+//                xyDriftsORBBRISK = calculateXYDrifts(currentMat8Set, FeatureDetector.ORB, DescriptorExtractor.BRISK, DescriptorMatcher.FLANNBASED);
+//                xyDriftsBRISKBRISK = calculateXYDrifts(currentMat8Set, FeatureDetector.BRISK, DescriptorExtractor.BRISK, DescriptorMatcher.FLANNBASED);
+//                xyDriftsAKAZEBRISK = calculateXYDrifts(currentMat8Set, FeatureDetector.AKAZE, DescriptorExtractor.BRISK, DescriptorMatcher.FLANNBASED);
+//                xyDriftsAKAZEORB = calculateXYDrifts(currentMat8Set, FeatureDetector.AKAZE, DescriptorExtractor.ORB, DescriptorMatcher.FLANNBASED);
+//                xyDriftsAKAZEAKAZE = calculateXYDrifts(currentMat8Set, FeatureDetector.AKAZE, DescriptorExtractor.AKAZE, DescriptorMatcher.FLANNBASED);
 
-                xyDriftsORBBRISK = calculateXYDrifts(currentMat8Set, FeatureDetector.ORB, DescriptorExtractor.BRISK, DescriptorMatcher.FLANNBASED);
-
-                xyDriftsBRISKBRISK = calculateXYDrifts(currentMat8Set, FeatureDetector.BRISK, DescriptorExtractor.BRISK, DescriptorMatcher.FLANNBASED);
-
-                xyDriftsAKAZEBRISK = calculateXYDrifts(currentMat8Set, FeatureDetector.AKAZE, DescriptorExtractor.BRISK, DescriptorMatcher.FLANNBASED);
-
-                xyDriftsAKAZEORB = calculateXYDrifts(currentMat8Set, FeatureDetector.AKAZE, DescriptorExtractor.ORB, DescriptorMatcher.FLANNBASED);
-
-                xyDriftsAKAZEAKAZE = calculateXYDrifts(currentMat8Set, FeatureDetector.AKAZE, DescriptorExtractor.AKAZE, DescriptorMatcher.FLANNBASED);
-
+                //Get Correction to apply : 0-1 = mean; 5-6 = median; 7-8 = min distance; 9-10 = mode;
                 xCorrection = xyDriftsAKAZEBRISK[5];
                 yCorrection = xyDriftsAKAZEBRISK[6];
                 correctedXPosition = currentXPosition + xCorrection;
                 correctedYPosition = currentYPosition + yCorrection;
                 System.out.println("Xcorrected : " + correctedXPosition);
                 System.out.println("Ycorrected : " + correctedYPosition);
-                            }
+            }
             setXYPosition(correctedXPosition, correctedYPosition);
 
             //Reference image incremental
@@ -455,9 +460,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     }
 
     private double[] calculateXYDrifts(Mat currentImgMat, Integer detectorAlgo, Integer descriptorExtractor, Integer descriptorMatcher) throws Exception {
-        //uncomment next line before simulation:
-        //currentImgMat = DriftCorrection.readImage("/home/dataNolwenn/Résultats/06-03-2018/ImagesFocus/19-5.tif");
-
         ExecutorService es = Executors.newSingleThreadExecutor();
         Future job = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
                 intervalInMin, umPerStep, detectorAlgo, descriptorExtractor, descriptorMatcher));
@@ -469,8 +471,53 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             e.printStackTrace();
         }
         return xyDrifts;
-//        return DriftCorrection.driftCorrection(imgRef_Mat, currentImgMat);
     }
+
+    private List<double[]> getMultipleXYDrifts(Mat currentImgMat, Integer detectorAlgo1, Integer detectorAlgo2, Integer detectorAlgo3,
+                                               Integer descriptorExtractor1, Integer descriptorExtractor2, Integer descriptorExtractor3,
+                                               Integer descriptorMatcher){
+        int nThread = Runtime.getRuntime().availableProcessors() - 2;
+        ExecutorService es = Executors.newFixedThreadPool(nThread);
+        Future[] jobs = new Future[7];
+        //BRISK-ORB
+        jobs[0] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
+                intervalInMin, umPerStep, detectorAlgo1, descriptorExtractor2, descriptorMatcher));
+        //ORB-ORB
+        jobs[1] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
+                intervalInMin, umPerStep, detectorAlgo2, descriptorExtractor2, descriptorMatcher));
+        //ORB-BRISK
+        jobs[2] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
+                intervalInMin, umPerStep, detectorAlgo2, descriptorExtractor1, descriptorMatcher));
+        //BRISK-BRISK
+        jobs[3] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
+                intervalInMin, umPerStep, detectorAlgo1, descriptorExtractor1, descriptorMatcher));
+        //AKAZE-BRISK
+        jobs[4] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
+                intervalInMin, umPerStep, detectorAlgo3, descriptorExtractor1, descriptorMatcher));
+        //AKAZE-ORB
+        jobs[5] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
+                intervalInMin, umPerStep, detectorAlgo3, descriptorExtractor2, descriptorMatcher));
+        //AKAZE-AKAZE
+        jobs[6] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
+                intervalInMin, umPerStep, detectorAlgo3, descriptorExtractor3, descriptorMatcher));
+
+        List<double[]> drifts = new ArrayList<double[]>();
+        try {
+            for (int i = 0; i < jobs.length; i++) {
+                drifts.add(i, (double[]) jobs[i].get());
+            }
+        } catch (InterruptedException | ExecutionException e) {
+            e.printStackTrace();
+        }
+        es.shutdown();
+        try{
+            es.awaitTermination(5, TimeUnit.MINUTES);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        return drifts;
+    }
+
 
     private void showImage(TaggedImage currentImg) {
         if (show.contentEquals("Yes")) {
@@ -691,15 +738,30 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     "algorithmDurationBRISKBRISK(ms)", "algorithmDurationAKAZEBRISK(ms)", "algorithmDurationAKAZEORB(ms)",
                     "algorithmDurationAKAZEAKAZE(ms)",
 
-                    "medianXdisplacementBRISKORB", "medianYdisplacementBRISKORB", "medianXdisplacementORBORB", "medianYdisplacementORBORB",
-                    "medianXdisplacementORBBRISK", "medianYdisplacementORBBRISK", "medianXdisplacementBRISKBRISK", "medianYdisplacementBRISKBRISK",
-                    "medianXdisplacementAKAZEBRISK", "medianYdisplacementAKAZEBRISK", "medianXdisplacementAKAZEORB", "medianYdisplacementAKAZEORB",
-                    "medianXdisplacementAKAZEAKAZE", "medianYdisplacementAKAZEAKAZE",
+                    "autoMedianXdisplacementBRISKORB", "autoMedianYdisplacementBRISKORB", "autoMedianXdisplacementORBORB", "autoMedianYdisplacementORBORB",
+                    "autoMedianXdisplacementORBBRISK", "autoMedianYdisplacementORBBRISK", "autoMedianXdisplacementBRISKBRISK", "autoMedianYdisplacementBRISKBRISK",
+                    "autoMedianXdisplacementAKAZEBRISK", "autoMedianYdisplacementAKAZEBRISK", "autoMedianXdisplacementAKAZEORB", "autoMedianYdisplacementAKAZEORB",
+                    "autoMedianXdisplacementAKAZEAKAZE", "autoMedianYdisplacementAKAZEAKAZE",
+
+                    "manualMedianXdisplacementBRISKORB", "manualMedianYdisplacementBRISKORB", "manualMedianXdisplacementORBORB", "manualMedianYdisplacementORBORB",
+                    "manualMedianXdisplacementORBBRISK", "manualMedianYdisplacementORBBRISK", "manualMedianXdisplacementBRISKBRISK", "manualMedianYdisplacementBRISKBRISK",
+                    "manualMedianXdisplacementAKAZEBRISK", "manualMedianYdisplacementAKAZEBRISK", "manualMedianXdisplacementAKAZEORB", "manualMedianYdisplacementAKAZEORB",
+                    "manualMedianXdisplacementAKAZEAKAZE", "manualMedianYdisplacementAKAZEAKAZE",
 
                     "minXdisplacementBRISKORB", "minYdisplacementBRISKORB", "minXdisplacementORBORB", "minYdisplacementORBORB",
                     "minXdisplacementORBBRISK", "minYdisplacementORBBRISK", "minXdisplacementBRISKBRISK", "minYdisplacementBRISKBRISK",
                     "minXdisplacementAKAZEBRISK", "minYdisplacementAKAZEBRISK", "minXdisplacementAKAZEORB", "minYdisplacementAKAZEORB",
-                    "minXdisplacementAKAZEAKAZE", "minYdisplacementAKAZEAKAZE"
+                    "minXdisplacementAKAZEAKAZE", "minYdisplacementAKAZEAKAZE",
+
+                    "modeXdisplacementBRISKORB", "modeYdisplacementBRISKORB", "modeXdisplacementORBORB", "modeYdisplacementORBORB",
+                    "modeXdisplacementORBBRISK", "modeYdisplacementORBBRISK", "modeXdisplacementBRISKBRISK", "modeYdisplacementBRISKBRISK",
+                    "modeXdisplacementAKAZEBRISK", "modeYdisplacementAKAZEBRISK", "modeXdisplacementAKAZEORB", "modeYdisplacementAKAZEORB",
+                    "modeXdisplacementAKAZEAKAZE", "modeYdisplacementAKAZEAKAZE",
+
+                    "varianceXdisplacementBRISKORB", "varianceYdisplacementBRISKORB", "varianceXdisplacementORBORB", "varianceYdisplacementORBORB",
+                    "varianceXdisplacementORBBRISK", "varianceYdisplacementORBBRISK", "varianceXdisplacementBRISKBRISK", "varianceYdisplacementBRISKBRISK",
+                    "varianceXdisplacementAKAZEBRISK", "varianceYdisplacementAKAZEBRISK", "varianceXdisplacementAKAZEORB", "varianceYdisplacementAKAZEORB",
+                    "varianceXdisplacementAKAZEAKAZE", "varianceYdisplacementAKAZEAKAZE"
             } ;
 
             fw.write(String.join(",", headersOfFile) + System.lineSeparator());
@@ -714,70 +776,112 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             double numberOfMatchesBRISKORB = xyDriftsBRISKORB[2];
             double numberOfGoodMatchesBRISKORB = xyDriftsBRISKORB[3];
             double algorithmDurationBRISKORB = xyDriftsBRISKORB[4];
-            double medianXDisplacementBRISKORB = xyDriftsBRISKORB[5];
-            double medianYDisplacementBRISKORB = xyDriftsBRISKORB[6];
-            double minXDisplacementBRISKORB = xyDriftsBRISKORB[7];
-            double minYDisplacementBRISKORB = xyDriftsBRISKORB[8];
+            double autoMedianXDisplacementBRISKORB = xyDriftsBRISKORB[5];
+            double autoMedianYDisplacementBRISKORB = xyDriftsBRISKORB[6];
+            double manualMedianXDisplacementBRISKORB = xyDriftsBRISKORB[7];
+            double manualMedianYDisplacementBRISKORB = xyDriftsBRISKORB[8];
+            double minXDisplacementBRISKORB = xyDriftsBRISKORB[9];
+            double minYDisplacementBRISKORB = xyDriftsBRISKORB[10];
+            double modeXDisplacementBRISKORB = xyDriftsBRISKORB[11];
+            double modeYDisplacementBRISKORB = xyDriftsBRISKORB[12];
+            double varianceXDisplacementBRISKORB = xyDriftsBRISKORB[13];
+            double varianceYDisplacementBRISKORB = xyDriftsBRISKORB[14];
 
             double meanXdisplacementORBORB = xyDriftsORBORB[0];
             double meanYdisplacementORBORB = xyDriftsORBORB[1];
             double numberOfMatchesORBORB = xyDriftsORBORB[2];
             double numberOfGoodMatchesORBORB = xyDriftsORBORB[3];
             double algorithmDurationORBORB = xyDriftsORBORB[4];
-            double medianXDisplacementORBORB = xyDriftsORBORB[5];
-            double medianYDisplacementORBORB = xyDriftsORBORB[6];
-            double minXDisplacementORBORB = xyDriftsORBORB[7];
-            double minYDisplacementORBORB = xyDriftsORBORB[8];
+            double autoMedianXDisplacementORBORB = xyDriftsORBORB[5];
+            double autoMedianYDisplacementORBORB = xyDriftsORBORB[6];
+            double manualMedianXDisplacementORBORB = xyDriftsORBORB[7];
+            double manualMedianYDisplacementORBORB = xyDriftsORBORB[8];
+            double minXDisplacementORBORB = xyDriftsORBORB[9];
+            double minYDisplacementORBORB = xyDriftsORBORB[10];
+            double modeXDisplacementORBORB = xyDriftsORBORB[11];
+            double modeYDisplacementORBORB = xyDriftsORBORB[12];
+            double varianceXDisplacementORBORB = xyDriftsORBORB[13];
+            double varianceYDisplacementORBORB = xyDriftsORBORB[14];
 
             double meanXdisplacementORBBRISK = xyDriftsORBBRISK[0];
             double meanYdisplacementORBBRISK = xyDriftsORBBRISK[1];
             double numberOfMatchesORBBRISK = xyDriftsORBBRISK[2];
             double numberOfGoodMatchesORBBRISK = xyDriftsORBBRISK[3];
             double algorithmDurationORBBRISK = xyDriftsORBBRISK[4];
-            double medianXDisplacementORBBRISK = xyDriftsORBBRISK[5];
-            double medianYDisplacementORBBRISK = xyDriftsORBBRISK[6];
-            double minXDisplacementORBBRISK = xyDriftsORBBRISK[7];
-            double minYDisplacementORBBRISK = xyDriftsORBBRISK[8];
+            double autoMedianXDisplacementORBBRISK = xyDriftsORBBRISK[5];
+            double autoMedianYDisplacementORBBRISK = xyDriftsORBBRISK[6];
+            double manualMedianXDisplacementORBBRISK = xyDriftsORBBRISK[7];
+            double manualMedianYDisplacementORBBRISK = xyDriftsORBBRISK[8];
+            double minXDisplacementORBBRISK = xyDriftsORBBRISK[9];
+            double minYDisplacementORBBRISK = xyDriftsORBBRISK[10];
+            double modeXDisplacementORBBRISK = xyDriftsORBBRISK[11];
+            double modeYDisplacementORBBRISK = xyDriftsORBBRISK[12];
+            double varianceXDisplacementORBBRISK = xyDriftsORBBRISK[13];
+            double varianceYDisplacementORBBRISK = xyDriftsORBBRISK[14];
 
             double meanXdisplacementBRISKBRISK = xyDriftsBRISKBRISK[0];
             double meanYdisplacementBRISKBRISK = xyDriftsBRISKBRISK[1];
             double numberOfMatchesBRISKBRISK = xyDriftsBRISKBRISK[2];
             double numberOfGoodMatchesBRISKBRISK = xyDriftsBRISKBRISK[3];
             double algorithmDurationBRISKBRISK = xyDriftsBRISKBRISK[4];
-            double medianXDisplacementBRISKBRISK = xyDriftsBRISKBRISK[5];
-            double medianYDisplacementBRISKBRISK = xyDriftsBRISKBRISK[6];
-            double minXDisplacementBRISKBRISK = xyDriftsBRISKBRISK[7];
-            double minYDisplacementBRISKBRISK = xyDriftsBRISKBRISK[8];
+            double autoMedianXDisplacementBRISKBRISK = xyDriftsBRISKBRISK[5];
+            double autoMedianYDisplacementBRISKBRISK = xyDriftsBRISKBRISK[6];
+            double manualMedianXDisplacementBRISKBRISK = xyDriftsBRISKBRISK[7];
+            double manualMedianYDisplacementBRISKBRISK = xyDriftsBRISKBRISK[8];
+            double minXDisplacementBRISKBRISK = xyDriftsBRISKBRISK[9];
+            double minYDisplacementBRISKBRISK = xyDriftsBRISKBRISK[10];
+            double modeXDisplacementBRISKBRISK = xyDriftsBRISKBRISK[11];
+            double modeYDisplacementBRISKBRISK = xyDriftsBRISKBRISK[12];
+            double varianceXDisplacementBRISKBRISK = xyDriftsBRISKBRISK[13];
+            double varianceYDisplacementBRISKBRISK = xyDriftsBRISKBRISK[14];
 
             double meanXdisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[0];
             double meanYdisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[1];
             double numberOfMatchesAKAZEBRISK = xyDriftsAKAZEBRISK[2];
             double numberOfGoodMatchesAKAZEBRISK = xyDriftsAKAZEBRISK[3];
             double algorithmDurationAKAZEBRISK = xyDriftsAKAZEBRISK[4];
-            double medianXDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[5];
-            double medianYDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[6];
-            double minXDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[7];
-            double minYDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[8];
+            double autoMedianXDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[5];
+            double autoMedianYDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[6];
+            double manualMedianXDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[7];
+            double manualMedianYDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[8];
+            double minXDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[9];
+            double minYDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[10];
+            double modeXDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[11];
+            double modeYDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[12];
+            double varianceXDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[13];
+            double varianceYDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[14];
 
             double meanXdisplacementAKAZEORB = xyDriftsAKAZEORB[0];
             double meanYdisplacementAKAZEORB = xyDriftsAKAZEORB[1];
             double numberOfMatchesAKAZEORB = xyDriftsAKAZEORB[2];
             double numberOfGoodMatchesAKAZEORB = xyDriftsAKAZEORB[3];
             double algorithmDurationAKAZEORB = xyDriftsAKAZEORB[4];
-            double medianXDisplacementAKAZEORB = xyDriftsAKAZEORB[5];
-            double medianYDisplacementAKAZEORB = xyDriftsAKAZEORB[6];
-            double minXDisplacementAKAZEORB = xyDriftsAKAZEORB[7];
-            double minYDisplacementAKAZEORB = xyDriftsAKAZEORB[8];
+            double autoMedianXDisplacementAKAZEORB = xyDriftsAKAZEORB[5];
+            double autoMedianYDisplacementAKAZEORB = xyDriftsAKAZEORB[6];
+            double manualMedianXDisplacementAKAZEORB = xyDriftsAKAZEORB[7];
+            double manualMedianYDisplacementAKAZEORB = xyDriftsAKAZEORB[8];
+            double minXDisplacementAKAZEORB = xyDriftsAKAZEORB[9];
+            double minYDisplacementAKAZEORB = xyDriftsAKAZEORB[10];
+            double modeXDisplacementAKAZEORB = xyDriftsAKAZEORB[11];
+            double modeYDisplacementAKAZEORB = xyDriftsAKAZEORB[12];
+            double varianceXDisplacementAKAZEORB = xyDriftsAKAZEORB[13];
+            double varianceYDisplacementAKAZEORB = xyDriftsAKAZEORB[14];
 
             double meanXdisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[0];
             double meanYdisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[1];
             double numberOfMatchesAKAZEAKAZE = xyDriftsAKAZEAKAZE[2];
             double numberOfGoodMatchesAKAZEAKAZE = xyDriftsAKAZEAKAZE[3];
             double algorithmDurationAKAZEAKAZE = xyDriftsAKAZEAKAZE[4];
-            double medianXDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[5];
-            double medianYDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[6];
-            double minXDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[7];
-            double minYDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[8];
+            double autoMedianXDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[5];
+            double autoMedianYDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[6];
+            double manualMedianXDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[7];
+            double manualMedianYDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[8];
+            double minXDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[9];
+            double minYDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[10];
+            double modeXDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[11];
+            double modeYDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[12];
+            double varianceXDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[13];
+            double varianceYDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[14];
 
             FileWriter fw1 = new FileWriter(f1, true);
             fw1.write(label + "," + oldX + "," + oldY + "," + oldZ + ","
@@ -800,16 +904,31 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     + algorithmDurationBRISKBRISK + "," + algorithmDurationAKAZEBRISK + "," + algorithmDurationAKAZEORB + ","
                     + algorithmDurationAKAZEAKAZE + ","
 
-                    + medianXDisplacementBRISKORB + "," + medianYDisplacementBRISKORB + "," + medianXDisplacementORBORB + "," + medianYDisplacementORBORB + ","
-                    + medianXDisplacementORBBRISK + "," + medianYDisplacementORBBRISK + "," + medianXDisplacementBRISKBRISK + "," + medianYDisplacementBRISKBRISK + ","
-                    + medianXDisplacementAKAZEBRISK + "," + medianYDisplacementAKAZEBRISK + "," + medianXDisplacementAKAZEORB + "," + medianYDisplacementAKAZEORB + ","
-                    + medianXDisplacementAKAZEAKAZE + "," + medianYDisplacementAKAZEAKAZE + ","
+                    + autoMedianXDisplacementBRISKORB + "," + autoMedianYDisplacementBRISKORB + "," + autoMedianXDisplacementORBORB + "," + autoMedianYDisplacementORBORB + ","
+                    + autoMedianXDisplacementORBBRISK + "," + autoMedianYDisplacementORBBRISK + "," + autoMedianXDisplacementBRISKBRISK + "," + autoMedianYDisplacementBRISKBRISK + ","
+                    + autoMedianXDisplacementAKAZEBRISK + "," + autoMedianYDisplacementAKAZEBRISK + "," + autoMedianXDisplacementAKAZEORB + "," + autoMedianYDisplacementAKAZEORB + ","
+                    + autoMedianXDisplacementAKAZEAKAZE + "," + autoMedianYDisplacementAKAZEAKAZE + ","
+
+                    + manualMedianXDisplacementBRISKORB + "," + manualMedianYDisplacementBRISKORB + "," + manualMedianXDisplacementORBORB + "," + manualMedianYDisplacementORBORB + ","
+                    + manualMedianXDisplacementORBBRISK + "," + manualMedianYDisplacementORBBRISK + "," + manualMedianXDisplacementBRISKBRISK + "," + manualMedianYDisplacementBRISKBRISK + ","
+                    + manualMedianXDisplacementAKAZEBRISK + "," + manualMedianYDisplacementAKAZEBRISK + "," + manualMedianXDisplacementAKAZEORB + "," + manualMedianYDisplacementAKAZEORB + ","
+                    + manualMedianXDisplacementAKAZEAKAZE + "," + manualMedianYDisplacementAKAZEAKAZE + ","
 
                     + minXDisplacementBRISKORB + "," + minYDisplacementBRISKORB + "," + minXDisplacementORBORB + "," + minYDisplacementORBORB + ","
                     + minXDisplacementORBBRISK + "," + minYDisplacementORBBRISK + "," + minXDisplacementBRISKBRISK + "," + minYDisplacementBRISKBRISK + ","
                     + minXDisplacementAKAZEBRISK + "," + minYDisplacementAKAZEBRISK + "," + minXDisplacementAKAZEORB + "," + minYDisplacementAKAZEORB + ","
-                    + minXDisplacementAKAZEAKAZE + "," + minYDisplacementAKAZEAKAZE
-                    
+                    + minXDisplacementAKAZEAKAZE + "," + minYDisplacementAKAZEAKAZE + ","
+
+                    + modeXDisplacementBRISKORB + "," + modeYDisplacementBRISKORB + "," + modeXDisplacementORBORB + "," + modeYDisplacementORBORB + ","
+                    + modeXDisplacementORBBRISK + "," + modeYDisplacementORBBRISK + "," + modeXDisplacementBRISKBRISK + "," + modeYDisplacementBRISKBRISK + ","
+                    + modeXDisplacementAKAZEBRISK + "," + modeYDisplacementAKAZEBRISK + "," + modeXDisplacementAKAZEORB + "," + modeYDisplacementAKAZEORB + ","
+                    + modeXDisplacementAKAZEAKAZE + "," + modeYDisplacementAKAZEAKAZE + ","
+
+                    + varianceXDisplacementBRISKORB + "," + varianceYDisplacementBRISKORB + "," + varianceXDisplacementORBORB + "," + varianceYDisplacementORBORB + ","
+                    + varianceXDisplacementORBBRISK + "," + varianceYDisplacementORBBRISK + "," + varianceXDisplacementBRISKBRISK + "," + varianceYDisplacementBRISKBRISK + ","
+                    + varianceXDisplacementAKAZEBRISK + "," + varianceYDisplacementAKAZEBRISK + "," + varianceXDisplacementAKAZEORB + "," + varianceYDisplacementAKAZEORB + ","
+                    + varianceXDisplacementAKAZEAKAZE + "," + varianceYDisplacementAKAZEAKAZE
+
                     + System.lineSeparator());
             fw1.close();
         }
@@ -921,7 +1040,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         @Override
         public double[] call() {
-            return DriftCorrection.driftCorrection(img1_, img2_, calibration_, intervalInMs_, umPerStep_, detectorAlgo_, descriptorExtractor_, descriptorMatcher_);
+            return DriftCorrection.driftCorrection(img1_, img2_, calibration_, intervalInMs_,
+                    umPerStep_, detectorAlgo_, descriptorExtractor_, descriptorMatcher_);
         }
     }
 

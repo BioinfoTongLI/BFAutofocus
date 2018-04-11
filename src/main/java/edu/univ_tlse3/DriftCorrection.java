@@ -1,5 +1,6 @@
 package edu.univ_tlse3;
 
+import clojure.lang.IFn;
 import ij.ImagePlus;
 import org.apache.commons.math3.stat.descriptive.rank.Median;
 import org.opencv.core.*;
@@ -15,7 +16,7 @@ import static org.opencv.features2d.Features2d.NOT_DRAW_SINGLE_POINTS;
 
 public class DriftCorrection {
 
-//    public static double UMPERMIN = 50;
+    //    public static double UMPERMIN = 50;
 //    public static double INTERVALINMIN = 0;
 //    public static final double UMPERPIX = 0.108;
     public static final Integer DETECTORALGO = FeatureDetector.BRISK;
@@ -33,27 +34,27 @@ public class DriftCorrection {
         return img2;
     }
 
-    public static Mat equalizeImages(Mat img) {
+    static Mat equalizeImages(Mat img) {
         Mat imgEqualized = new Mat(img.cols(), img.rows(), img.type());
         Imgproc.equalizeHist(img, imgEqualized);
         return imgEqualized;
     }
 
-    public static MatOfKeyPoint findKeypoints(Mat img, int detectorType) {
+    static MatOfKeyPoint findKeypoints(Mat img, int detectorType) {
         MatOfKeyPoint keypoints = new MatOfKeyPoint();
         FeatureDetector featureDetector = FeatureDetector.create(detectorType);
         featureDetector.detect(img, keypoints);
         return keypoints;
     }
 
-    public static Mat calculDescriptors(Mat img, MatOfKeyPoint keypoints, int descriptorType) {
+    static Mat calculDescriptors(Mat img, MatOfKeyPoint keypoints, int descriptorType) {
         Mat img_descript = new Mat();
         DescriptorExtractor extractor = DescriptorExtractor.create(descriptorType);
         extractor.compute(img, keypoints, img_descript);
         return img_descript;
     }
 
-    public static MatOfDMatch matchingDescriptor(Mat img1_calcul_descriptors, Mat img2_calcul_descriptors, int descriptorMatcherType) {
+    static MatOfDMatch matchingDescriptor(Mat img1_calcul_descriptors, Mat img2_calcul_descriptors, int descriptorMatcherType) {
         MatOfDMatch matcher = new MatOfDMatch();
         DescriptorMatcher matcherDescriptor = DescriptorMatcher.create(descriptorMatcherType);
         Mat img1_descriptor = convertMatDescriptorToCV32F(img1_calcul_descriptors);
@@ -63,10 +64,11 @@ public class DriftCorrection {
     }
 
     //Calculate distance (in um) between each pair of points :
-    public static ArrayList<Double> getDistancesInUm(MatOfDMatch matcher, MatOfKeyPoint keyPoint1, MatOfKeyPoint keyPoint2, double calibration) {
+    static Map getDistancesInUm(MatOfDMatch matcher, MatOfKeyPoint keyPoint1, MatOfKeyPoint keyPoint2, double calibration) {
         DMatch[] matcherArray = matcher.toArray();
         KeyPoint[] keypoint1Array = keyPoint1.toArray();
         KeyPoint[] keypoint2Array = keyPoint2.toArray();
+        Map globalListOfDistances = new HashMap<String, ArrayList<Double>>();
         ArrayList<Double> listOfDistances = new ArrayList<>();
         ArrayList<Double> listOfDistancesX = new ArrayList<>();
         ArrayList<Double> listOfDistancesY = new ArrayList<>();
@@ -77,10 +79,6 @@ public class DriftCorrection {
         double y1;
         double y2;
         double d;
-        double min = Double.MAX_VALUE;
-        double max = Double.MIN_VALUE;
-        double minX = Double.MAX_VALUE;
-        double minY = Double.MAX_VALUE;
         for (int i =0; i < matcherArray.length; i++) {
             int dmQuery = matcherArray[i].queryIdx;
             int dmTrain = matcherArray[i].trainIdx;
@@ -99,123 +97,165 @@ public class DriftCorrection {
             listOfDistances.add(d);
         }
 
-        //Get min x distances
-        for (int i = 0; i < listOfDistancesX.size(); i++) {
-            if (listOfDistancesX.get(i) < minX) {
-                minX = listOfDistancesX.get(i);
+        globalListOfDistances.put("distances", listOfDistances);
+        globalListOfDistances.put("xDistances", listOfDistancesX);
+        globalListOfDistances.put("yDistances", listOfDistancesY);
+
+        return globalListOfDistances;
+    }
+
+    static ArrayList<Integer> getGoodMatchesIndex(MatOfDMatch matcher, MatOfKeyPoint keyPoint1, MatOfKeyPoint keyPoint2, double umPerStep, double calibration, double intervalInMin){
+        ArrayList<Integer> goodMatchesIndexArray = new ArrayList<>();
+        ArrayList<Double> listOfDistancesInUm = getSingleListOfDistancesInUm("distances", matcher, keyPoint1, keyPoint2, calibration);
+        for (int i = 0; i < listOfDistancesInUm.size(); i++) {
+            if (listOfDistancesInUm.get(i) <= umPerStep/intervalInMin) {
+                goodMatchesIndexArray.add(i);
             }
         }
+        return goodMatchesIndexArray;
+    }
 
-        //Get min y distances
-        for (int i = 0; i < listOfDistancesY.size(); i++) {
-            if (listOfDistancesY.get(i) < minY) {
-                minY = listOfDistancesY.get(i);
-            }
+    static ArrayList<DMatch> getGoodMatchesValues(MatOfDMatch matcher, MatOfKeyPoint keyPoint1, MatOfKeyPoint keyPoint2, double umPerStep, double calibration, double intervalInMin) {
+        DMatch[] matcherArray = matcher.toArray();
+        ArrayList<Integer> listOfGoodMatchesIndex = getGoodMatchesIndex(matcher, keyPoint1, keyPoint2, umPerStep, calibration, intervalInMin);
+        ArrayList<DMatch> listOfGoodMatchesValues = new ArrayList<>();
+        for (int i = 0; i < listOfGoodMatchesIndex.size(); i++) {
+            listOfGoodMatchesValues.add(matcherArray[listOfGoodMatchesIndex.get(i)]);
         }
+        return listOfGoodMatchesValues;
+    }
 
-//        //Get min and max distances
-//        for (int i = 0; i < listOfDistances.size(); i++) {
-//            if (listOfDistances.get(i) < min) {
-//                min = listOfDistances.get(i);
-//            }
-//            if (listOfDistances.get(i) > max) {
-//                max = listOfDistances.get(i);
-//            }
-//        }
-        listOfDistances.add(minX);
-        listOfDistances.add(minY);
-        System.out.println("Min X dist : " + minX);
-        System.out.println("Min Y dist : " + minY);
+    static ArrayList<Double> getSingleListOfDistancesInUm(String keyToSearch, MatOfDMatch matcher, MatOfKeyPoint keyPoint1, MatOfKeyPoint keyPoint2, double calibration){
+        Map globallistOfDistances = getDistancesInUm(matcher, keyPoint1, keyPoint2, calibration);
+        ArrayList<Double> listOfDistances = (ArrayList<Double>) globallistOfDistances.get(keyToSearch);
         return listOfDistances;
     }
 
-    public  static ArrayList<DMatch> selectGoodMatches(MatOfDMatch matcher, MatOfKeyPoint keyPoint1, MatOfKeyPoint keyPoint2, double umPerStep, double calibration, double intervalInMin) {
-        DMatch[] matcherArray = matcher.toArray();
-        ArrayList<Double> listOfDistancesInUm = getDistancesInUm(matcher, keyPoint1, keyPoint2, calibration);
-//        ArrayList<Double> listOfDistancesInUm = new ArrayList<>();
-        ArrayList<DMatch> good_matchesList = new ArrayList<>();
-        for (int i = 0; i < matcherArray.length; i++) {
-//            Double distanceInUm = listOfDistancesInPx.get(i) * calibration;
-//            listOfDistancesInUm.add(distanceInUm);
-            if (listOfDistancesInUm.get(i) <= umPerStep/intervalInMin) {
-                good_matchesList.add(matcherArray[i]);
-            }
+    static ArrayList<Double> getGoodMatchesDistances(String keyToSearch, ArrayList<Integer> listOfGoodMatchesIndex, MatOfDMatch matcher, MatOfKeyPoint keyPoint1, MatOfKeyPoint keyPoint2, double calibration){
+        ArrayList<Double> uniqueListOfDistance = getSingleListOfDistancesInUm(keyToSearch, matcher, keyPoint1, keyPoint2,calibration);
+        ArrayList<Double> listOfGoodMatchesDistances = new ArrayList<>();
+        for (int i = 0; i < listOfGoodMatchesIndex.size(); i++) {
+            listOfGoodMatchesDistances.add(uniqueListOfDistance.get(listOfGoodMatchesIndex.get(i)));
         }
-        return good_matchesList;
+        return listOfGoodMatchesDistances;
     }
 
-    static ArrayList<Float> getGoodMatchesXCoordinates(MatOfKeyPoint keypoints, ArrayList<DMatch> good_matchesList, Boolean isReferenceImage) {
-        ArrayList<Float> img_xList = new ArrayList<Float>();
-        KeyPoint[] keypointsArray1 = keypoints.toArray();
-        float x;
-        int id;
-        for (int i = 0; i < good_matchesList.size() ; i++) {
-            if (isReferenceImage) {
-                id = good_matchesList.get(i).queryIdx;
-            } else {
-                id = good_matchesList.get(i).trainIdx;
+    static double getMin(ArrayList<Double> listOfValues) {
+        double min = Double.MAX_VALUE;
+        for (int i = 0; i < listOfValues.size(); i++) {
+            if (listOfValues.get(i) < min) {
+                min = listOfValues.get(i);
             }
-            x = (float) keypointsArray1[id].pt.x;
-            img_xList.add(x);
         }
-        return img_xList;
+        return min;
     }
 
-    static ArrayList<Float> getGoodMatchesYCoordinates(MatOfKeyPoint keypoints, ArrayList<DMatch> good_matchesList, Boolean isReferenceImage) {
-        ArrayList<Float> img_yList = new ArrayList<Float>();
-        KeyPoint[] keypointsArray1 = keypoints.toArray();
-        float y;
-        int id;
-        for (int i = 0; i < good_matchesList.size() ; i++) {
-            if (isReferenceImage) {
-                id = good_matchesList.get(i).queryIdx;
-            } else {
-                id = good_matchesList.get(i).trainIdx;
-            }
-            y = (float) keypointsArray1[id].pt.y;
-            img_yList.add(y);
-        }
-        return img_yList;
-    }
+//    static ArrayList<Float> getGoodMatchesXCoordinates(MatOfKeyPoint keypoints, ArrayList<DMatch> good_matchesList, Boolean isReferenceImage) {
+//        ArrayList<Float> img_xList = new ArrayList<Float>();
+//        KeyPoint[] keypointsArray1 = keypoints.toArray();
+//        float x;
+//        int id;
+//        for (int i = 0; i < good_matchesList.size() ; i++) {
+//            if (isReferenceImage) {
+//                id = good_matchesList.get(i).queryIdx;
+//            } else {
+//                id = good_matchesList.get(i).trainIdx;
+//            }
+//            x = (float) keypointsArray1[id].pt.x;
+//            img_xList.add(x);
+//        }
+//        return img_xList;
+//    }
+//
+//    static ArrayList<Float> getGoodMatchesYCoordinates(MatOfKeyPoint keypoints, ArrayList<DMatch> good_matchesList, Boolean isReferenceImage) {
+//        ArrayList<Float> img_yList = new ArrayList<Float>();
+//        KeyPoint[] keypointsArray1 = keypoints.toArray();
+//        float y;
+//        int id;
+//        for (int i = 0; i < good_matchesList.size() ; i++) {
+//            if (isReferenceImage) {
+//                id = good_matchesList.get(i).queryIdx;
+//            } else {
+//                id = good_matchesList.get(i).trainIdx;
+//            }
+//            y = (float) keypointsArray1[id].pt.y;
+//            img_yList.add(y);
+//        }
+//        return img_yList;
+//    }
+//
+//    static Float getMean(ArrayList<Float> img1_coordinates, ArrayList<Float> img2_coordinates) {
+//        int totalNumberOfX = img1_coordinates.size();
+//        float sumXDistancesCoordinates = 0;
+//        float meanXDifferencesCoordinates;
+//        double[] xDistances = new double[img1_coordinates.size()];
+//        for (int i = 0; i < img1_coordinates.size(); i++) {
+//            float xDistance = img2_coordinates.get(i) - img1_coordinates.get(i);
+//            sumXDistancesCoordinates += xDistance;
+//            xDistances[i] = xDistance;
+//        }
+//        meanXDifferencesCoordinates = sumXDistancesCoordinates/totalNumberOfX;
+//
+//        return meanXDifferencesCoordinates;
+//    }
 
-    static Float getMeanDisplacement(ArrayList<Float> img1_coordinates, ArrayList<Float> img2_coordinates) {
-        int totalNumberOfX = img1_coordinates.size();
+    static Float getMean(ArrayList<Double> listOfValues) {
+        int totalNumberOfX = listOfValues.size();
         float sumXDistancesCoordinates = 0;
         float meanXDifferencesCoordinates;
-        double[] xDistances = new double[img1_coordinates.size()];
-        for (int i = 0; i < img1_coordinates.size(); i++) {
-            float xDistance = img2_coordinates.get(i) - img1_coordinates.get(i);
-            sumXDistancesCoordinates += xDistance;
-            xDistances[i] = xDistance;
+        double[] xDistances = new double[listOfValues.size()];
+        for (int i = 0; i < listOfValues.size(); i++) {
+            sumXDistancesCoordinates += listOfValues.get(i);
+            xDistances[i] = listOfValues.get(i);
         }
         meanXDifferencesCoordinates = sumXDistancesCoordinates/totalNumberOfX;
-
         return meanXDifferencesCoordinates;
     }
 
-    static double getMedianDisplacement(ArrayList<Float> img1_coordinates, ArrayList<Float> img2_coordinates) {
-        double[] distances = new double[img1_coordinates.size()];
-        for (int i = 0; i < img1_coordinates.size(); i++) {
-            float distance = img2_coordinates.get(i) - img1_coordinates.get(i);
-            distances[i] = distance;
+//    static double getAutoMedian(ArrayList<Float> img1_coordinates, ArrayList<Float> img2_coordinates) {
+//        double[] distances = new double[img1_coordinates.size()];
+//        for (int i = 0; i < img1_coordinates.size(); i++) {
+//            float distance = img2_coordinates.get(i) - img1_coordinates.get(i);
+//            distances[i] = distance;
+//        }
+//        Median median = new Median();
+//        double medianValue = median.evaluate(distances);
+//        System.out.println("Median : " + medianValue);
+//
+//        return medianValue;
+//    }
+
+    static double getAutoMedian(ArrayList<Double> listOfValues) {
+        double[] distancesArray = new double[listOfValues.size()];
+        for (int i = 0; i < listOfValues.size(); i++) {
+            distancesArray[i] = listOfValues.get(i);
         }
         Median median = new Median();
-        double medianValue = median.evaluate(distances);
-        System.out.println("Median : " + medianValue);
-
+        double medianValue = median.evaluate(distancesArray);
         return medianValue;
     }
 
-    static List<Integer> getModeDisplacement(ArrayList<Float> img1_coordinates, ArrayList<Float> img2_coordinates) {
+    static double getManualMedian(ArrayList<Double> listOfValues) {
+//        ArrayList<Double> sortedListOfValues =
+        Collections.sort(listOfValues);
+        int middle = listOfValues.size()/2;
+        if(listOfValues.size()%2 == 1){
+            return listOfValues.get(middle);
+        } else {
+            double meanMiddle = (listOfValues.get(middle-1) + listOfValues.get(middle))/2.0;
+            return  meanMiddle;
+        }
+    }
+
+    static List<Integer> getModesDisplacements(ArrayList<Double> listOfValues) {
         //Initializations
-        double[] distances = new double[img1_coordinates.size()];
+        double[] distances = new double[listOfValues.size()];
         List<Integer> modes = new ArrayList<>();
         Map<Integer, Integer> countMap = new HashMap<Integer, Integer>();
         int max  = (int) Double.MIN_VALUE;
         //Calcul difference between img1 and img2 coordinates
-        for (int i = 0; i < img1_coordinates.size(); i++) {
-            float distance = img2_coordinates.get(i) - img1_coordinates.get(i);
-            distances[i] = distance;
+        for (int i = 0; i < listOfValues.size(); i++) {
+            distances[i] = listOfValues.get(i);
         }
 
         for (int n = 0; n < distances.length; n++) {
@@ -243,37 +283,34 @@ public class DriftCorrection {
         return modes;
     }
 
-    static Float getXVariance(ArrayList<Float> img1_xCoordinates, ArrayList<Float> img2_xCoordinates, Float meanXDisplacement) {
-        int totalNumberOfX = img1_xCoordinates.size();
-        float sumDiffSquared = 0;
-        float varianceX;
-        for (int i = 0; i < img1_xCoordinates.size(); i++) {
-            float xDiff = img2_xCoordinates.get(i) - img1_xCoordinates.get(i);
-            sumDiffSquared += Math.pow(xDiff - meanXDisplacement, 2);
+    static double getMode(ArrayList<Double> listOfValues){
+        double maxValue = 0;
+        int maxCount = 0;
+        for (int i =0; i < listOfValues.size(); i++){
+            int count = 0;
+            for (int j = 0; j < listOfValues.size(); j ++){
+                if(listOfValues.get(j) == listOfValues.get(i)){
+                    count += 1;
+                }
+            }
+            if (count > maxCount){
+                maxCount = count;
+                maxValue = listOfValues.get(i);
+            }
         }
-        varianceX = sumDiffSquared/totalNumberOfX;
-        return  varianceX;
+        return maxValue;
     }
 
-    static Float getYVariance(ArrayList<Float> img1_yCoordinates, ArrayList<Float> img2_yCoordinates, Float meanYDisplacement) {
-        int totalNumberOfY = img1_yCoordinates.size();
+    static Float getVariance(ArrayList<Double> listOfValues) {
+        int totalNumberOfValues = listOfValues.size();
         float sumDiffSquared = 0;
-        float varianceY;
-        for (int i = 0; i < img1_yCoordinates.size(); i++) {
-            float yDiff = img2_yCoordinates.get(i) - img1_yCoordinates.get(i);
-            sumDiffSquared += Math.pow(yDiff - meanYDisplacement, 2);
+        float variance;
+        float mean = getMean(listOfValues);
+        for (int i = 0; i < listOfValues.size(); i++) {
+            sumDiffSquared += Math.pow(listOfValues.get(i) - mean, 2);
         }
-        varianceY = sumDiffSquared/totalNumberOfY;
-        return varianceY;
-    }
-
-    //Convert Descriptors to CV_32F
-    static  Mat convertMatDescriptorToCV32F(Mat descriptor) {
-        Mat descriptor32F = new Mat(descriptor.cols(), descriptor.rows(), CvType.CV_32F);
-        if (descriptor.type() != CvType.CV_32F) {
-            descriptor.convertTo(descriptor32F, CvType.CV_32F);
-        }
-        return descriptor32F;
+        variance = sumDiffSquared/totalNumberOfValues;
+        return  variance;
     }
 
     //Method to not filter matches
@@ -282,7 +319,16 @@ public class DriftCorrection {
         ArrayList<DMatch> matcherArrayList = new ArrayList<DMatch>(matcherList.size());
         return matcherArrayList;
     }
+
     // CONVERTERS
+    //Convert Descriptors to CV_32F
+    static  Mat convertMatDescriptorToCV32F(Mat descriptor) {
+        Mat descriptor32F = new Mat(descriptor.cols(), descriptor.rows(), CvType.CV_32F);
+        if (descriptor.type() != CvType.CV_32F) {
+            descriptor.convertTo(descriptor32F, CvType.CV_32F);
+        }
+        return descriptor32F;
+    }
     // Convert 8bits Mat images to Buffered
     static BufferedImage convertMatCV8UC3ToBufferedImage(Mat m) {
         int type = BufferedImage.TYPE_3BYTE_BGR;
@@ -327,6 +373,7 @@ public class DriftCorrection {
         return img;
     }
 
+    //Convert an ArrayList to OpenCV Mat
     static Mat listToMat(ArrayList<DMatch> list) {
         MatOfDMatch mat = new MatOfDMatch();
         DMatch[] array = list.toArray(new DMatch[list.size()]);
@@ -358,6 +405,9 @@ public class DriftCorrection {
         return imgGoodMatches;
     }
 
+    //*********************************//
+    //******* Main method ************//
+    //*******************************//
     public static double[] driftCorrection(Mat img1, Mat img2, double calibration, double intervalInMin, double umPerStep,
                                            Integer detectorAlgo, Integer descriptorExtractor, Integer descriptorMatcher) {
         long startTime = new Date().getTime();
@@ -384,41 +434,54 @@ public class DriftCorrection {
         System.out.println("Number of Matches : " + matcher.rows());
 
         /* 4 - Select and display Good Matches */
-        ArrayList<DMatch> good_matchesList = selectGoodMatches(matcher, keypoints1, keypoints2, umPerStep, calibration, intervalInMin);
+        ArrayList<DMatch> good_matchesList = getGoodMatchesValues(matcher, keypoints1, keypoints2, umPerStep, calibration, intervalInMin);
         System.out.println("Number of Good Matches : " + good_matchesList.size());
 
 //        Mat imgGoodMatches = drawGoodMatches(img1, img2, keypoints1, keypoints2, good_matchesList);
 //        displayImageIJ("Good Matches", imgGoodMatches);
 
-        /* 5 - Get coordinates of GoodMatches Keypoints */
-        ArrayList<Float> img1_keypoints_xCoordinates = getGoodMatchesXCoordinates(keypoints1, good_matchesList,true);
-        ArrayList<Float> img1_keypoints_yCoordinates = getGoodMatchesYCoordinates(keypoints1, good_matchesList, true);
+//        /* 5 - Get coordinates of GoodMatches Keypoints */
+//        ArrayList<Float> img1_keypoints_xCoordinates = getGoodMatchesXCoordinates(keypoints1, good_matchesList,true);
+//        ArrayList<Float> img1_keypoints_yCoordinates = getGoodMatchesYCoordinates(keypoints1, good_matchesList, true);
+//
+//        ArrayList<Float> img2_keypoints_xCoordinates = getGoodMatchesXCoordinates(keypoints2, good_matchesList,false);
+//        ArrayList<Float> img2_keypoints_yCoordinates = getGoodMatchesYCoordinates(keypoints2, good_matchesList, false);
 
-        ArrayList<Float> img2_keypoints_xCoordinates = getGoodMatchesXCoordinates(keypoints2, good_matchesList,false);
-        ArrayList<Float> img2_keypoints_yCoordinates = getGoodMatchesYCoordinates(keypoints2, good_matchesList, false);
+        /* 5 - Get Good Matches Indexes and distances */
+        ArrayList<Integer> listOfGoodMatchesIndex = getGoodMatchesIndex(matcher, keypoints1, keypoints2, umPerStep, calibration, intervalInMin);
+        ArrayList<Double> goodMatchesXDistances = getGoodMatchesDistances("xDistances", listOfGoodMatchesIndex, matcher, keypoints1, keypoints2, calibration);
+        ArrayList<Double> goodMatchesYDistances = getGoodMatchesDistances("yDistances", listOfGoodMatchesIndex, matcher, keypoints1, keypoints2, calibration);
 
-        /* 6 - Get X and Y mean displacements */
-        float meanXdisplacement = getMeanDisplacement(img1_keypoints_xCoordinates, img2_keypoints_xCoordinates);
-        float meanYdisplacement = getMeanDisplacement(img1_keypoints_yCoordinates, img2_keypoints_yCoordinates);
+        /* Calculate statistics */
+        float meanXdisplacement = getMean(goodMatchesXDistances);
+        float meanYdisplacement = getMean(goodMatchesYDistances);
         System.out.println("X mean displacement : " + meanXdisplacement);
         System.out.println("Y mean displacement : " + meanYdisplacement + "\n");
 
-        /* Calculate some other statistics */
-        double medianXDisplacement = getMedianDisplacement(img1_keypoints_xCoordinates, img2_keypoints_xCoordinates);
-        double medianYDisplacement = getMedianDisplacement(img1_keypoints_yCoordinates, img2_keypoints_yCoordinates);
+        double minXDisplacement = getMin(goodMatchesXDistances);
+        double minYDisplacement = getMin(goodMatchesYDistances);
 
-        List<Integer> modesXDisplacements = getModeDisplacement(img1_keypoints_xCoordinates, img2_keypoints_xCoordinates);
-        List<Integer> modesYDisplacements = getModeDisplacement(img1_keypoints_yCoordinates, img2_keypoints_yCoordinates);
+        double autoMedianXDisplacement = getAutoMedian(goodMatchesXDistances);
+        double autoMedianYDisplacement = getAutoMedian(goodMatchesYDistances);
 
-        ArrayList<Double> distancesInUm = getDistancesInUm(matcher, keypoints1, keypoints2, calibration);
-        double minXDisplacement = distancesInUm.get(distancesInUm.size() - 2);
-        double minYDisplacement = distancesInUm.get(distancesInUm.size() - 1);
+        double manualMedianXDisplacement = getManualMedian(goodMatchesXDistances);
+        double manualMedianYDisplacement = getManualMedian(goodMatchesYDistances);
+
+        double modeXDisplacement = getMode(goodMatchesXDistances);
+        double modeYDisplacement = getMode(goodMatchesYDistances);
+
+        double varianceXDisplacement = getVariance(goodMatchesXDistances);
+        double varianceYDisplacement = getVariance(goodMatchesYDistances);
+
 
         long endTime = new Date().getTime();
         long algorithmDuration = endTime - startTime;
 
         return new double[]{meanXdisplacement, meanYdisplacement, matcher.rows(), good_matchesList.size(), algorithmDuration,
-                medianXDisplacement, medianYDisplacement, minXDisplacement, minYDisplacement};
+                autoMedianXDisplacement, autoMedianYDisplacement, manualMedianXDisplacement, manualMedianYDisplacement,
+                minXDisplacement, minYDisplacement, modeXDisplacement, modeYDisplacement,
+                varianceXDisplacement, varianceYDisplacement
+        };
     }
 }
 
