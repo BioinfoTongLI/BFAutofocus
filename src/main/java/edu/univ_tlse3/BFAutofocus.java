@@ -16,6 +16,7 @@ import org.opencv.core.Mat;
 import org.opencv.features2d.DescriptorExtractor;
 import org.opencv.features2d.DescriptorMatcher;
 import org.opencv.features2d.FeatureDetector;
+import org.opencv.imgcodecs.Imgcodecs;
 import org.scijava.plugin.Plugin;
 import org.scijava.plugin.SciJavaPlugin;
 import sun.security.krb5.internal.crypto.Des;
@@ -166,15 +167,15 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 //        }
 
         //Get label of position
-        String label = new String();
+        String label;
         PositionList positionList = studio_.positions().getPositionList();
-        if (positionList == null) {
-            studio_.positions().markCurrentPosition();
-            label = "Pos0";
+//        if (positionList == null) {
+//            studio_.positions().markCurrentPosition();
+//            label = "Pos0";
 //            positionList.getPosition(0).setLabel(label);
-        } else {
-            label = getLabelOfPositions(positionList);
-        }
+//        } else {
+        label = getLabelOfPositions(positionList);
+//        }
         System.out.println("Label Position : " + label);
 
         //Incrementation of position counter; does not work at another place
@@ -251,6 +252,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         core_.snapImage();
         TaggedImage taggedImagePosition = core_.getTaggedImage();
         Mat currentMat8Set = convertTo8BitsMat(taggedImagePosition);
+        Imgcodecs.imwrite(savingPath + label + "_Ref.tif", currentMat8Set);
 //        Image imagePosition = studio_.data().convertTaggedImage(taggedImagePosition);
 //        System.out.println("Position Index current TaggedImage : " + taggedImagePosition.tags.getString("PositionIndex"));
 //        System.out.println("Frame Index current TaggedImage : " + taggedImagePosition.tags.getString("FrameIndex"));
@@ -318,7 +320,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 //                xyDriftsAKAZEORB = calculateXYDrifts(currentMat8Set, FeatureDetector.AKAZE, DescriptorExtractor.ORB, DescriptorMatcher.FLANNBASED);
 //                xyDriftsAKAZEAKAZE = calculateXYDrifts(currentMat8Set, FeatureDetector.AKAZE, DescriptorExtractor.AKAZE, DescriptorMatcher.FLANNBASED);
 
-                //Get Correction to apply : 0-1 = mean; 5-6 = median; 7-8 = min distance; 9-10 = mode;
+                //Get Correction to apply : 0-1 = mean; 5-6 = autoMedian; 7-8 = manual median; 9-10 = min distance; 11-12 = mode;
                 xCorrection = xyDriftsAKAZEBRISK[5];
                 yCorrection = xyDriftsAKAZEBRISK[6];
 
@@ -537,6 +539,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
     private void setXYPosition(double x, double y) throws Exception {
 //        CMMCore core_ = studio_.getCMMCore();
+        assert x != 0;
+        assert y != 0;
+//        assert x !=
         String xyDevice = core_.getXYStageDevice();
         core_.setXYPosition(x,y);
         core_.waitForDevice(xyDevice);
