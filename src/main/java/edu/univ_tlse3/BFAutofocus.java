@@ -1,5 +1,6 @@
 package edu.univ_tlse3;
 
+import ij.ImagePlus;
 import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
 import mmcorej.*;
@@ -22,6 +23,7 @@ import org.scijava.plugin.SciJavaPlugin;
 import sun.security.krb5.internal.crypto.Des;
 
 import javax.swing.*;
+import javax.swing.plaf.synth.SynthOptionPaneUI;
 import java.awt.*;
 import java.io.*;
 import java.text.ParseException;
@@ -64,7 +66,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private String xy_correction = "Yes";
     private Map refImageDict = null;
     private Map oldPositionsDict = null;
-    private double umPerStep = 20;
+    private double umPerStep = 15;
     private String pathOfReferenceImage = "";
 
     //Constant
@@ -78,7 +80,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private double calibration = 0;
     private double intervalInMin =0;
     private int positionIndex = 0;
-
+    private int count = 0;
     //    private PrintStream psError;
 //    private PrintStream psOutput;
 //    private PrintStream curr_err;
@@ -130,6 +132,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 //        System.out.println("Calibration : " + calibration);
         intervalInMin = (studio_.acquisitions().getAcquisitionSettings().intervalMs)/60000;
         savingPath = studio_.acquisitions().getAcquisitionSettings().root + File.separator;
+        String prefix = studio_.acquisitions().getAcquisitionSettings().prefix;
 
         //ReportingUtils.logMessage("Original ROI: " + oldROI);
         int w = (int) (oldROI.width * cropFactor);
@@ -140,9 +143,13 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         //ReportingUtils.logMessage("Setting ROI to: " + newROI);
         Configuration oldState = null;
+        System.out.println(channel);
         if (channel.length() > 0) {
+            System.out.println("Channel > 0");
             String chanGroup = core_.getChannelGroup();
+            System.out.println(chanGroup);
             oldState = core_.getConfigGroupState(chanGroup);
+            System.out.println(oldState.getVerbose());
             core_.setConfig(chanGroup, channel);
         }
 
@@ -154,6 +161,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         double oldExposure = core_.getExposure();
         core_.setExposure(exposure);
+
+        boolean oldAutoShutterState = core_.getAutoShutter();
+        core_.setAutoShutter(false);
+        core_.setShutterOpen(true);
 
 //        //Save logs of outputs and errors
 //        try {
@@ -249,10 +260,19 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         setZPosition(correctedZPosition-0.5);
 
         //Get an image to define reference image, for each position
+        core_.waitForDevice(core_.getCameraDevice());
         core_.snapImage();
         TaggedImage taggedImagePosition = core_.getTaggedImage();
         Mat currentMat8Set = convertTo8BitsMat(taggedImagePosition);
-        Imgcodecs.imwrite(savingPath + label + "_Ref.tif", currentMat8Set);
+        Imgcodecs.imwrite(savingPath + prefix + label + "_T" + count + "_Ref.tif", currentMat8Set);
+        /////
+        Image img = studio_.data().convertTaggedImage(taggedImagePosition);
+        ImageProcessor processor = studio_.data().ij().createProcessor(img);
+        System.out.println("Hist max : " + processor.getStatistics().histMax);
+        System.out.println("Max : " + processor.getStatistics().max);
+        new ImagePlus("test" + label + count, processor).show();
+        count += 1 ;
+        /////
 //        Image imagePosition = studio_.data().convertTaggedImage(taggedImagePosition);
 //        System.out.println("Position Index current TaggedImage : " + taggedImagePosition.tags.getString("PositionIndex"));
 //        System.out.println("Frame Index current TaggedImage : " + taggedImagePosition.tags.getString("FrameIndex"));
@@ -264,11 +284,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 //
 //        String metadata = imagePosition_Metadata.getReceivedTime();
 //        System.out.println("Received Time : " + metadata);
-
-        //Set shutter parameters for acquisition
-        boolean oldAutoShutterState = core_.getAutoShutter();
-        core_.setAutoShutter(false);
-        core_.setShutterOpen(true);
 
 
         //Calculation of XY Drifts only if the parameter "Correct XY at same time" is set to Yes;
@@ -344,12 +359,14 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         //Reinitialize origin ROI and all other parameters
         core_.setAutoShutter(oldAutoShutterState);
 
+
         if (cropFactor < 1.0) {
             studio_.app().setROI(oldROI);
             core_.waitForDevice(core_.getCameraDevice());
         }
 
         if (oldState != null) {
+            System.out.println("old state != 0");
             core_.setSystemState(oldState);
         }
         core_.setExposure(oldExposure);
@@ -375,7 +392,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         long acquisitionTimeElapsed = endTime - startTime;
         System.out.println("Acquisition duration in ms : " + acquisitionTimeElapsed);
 
-        writeOutput(acquisitionTimeElapsed, label, oldX, oldY, oldZ,
+        writeOutput(acquisitionTimeElapsed, label, prefix, oldX, oldY, oldZ,
                 currentXPosition, correctedXPosition, currentYPosition, correctedYPosition, correctedZPosition,
                 xyDriftsBRISKORB, xyDriftsORBORB, xyDriftsORBBRISK, xyDriftsBRISKBRISK,
                 xyDriftsAKAZEBRISK, xyDriftsAKAZEORB, xyDriftsAKAZEAKAZE);
@@ -430,10 +447,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double[] stdAtZPositions = new double[zpositions.length];
         TaggedImage currentImg;
 
-        boolean oldAutoShutterState = core_.getAutoShutter();
-        core_.setAutoShutter(false);
-        core_.setShutterOpen(true);
-
         for (int i =0; i< zpositions.length ;i++){
             setZPosition(zpositions[i]);
             core_.waitForDevice(core_.getCameraDevice());
@@ -447,7 +460,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             }
         }
 
-        core_.setAutoShutter(oldAutoShutterState);
         int rawIndex = getZfocus(stdAtZPositions);
         return optimizeZFocus(rawIndex, stdAtZPositions, zpositions);
     }
@@ -711,17 +723,16 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         Mat mat = new Mat(h, w, CvType.CV_16UC1);
         mat.put(0,0, (short[]) sp.getPixels());
         Mat res = new Mat(h, w, CvType.CV_8UC1);
-        mat.convertTo(res, CvType.CV_8UC1, alpha);
+        mat.convertTo(res, CvType.CV_8UC1);//, alpha);
         return DriftCorrection.equalizeImages(res);
     }
 
-    private void writeOutput(long acquisitionDuration, String label, double oldX,
+    private void writeOutput(long acquisitionDuration, String label, String prefix, double oldX,
                              double oldY, double oldZ, double currentXPosition, double correctedXPosition, double currentYPosition,
                              double correctedYPosition, double correctedZPosition, double[] xyDriftsBRISKORB,
                              double[] xyDriftsORBORB, double[] xyDriftsORBBRISK, double[] xyDriftsBRISKBRISK,
                              double[] xyDriftsAKAZEAKAZE, double[] xyDriftsAKAZEBRISK, double[] xyDriftsAKAZEORB) throws IOException {
 
-        String prefix = studio_.acquisitions().getAcquisitionSettings().prefix;
         //For "statistics"
         File f1 = new File(savingPath + prefix + "_Stats_" + label + ".csv");
         if (!f1.exists()) {
