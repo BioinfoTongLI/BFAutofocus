@@ -304,7 +304,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                 //Or calculate XY drift
                 imgRef_Mat = (Mat) refImageDict.get(label);
                 List<double[]> drifts = getMultipleXYDrifts(currentMat8Set, FeatureDetector.BRISK, FeatureDetector.ORB, FeatureDetector.AKAZE,
-                        DescriptorExtractor.BRISK, DescriptorExtractor.ORB, DescriptorExtractor.AKAZE, DescriptorMatcher.FLANNBASED);
+                        DescriptorExtractor.BRISK, DescriptorExtractor.ORB, DescriptorExtractor.AKAZE, DescriptorMatcher.FLANNBASED,
+                        oldROI, oldState, oldExposure, oldAutoShutterState);
                 xyDriftsBRISKORB = drifts.get(0);
                 xyDriftsORBORB = drifts.get(1);
                 xyDriftsORBBRISK = drifts.get(2);
@@ -341,20 +342,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             Mat newRefMat = convertTo8BitsMat(newRefTaggedImage);
             refImageDict.replace(label, newRefMat);
         }
+        resetInitialCondition(oldROI, oldState, oldExposure, oldAutoShutterState);
 
-        //Reinitialize origin ROI and all other parameters
-        core_.setAutoShutter(oldAutoShutterState);
-
-
-        if (cropFactor < 1.0) {
-            studio_.app().setROI(oldROI);
-            core_.waitForDevice(core_.getCameraDevice());
-        }
-
-        if (oldState != null) {
-            core_.setSystemState(oldState);
-        }
-        core_.setExposure(oldExposure);
 
 //        studio_.app().refreshGUIFromCache(); //Not sure about the utility; may be useful for Metadata?;
 
@@ -389,6 +378,22 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 //        //Save Datastore
 //        storeNonCorrectedImages.save(displayWindow);
         return correctedZPosition;
+    }
+
+    private void resetInitialCondition(Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState) throws Exception {
+        //Reinitialize origin ROI and all other parameters
+        core_.setAutoShutter(oldAutoShutterState);
+
+
+        if (cropFactor < 1.0) {
+            studio_.app().setROI(oldROI);
+            core_.waitForDevice(core_.getCameraDevice());
+        }
+
+        if (oldState != null) {
+            core_.setSystemState(oldState);
+        }
+        core_.setExposure(oldExposure);
     }
 
     private double getZPosition() throws Exception {
@@ -477,7 +482,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
     private List<double[]> getMultipleXYDrifts(Mat currentImgMat, Integer detectorAlgo1, Integer detectorAlgo2, Integer detectorAlgo3,
                                                Integer descriptorExtractor1, Integer descriptorExtractor2, Integer descriptorExtractor3,
-                                               Integer descriptorMatcher){
+                                               Integer descriptorMatcher, Rectangle oldROI, Configuration oldState,
+                                               double oldExposure, boolean oldAutoShutterState){
         int nThread = Runtime.getRuntime().availableProcessors() - 2;
         ExecutorService es = Executors.newFixedThreadPool(nThread);
         Future[] jobs = new Future[7];
@@ -509,7 +515,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                 drifts.add(i, (double[]) jobs[i].get());
             }
         } catch (InterruptedException | ExecutionException e) {
-            e.printStackTrace();
+            try {
+                resetInitialCondition(oldROI, oldState, oldExposure, oldAutoShutterState);
+            } catch (Exception e1) {
+                e1.printStackTrace();
+            }
         }
         es.shutdown();
         try{
