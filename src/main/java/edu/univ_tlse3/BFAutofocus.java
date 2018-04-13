@@ -58,7 +58,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private double searchRange = 5;
     private double cropFactor = 1;
     private String channel = "BF";
-    private double exposure = 10;
+    private double exposure = 50;
     private String show = "No";
     private String incremental = "No";
     private int imageCount_;
