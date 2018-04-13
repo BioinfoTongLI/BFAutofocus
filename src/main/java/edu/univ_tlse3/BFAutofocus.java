@@ -10,7 +10,6 @@ import org.micromanager.PositionList;
 import org.micromanager.Studio;
 import org.micromanager.data.Datastore;
 import org.micromanager.data.Image;
-import org.micromanager.display.DisplayWindow;
 import org.micromanager.internal.utils.*;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
@@ -20,10 +19,8 @@ import org.opencv.features2d.FeatureDetector;
 import org.opencv.imgcodecs.Imgcodecs;
 import org.scijava.plugin.Plugin;
 import org.scijava.plugin.SciJavaPlugin;
-import sun.security.krb5.internal.crypto.Des;
 
 import javax.swing.*;
-import javax.swing.plaf.synth.SynthOptionPaneUI;
 import java.awt.*;
 import java.io.*;
 import java.text.ParseException;
@@ -101,6 +98,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         super.createProperty(UMPERSTEP, NumberUtils.doubleToDisplayString(umPerStep));
 //        super.createProperty(PATH_REFIMAGE, pathOfReferenceImage);
         nu.pattern.OpenCV.loadShared();
+//        System.load("D:\\opencv\\build\\x64\\vc14\\bin\\opencv_world320.dll");
+//        System.load("D:\\opencv\\build\\x64\\vc14\\bin\\opencv_ffmpeg320_64.dll");
     }
 
     @Override

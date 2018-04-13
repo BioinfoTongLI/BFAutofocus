@@ -1,6 +1,5 @@
 package edu.univ_tlse3;
 
-import clojure.lang.IFn;
 import ij.ImagePlus;
 import org.apache.commons.math3.stat.descriptive.rank.Median;
 import org.opencv.core.*;

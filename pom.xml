@@ -97,29 +97,35 @@
 
         <!--Micro Manager-->
 
-        <!--<dependency>-->
-            <!--<groupId>org.micromanager</groupId>-->
-            <!--<artifactId>MMJ_</artifactId>-->
-            <!--<version>${micromanager.version}</version>-->
-        <!--</dependency>-->
+        <dependency>
+            <groupId>org.micromanager</groupId>
+            <artifactId>MMJ_</artifactId>
+            <version>${micromanager.version}</version>
+        </dependency>
 
-        <!--<dependency>-->
-            <!--<groupId>org.micromanager</groupId>-->
-            <!--<artifactId>MMCoreJ</artifactId>-->
-            <!--<version>${micromanager.version}</version>-->
-        <!--</dependency>-->
+        <dependency>
+            <groupId>org.micromanager</groupId>
+            <artifactId>MMCoreJ</artifactId>
+            <version>${micromanager.version}</version>
+        </dependency>
 
-        <!--<dependency>-->
-            <!--<groupId>org.micromanager</groupId>-->
-            <!--<artifactId>MMAcqEngine</artifactId>-->
-            <!--<version>${micromanager.version}</version>-->
-        <!--</dependency>-->
+        <dependency>
+            <groupId>org.micromanager</groupId>
+            <artifactId>MMAcqEngine</artifactId>
+            <version>${micromanager.version}</version>
+        </dependency>
 
         <!-- OpenCV -->
         <dependency>
             <groupId>org.openpnp</groupId>
             <artifactId>opencv</artifactId>
             <version>${opencv.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-math3</artifactId>
+            <version>3.6.1</version>
         </dependency>
 
         <!--<dependency>-->
