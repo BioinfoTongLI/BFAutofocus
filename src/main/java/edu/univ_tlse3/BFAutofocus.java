@@ -1,6 +1,5 @@
 package edu.univ_tlse3;
 
-import ij.ImagePlus;
 import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
 import mmcorej.*;
@@ -78,7 +77,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private double intervalInMin =0;
     private int positionIndex = 0;
     private int count = 0;
-    //    private PrintStream psError;
+//    private PrintStream psError;
 //    private PrintStream psOutput;
 //    private PrintStream curr_err;
 //    private PrintStream curr_out;
@@ -98,8 +97,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         super.createProperty(UMPERSTEP, NumberUtils.doubleToDisplayString(umPerStep));
 //        super.createProperty(PATH_REFIMAGE, pathOfReferenceImage);
         nu.pattern.OpenCV.loadShared();
-//        System.load("D:\\opencv\\build\\x64\\vc14\\bin\\opencv_world320.dll");
-//        System.load("D:\\opencv\\build\\x64\\vc14\\bin\\opencv_ffmpeg320_64.dll");
     }
 
     @Override
@@ -142,13 +139,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         //ReportingUtils.logMessage("Setting ROI to: " + newROI);
         Configuration oldState = null;
-        System.out.println(channel);
         if (channel.length() > 0) {
-            System.out.println("Channel > 0");
             String chanGroup = core_.getChannelGroup();
-            System.out.println(chanGroup);
             oldState = core_.getConfigGroupState(chanGroup);
-            System.out.println(oldState.getVerbose());
             core_.setConfig(chanGroup, channel);
         }
 
@@ -264,14 +257,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         TaggedImage taggedImagePosition = core_.getTaggedImage();
         Mat currentMat8Set = convertTo8BitsMat(taggedImagePosition);
         Imgcodecs.imwrite(savingPath + prefix + label + "_T" + count + "_Ref.tif", currentMat8Set);
-        /////
-        Image img = studio_.data().convertTaggedImage(taggedImagePosition);
-        ImageProcessor processor = studio_.data().ij().createProcessor(img);
-        System.out.println("Hist max : " + processor.getStatistics().histMax);
-        System.out.println("Max : " + processor.getStatistics().max);
-        new ImagePlus("test" + label + count, processor).show();
         count += 1 ;
-        /////
+
 //        Image imagePosition = studio_.data().convertTaggedImage(taggedImagePosition);
 //        System.out.println("Position Index current TaggedImage : " + taggedImagePosition.tags.getString("PositionIndex"));
 //        System.out.println("Frame Index current TaggedImage : " + taggedImagePosition.tags.getString("FrameIndex"));
@@ -365,7 +352,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
 
         if (oldState != null) {
-            System.out.println("old state != 0");
             core_.setSystemState(oldState);
         }
         core_.setExposure(oldExposure);
@@ -711,7 +697,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private static Mat convertTo8BitsMat(TaggedImage taggedImage) throws JSONException {
         Mat mat16 = convertToMat(taggedImage);
         Mat mat8 = new Mat(mat16.cols(), mat16.rows(), CvType.CV_8UC1);
-        mat16.convertTo(mat8, CvType.CV_8UC1);//, alpha);
+        mat16.convertTo(mat8, CvType.CV_8UC1, alpha);
         return DriftCorrection.equalizeImages(mat8);
     }
 
@@ -722,7 +708,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         Mat mat = new Mat(h, w, CvType.CV_16UC1);
         mat.put(0,0, (short[]) sp.getPixels());
         Mat res = new Mat(h, w, CvType.CV_8UC1);
-        mat.convertTo(res, CvType.CV_8UC1);//, alpha);
+        mat.convertTo(res, CvType.CV_8UC1, alpha);
         return DriftCorrection.equalizeImages(res);
     }
 
