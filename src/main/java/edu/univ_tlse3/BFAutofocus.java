@@ -7,6 +7,7 @@ import org.json.JSONException;
 import org.micromanager.AutofocusPlugin;
 import org.micromanager.PositionList;
 import org.micromanager.Studio;
+import org.micromanager.data.Coords;
 import org.micromanager.data.Datastore;
 import org.micromanager.data.Image;
 import org.micromanager.internal.utils.*;
@@ -41,6 +42,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private static final String CHANNEL = "Channel";
     private static final String EXPOSURE = "Exposure";
     private static final String SHOW_IMAGES = "ShowImages";
+    private static final String SAVEIMGS = "SaveImages";
     private static final String INCREMENTAL = "incremental";
     private static final String XY_CORRECTION_TEXT = "Correct XY at same time";
     private static final String DETECTORALGO_TEXT = "Feature detector algorithm";
@@ -48,6 +50,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private static final String[] DETECTORALGO = {"AKAZE", "BRISK", "ORB"};
     private static final String[] MATCHERALGO = {"AKAZE", "BRISK", "ORB"};
     private static final String[] SHOWVALUES = {"Yes", "No"};
+    private static final String[] SAVEVALUES = {"Yes", "No"};
     private static final String STEP_SIZE = "Step_size";
     private static final String[] XY_CORRECTION = {"Yes", "No"};
     private static final String[] INCREMENTAL_VALUES = {"Yes", "No"};
@@ -59,8 +62,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private String channel = "BF";
     private double exposure = 50;
     private String show = "No";
+    private String save = "Yes";
     private String incremental = "No";
-    private int imageCount_;
+    private int imageCount_ = 0;
+    private int timepoint = 0;
     private double step = 0.3;
     private String xy_correction = "Yes";
     private Map refImageDict = null;
@@ -70,7 +75,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private String matcherAlgo = "BRISK";
 
     //Constant
-    final static double alpha = 0.00390625;
+    public final static double alpha = 1/255.0;
 
     //Global variables
     private Studio studio_;
@@ -80,8 +85,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private double calibration = 0;
     private double intervalInMin =0;
     private int positionIndex = 0;
-    private int count = 0;
     private String savingPath;
+    
 
     //Begin autofocus
     public BFAutofocus() {
@@ -96,6 +101,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         super.createProperty(STEP_SIZE, NumberUtils.doubleToDisplayString(step));
         super.createProperty(CHANNEL, channel);
         super.createProperty(UMPERSTEP, NumberUtils.doubleToDisplayString(umPerStep));
+        super.createProperty(SAVEIMGS, save, SAVEVALUES);
         nu.pattern.OpenCV.loadShared();
     }
 
@@ -107,6 +113,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             cropFactor = MathFunctions.clip(0.01, cropFactor, 1.0);
             exposure = NumberUtils.displayStringToDouble(getPropertyValue(EXPOSURE));
             show = getPropertyValue(SHOW_IMAGES);
+            save = getPropertyValue(SAVEIMGS);
             incremental = getPropertyValue(INCREMENTAL);
             xy_correction = getPropertyValue(XY_CORRECTION_TEXT);
             detectorAlgo = getPropertyValue(DETECTORALGO_TEXT);
@@ -162,7 +169,12 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         //Get label of position
         PositionList positionList = studio_.positions().getPositionList();
-        String label = getLabelOfPositions(positionList);
+        String label;
+        if (positionList.getNumberOfPositions() == 0){
+            label = positionList.generateLabel();
+        }else{
+            label = getLabelOfPositions(positionList);
+        }
         System.out.println("Label Position : " + label);
 
         //Incrementation of position counter; does not work at another place
@@ -202,7 +214,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
 
         //Calculate Focus
-        double correctedZPosition = calculateZFocus(oldZ);
+        double correctedZPosition = calculateZFocus(oldZ, label, timepoint, save.contentEquals("Yes"));
         System.out.println("Corrected Z Position : " + correctedZPosition);
         //Set to the focus
         setZPosition(correctedZPosition-0.5);
@@ -212,8 +224,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         core_.snapImage();
         TaggedImage taggedImagePosition = core_.getTaggedImage();
         Mat currentMat8Set = convertTo8BitsMat(taggedImagePosition);
-        Imgcodecs.imwrite(savingPath + prefix + label + "_T" + count + "_Ref.tif", currentMat8Set);
-        count += 1 ;
+        Imgcodecs.imwrite(savingPath + prefix + label + "_T" + timepoint + "_Ref.tif", currentMat8Set);
 
         //Calculation of XY Drifts only if the parameter "Correct XY at same time" is set to Yes;
         double currentXPosition = core_.getXPosition();
@@ -325,6 +336,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private String getLabelOfPositions(PositionList positionList) {
         if (positionIndex == positionList.getNumberOfPositions() ) {
             positionIndex = 0;
+            timepoint++;
         }
         return positionList.getPosition(positionIndex).getLabel();
     }
@@ -342,24 +354,42 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         setZPosition(oldZ);
     }
 
-    private double calculateZFocus(double oldZ) throws Exception {
+    private double calculateZFocus(double oldZ, String positionLabel, int timepoint, boolean save) throws Exception {
         double[] zpositions = calculateZPositions(searchRange, step, oldZ);
         double[] stdAtZPositions = new double[zpositions.length];
         TaggedImage currentImg;
-
+        Datastore store = null;
+        if (save){
+             store = studio_.data().createMultipageTIFFDatastore(
+                   savingPath + File.separator + positionLabel + "_T" + String.valueOf(timepoint),
+                   false,false);
+            studio_.displays().createDisplay(store);
+        }
+        
         for (int i =0; i< zpositions.length ;i++){
             setZPosition(zpositions[i]);
             core_.waitForDevice(core_.getCameraDevice());
             core_.snapImage();
             currentImg = core_.getTaggedImage();
             imageCount_++;
-            Image img = studio_.data().convertTaggedImage(currentImg);
+            Coords.CoordsBuilder builder = studio_.data().getCoordsBuilder().z(i).channel(0).stagePosition(0).time(timepoint);
+            Image img = studio_.data().convertTaggedImage(currentImg, builder.build(), null);
+            if (save){
+                assert store != null;
+                store.putImage(img);
+            }
             stdAtZPositions[i] = studio_.data().ij().createProcessor(img).getStatistics().stdDev;
             if (show.contentEquals("Yes")) {
                 showImage(currentImg);
             }
         }
-
+        if (save) {
+            store.freeze();
+            store.close();
+            studio_.core().clearCircularBuffer();
+            studio_.displays().manage(store);
+        }
+        
         int rawIndex = getZfocus(stdAtZPositions);
         return optimizeZFocus(rawIndex, stdAtZPositions, zpositions);
     }

@@ -28,7 +28,7 @@ public class DriftCorrection {
     public static Mat readImage(String pathOfImage) {
         Mat img = Imgcodecs.imread(pathOfImage, CvType.CV_16UC1);
         Mat img1 = new Mat(img.cols(), img.rows(), CvType.CV_8UC1);
-        img.convertTo(img1, CvType.CV_8UC1);//, BFAutofocus.alpha);
+        img.convertTo(img1, CvType.CV_8UC1, BFAutofocus.alpha);
         Mat img2 = equalizeImages(img1);
         return img2;
     }
@@ -381,7 +381,7 @@ public class DriftCorrection {
     }
 
     //Display images with ImageJ, giving a title to image
-    static void displayImageIJ(String titleOfImage, Mat img) {
+    public static void displayImageIJ(String titleOfImage, Mat img) {
         ImagePlus imgp = new ImagePlus();
         if (img.type() == CvType.CV_8UC3) {imgp = new ImagePlus(titleOfImage, convertMatCV8UC3ToBufferedImage(img));}
         else if (img.type() == CvType.CV_64FC1) {imgp = new ImagePlus(titleOfImage, convertMatCV64ToBufferedImage(img));}

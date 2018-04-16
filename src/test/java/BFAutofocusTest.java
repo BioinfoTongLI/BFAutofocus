@@ -15,6 +15,7 @@ public class BFAutofocusTest {
 
    @Parameterized.Parameters
    public static Collection<Object[]> prepareFiles() {
+      nu.pattern.OpenCV.loadShared();
       String root = System.getProperty("user.dir") + "/src/main/resources/";
       ImagePlus tmpbfimg = IJ.openImage(root + "BF.tif");
       int zsliceNb = tmpbfimg.getDimensions()[3];
@@ -42,5 +43,4 @@ public class BFAutofocusTest {
       double[] expected = new double[]{-0.5, -0.2, 0.1, 0.4};
       Assert.assertArrayEquals(expected, BFAutofocus.calculateZPositions(range,step, startZ), 0.01);
    }
-
 }
