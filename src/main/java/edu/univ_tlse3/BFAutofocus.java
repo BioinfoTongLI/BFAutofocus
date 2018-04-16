@@ -43,12 +43,15 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private static final String SHOW_IMAGES = "ShowImages";
     private static final String INCREMENTAL = "incremental";
     private static final String XY_CORRECTION_TEXT = "Correct XY at same time";
+    private static final String DETECTORALGO_TEXT = "Feature detector algorithm";
+    private static final String MATCHERALGO_TEXT = "Matches extractor algorithm";
+    private static final String[] DETECTORALGO = {"AKAZE", "BRISK", "ORB"};
+    private static final String[] MATCHERALGO = {"AKAZE", "BRISK", "ORB"};
     private static final String[] SHOWVALUES = {"Yes", "No"};
     private static final String STEP_SIZE = "Step_size";
     private static final String[] XY_CORRECTION = {"Yes", "No"};
     private static final String[] INCREMENTAL_VALUES = {"Yes", "No"};
     private static final String UMPERSTEP = "µm displacement allowed per time point";
-    private static final String PATH_REFIMAGE = "Path of reference image";
 
     //Set default parameters
     private double searchRange = 5;
@@ -63,7 +66,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private Map refImageDict = null;
     private Map oldPositionsDict = null;
     private double umPerStep = 15;
-    private String pathOfReferenceImage = "";
+    private String detectorAlgo = "AKAZE";
+    private String matcherAlgo = "BRISK";
 
     //Constant
     final static double alpha = 0.00390625;
@@ -77,12 +81,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private double intervalInMin =0;
     private int positionIndex = 0;
     private int count = 0;
-//    private PrintStream psError;
-//    private PrintStream psOutput;
-//    private PrintStream curr_err;
-//    private PrintStream curr_out;
     private String savingPath;
-    private Datastore storeNonCorrectedImages = null;
 
     //Begin autofocus
     public BFAutofocus() {
@@ -92,10 +91,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         super.createProperty(SHOW_IMAGES, show, SHOWVALUES);
         super.createProperty(INCREMENTAL, incremental, INCREMENTAL_VALUES);
         super.createProperty(XY_CORRECTION_TEXT, xy_correction, XY_CORRECTION);
+        super.createProperty(DETECTORALGO_TEXT, detectorAlgo, DETECTORALGO);
+        super.createProperty(MATCHERALGO_TEXT, matcherAlgo, MATCHERALGO);
         super.createProperty(STEP_SIZE, NumberUtils.doubleToDisplayString(step));
         super.createProperty(CHANNEL, channel);
         super.createProperty(UMPERSTEP, NumberUtils.doubleToDisplayString(umPerStep));
-//        super.createProperty(PATH_REFIMAGE, pathOfReferenceImage);
         nu.pattern.OpenCV.loadShared();
     }
 
@@ -105,13 +105,14 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             searchRange = NumberUtils.displayStringToDouble(getPropertyValue(SEARCH_RANGE));
             cropFactor = NumberUtils.displayStringToDouble(getPropertyValue(CROP_FACTOR));
             cropFactor = MathFunctions.clip(0.01, cropFactor, 1.0);
-            channel = getPropertyValue(CHANNEL);
             exposure = NumberUtils.displayStringToDouble(getPropertyValue(EXPOSURE));
             show = getPropertyValue(SHOW_IMAGES);
             incremental = getPropertyValue(INCREMENTAL);
             xy_correction = getPropertyValue(XY_CORRECTION_TEXT);
+            detectorAlgo = getPropertyValue(DETECTORALGO_TEXT);
+            matcherAlgo = getPropertyValue(MATCHERALGO_TEXT);
+            channel = getPropertyValue(CHANNEL);
             umPerStep = NumberUtils.displayStringToDouble(getPropertyValue(UMPERSTEP));
-//            pathOfReferenceImage = getPropertyValue(PATH_REFIMAGE);
         } catch (MMException | ParseException ex) {
             studio_.logs().logError(ex);
         }
@@ -158,27 +159,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         core_.setAutoShutter(false);
         core_.setShutterOpen(true);
 
-//        //Save logs of outputs and errors
-//        try {
-//            psError = new PrintStream(savingPath + "Error.LOG");
-////            psOutput = new PrintStream(savingPath + "Output.LOG");
-//            curr_err = System.err;
-////            curr_out = System.out;
-////            System.setOut(psOutput);
-//        } catch (FileNotFoundException e) {
-//            e.printStackTrace();
-//        }
 
         //Get label of position
-        String label;
         PositionList positionList = studio_.positions().getPositionList();
-//        if (positionList == null) {
-//            studio_.positions().markCurrentPosition();
-//            label = "Pos0";
-//            positionList.getPosition(0).setLabel(label);
-//        } else {
-        label = getLabelOfPositions(positionList);
-//        }
+        String label = getLabelOfPositions(positionList);
         System.out.println("Label Position : " + label);
 
         //Incrementation of position counter; does not work at another place
@@ -192,30 +176,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         if (oldPositionsDict == null){
             oldPositionsDict = new HashMap<String, double[]>();
         }
-
-//        String prefix = studio_.acquisitions().getAcquisitionSettings().prefix;
-//        System.out.println("Prefix : " + prefix);
-//
-//        //Initialization of DataStore, to store non corrected images
-//        Window displayWindow = (Window) studio_.displays().getCurrentWindow();
-//        if (storeNonCorrectedImages == null) {
-//            storeNonCorrectedImages = studio_.data().createSinglePlaneTIFFSeriesDatastore(savingPath + prefix + File.separator + "NonCorrectedImages");
-//        }
-//
-//        //Add current non-corrected image to the DataStore
-//        core_.snapImage();
-//        TaggedImage nonCorrectedTaggedImage = core_.getTaggedImage();
-//        Image nonCorrectedImage = studio_.data().convertTaggedImage(nonCorrectedTaggedImage);
-//        if (storeNonCorrectedImages.hasImage(nonCorrectedImage.getCoords())) {
-//            storeNonCorrectedImages.putImage(nonCorrectedImage);
-//        } else {
-//            System.out.println("Image did not move");
-//        }
-//        System.out.println("DataStore getSavePath : " + storeNonCorrectedImages.getSavePath());
-//        System.out.println("DataStore Number Of Images : " + storeNonCorrectedImages.getNumImages());
-//
-//        boolean saveAcq = studio_.acquisitions().getAcquisitionSettings().save;
-//        System.out.println("Save Acquisition images : " + saveAcq);
 
         double[] oldCorrectedPositions;
         double oldX = core_.getXPosition();
@@ -232,16 +192,12 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         } else {
             //Get old calculated X, Y and Z of a given position
             oldCorrectedPositions = getXYZPosition(label);
-//            oldX = core_.getXPosition();
-//            oldY = core_.getYPosition();
             oldX = oldCorrectedPositions[0];
             oldY = oldCorrectedPositions[1];
             oldZ = oldCorrectedPositions[2];
 
             //Set to the last good position calculated
             setToLastCorrectedPosition(oldX, oldY, oldZ);
-//            System.out.println("old x : " + oldX);
-//            System.out.println("old y : " + oldY);
             System.out.println("old z : " + oldZ);
         }
 
@@ -258,19 +214,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         Mat currentMat8Set = convertTo8BitsMat(taggedImagePosition);
         Imgcodecs.imwrite(savingPath + prefix + label + "_T" + count + "_Ref.tif", currentMat8Set);
         count += 1 ;
-
-//        Image imagePosition = studio_.data().convertTaggedImage(taggedImagePosition);
-//        System.out.println("Position Index current TaggedImage : " + taggedImagePosition.tags.getString("PositionIndex"));
-//        System.out.println("Frame Index current TaggedImage : " + taggedImagePosition.tags.getString("FrameIndex"));
-//        System.out.println("Slice Index current TaggedImage : " + taggedImagePosition.tags.getString("SliceIndex"));
-//        System.out.println("Time and Date current TaggedImage : " + imagePosition.tags.getString("Time"));
-
-//        Metadata imagePosition_Metadata = studio_.acquisitions().generateMetadata(imagePosition, true);
-//        System.out.println("Metadata : " + imagePosition_Metadata.toString());
-//
-//        String metadata = imagePosition_Metadata.getReceivedTime();
-//        System.out.println("Received Time : " + metadata);
-
 
         //Calculation of XY Drifts only if the parameter "Correct XY at same time" is set to Yes;
         double currentXPosition = core_.getXPosition();
@@ -314,14 +257,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                 xyDriftsAKAZEORB = drifts.get(5);
                 xyDriftsAKAZEAKAZE = drifts.get(6);
 
-//                xyDriftsBRISKORB = calculateXYDrifts(currentMat8Set, FeatureDetector.BRISK, DescriptorExtractor.ORB, DescriptorMatcher.FLANNBASED);
-//                xyDriftsORBORB = calculateXYDrifts(currentMat8Set, FeatureDetector.ORB, DescriptorExtractor.ORB, DescriptorMatcher.FLANNBASED);
-//                xyDriftsORBBRISK = calculateXYDrifts(currentMat8Set, FeatureDetector.ORB, DescriptorExtractor.BRISK, DescriptorMatcher.FLANNBASED);
-//                xyDriftsBRISKBRISK = calculateXYDrifts(currentMat8Set, FeatureDetector.BRISK, DescriptorExtractor.BRISK, DescriptorMatcher.FLANNBASED);
-//                xyDriftsAKAZEBRISK = calculateXYDrifts(currentMat8Set, FeatureDetector.AKAZE, DescriptorExtractor.BRISK, DescriptorMatcher.FLANNBASED);
-//                xyDriftsAKAZEORB = calculateXYDrifts(currentMat8Set, FeatureDetector.AKAZE, DescriptorExtractor.ORB, DescriptorMatcher.FLANNBASED);
-//                xyDriftsAKAZEAKAZE = calculateXYDrifts(currentMat8Set, FeatureDetector.AKAZE, DescriptorExtractor.AKAZE, DescriptorMatcher.FLANNBASED);
-
                 //Get Correction to apply : 0-1 = mean; 5-6 = autoMedian; 7-8 = manual median; 9-10 = min distance; 11-12 = mode;
                 xCorrection = xyDriftsAKAZEBRISK[5];
                 yCorrection = xyDriftsAKAZEBRISK[6];
@@ -344,23 +279,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
         resetInitialCondition(oldROI, oldState, oldExposure, oldAutoShutterState);
 
-
-//        studio_.app().refreshGUIFromCache(); //Not sure about the utility; may be useful for Metadata?;
-
         //Set to the focus
         setZPosition(correctedZPosition);
 
         //Refresh positions in position dictionary
         refreshOldXYZposition(correctedXPosition, correctedYPosition, correctedZPosition, label);
-
-//        //Redefine reference image if autofocus is incremental
-//        if (Boolean.parseBoolean(incremental)){
-//            core_.waitForDevice(core_.getCameraDevice());
-//            core_.snapImage();
-//            TaggedImage newRefTaggedImage = core_.getTaggedImage();
-//            Mat newRefImage_Mat = convertTo8BitsMat(newRefTaggedImage);
-//            refImageDict.replace(label, newRefImage_Mat);
-//        }
 
         long endTime = new Date().getTime();
         long acquisitionTimeElapsed = endTime - startTime;
@@ -370,13 +293,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                 currentXPosition, correctedXPosition, currentYPosition, correctedYPosition, correctedZPosition,
                 xyDriftsBRISKORB, xyDriftsORBORB, xyDriftsORBBRISK, xyDriftsBRISKBRISK,
                 xyDriftsAKAZEBRISK, xyDriftsAKAZEORB, xyDriftsAKAZEAKAZE);
-//        psError.close();
-//        psOutput.close();
-//        System.setOut(curr_out);
-//        System.setErr(curr_err);
 
-//        //Save Datastore
-//        storeNonCorrectedImages.save(displayWindow);
         return correctedZPosition;
     }
 
@@ -421,15 +338,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     }
 
     private void setToLastCorrectedPosition(double oldX, double oldY, double oldZ) throws Exception {
-//        if (xyzPosition.length == 0) {
-//            setXYPosition(core_.getXPosition(), core_.getYPosition());
-//            String focusDevice = core_.getFocusDevice();
-//            double currentZ = core_.getPosition(focusDevice);
-//            setZPosition(currentZ);
-//        } else {
         setXYPosition(oldX, oldY);
         setZPosition(oldZ);
-//        }
     }
 
     private double calculateZFocus(double oldZ) throws Exception {
@@ -545,7 +455,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     }
 
     private void setXYPosition(double x, double y) throws Exception {
-//        CMMCore core_ = studio_.getCMMCore();
         assert x != 0;
         assert y != 0;
 //        assert x !=
@@ -555,7 +464,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     }
 
     private void setZPosition(double z) throws Exception {
-//        CMMCore core_ = studio_.getCMMCore();
         String focusDevice = core_.getFocusDevice();
         core_.setPosition(focusDevice, z);
         core_.waitForDevice(focusDevice);
@@ -636,11 +544,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     public static int getindexOfBestFocus(double[] stdAtZPositions, double[] zpositions, double[] numberOfMatches, List<double[]> drifts) {
         //Calcul of focus by number of Good Matches
         int indexOfMaxNumberGoodMatches = getIndexOfMaxNumberGoodMatches(numberOfMatches);
-//        double zMaxNumberGoodMatches = zpositions[indexOfMaxNumberGoodMatches];
 
         //Calcul of focus by StdDev
         int indexFocusStdDev = getMinZfocus(stdAtZPositions);
-//        double zOptimizedStdDev = optimizeZFocus(indexFocusStdDev, stdAtZPositions, zpositions);
 
         //Get the mean of the 2 focus found
         return (indexOfMaxNumberGoodMatches + indexFocusStdDev) / 2;
