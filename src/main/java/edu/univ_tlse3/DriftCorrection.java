@@ -15,15 +15,6 @@ import static org.opencv.features2d.Features2d.NOT_DRAW_SINGLE_POINTS;
 
 public class DriftCorrection {
 
-    //    public static double UMPERMIN = 50;
-//    public static double INTERVALINMIN = 0;
-//    public static final double UMPERPIX = 0.108;
-    public static final Integer DETECTORALGO = FeatureDetector.BRISK;
-    public static final Integer DESCRIPTOREXTRACTOR = DescriptorExtractor.ORB;
-    public static final Integer DESCRIPTORMATCHER = DescriptorMatcher.FLANNBASED;
-    public static final Integer DETECTORALGO_ORB = FeatureDetector.ORB;
-    public static final Integer DESCRIPTOREXTRACTOR_ORB = DescriptorExtractor.ORB;
-
     // Read images from path
     public static Mat readImage(String pathOfImage) {
         Mat img = Imgcodecs.imread(pathOfImage, CvType.CV_16UC1);
@@ -139,64 +130,17 @@ public class DriftCorrection {
         return listOfGoodMatchesDistances;
     }
 
-    static double getMin(ArrayList<Double> listOfValues) {
-        double min = Double.MAX_VALUE;
+    static double getMinimum(ArrayList<Double> listOfValues) {
+        double minAbsValue = Double.MAX_VALUE;
+        double minValue = 0;
         for (int i = 0; i < listOfValues.size(); i++) {
-            if (listOfValues.get(i) < min) {
-                min = listOfValues.get(i);
+            if (Math.abs(listOfValues.get(i)) < minAbsValue) {
+                minAbsValue = Math.abs(listOfValues.get(i));
+                minValue = listOfValues.get(i);
             }
         }
-        return min;
+        return minValue;
     }
-
-//    static ArrayList<Float> getGoodMatchesXCoordinates(MatOfKeyPoint keypoints, ArrayList<DMatch> good_matchesList, Boolean isReferenceImage) {
-//        ArrayList<Float> img_xList = new ArrayList<Float>();
-//        KeyPoint[] keypointsArray1 = keypoints.toArray();
-//        float x;
-//        int id;
-//        for (int i = 0; i < good_matchesList.size() ; i++) {
-//            if (isReferenceImage) {
-//                id = good_matchesList.get(i).queryIdx;
-//            } else {
-//                id = good_matchesList.get(i).trainIdx;
-//            }
-//            x = (float) keypointsArray1[id].pt.x;
-//            img_xList.add(x);
-//        }
-//        return img_xList;
-//    }
-//
-//    static ArrayList<Float> getGoodMatchesYCoordinates(MatOfKeyPoint keypoints, ArrayList<DMatch> good_matchesList, Boolean isReferenceImage) {
-//        ArrayList<Float> img_yList = new ArrayList<Float>();
-//        KeyPoint[] keypointsArray1 = keypoints.toArray();
-//        float y;
-//        int id;
-//        for (int i = 0; i < good_matchesList.size() ; i++) {
-//            if (isReferenceImage) {
-//                id = good_matchesList.get(i).queryIdx;
-//            } else {
-//                id = good_matchesList.get(i).trainIdx;
-//            }
-//            y = (float) keypointsArray1[id].pt.y;
-//            img_yList.add(y);
-//        }
-//        return img_yList;
-//    }
-//
-//    static Float getMean(ArrayList<Float> img1_coordinates, ArrayList<Float> img2_coordinates) {
-//        int totalNumberOfX = img1_coordinates.size();
-//        float sumXDistancesCoordinates = 0;
-//        float meanXDifferencesCoordinates;
-//        double[] xDistances = new double[img1_coordinates.size()];
-//        for (int i = 0; i < img1_coordinates.size(); i++) {
-//            float xDistance = img2_coordinates.get(i) - img1_coordinates.get(i);
-//            sumXDistancesCoordinates += xDistance;
-//            xDistances[i] = xDistance;
-//        }
-//        meanXDifferencesCoordinates = sumXDistancesCoordinates/totalNumberOfX;
-//
-//        return meanXDifferencesCoordinates;
-//    }
 
     static Float getMean(ArrayList<Double> listOfValues) {
         int totalNumberOfX = listOfValues.size();
@@ -211,20 +155,7 @@ public class DriftCorrection {
         return meanXDifferencesCoordinates;
     }
 
-//    static double getAutoMedian(ArrayList<Float> img1_coordinates, ArrayList<Float> img2_coordinates) {
-//        double[] distances = new double[img1_coordinates.size()];
-//        for (int i = 0; i < img1_coordinates.size(); i++) {
-//            float distance = img2_coordinates.get(i) - img1_coordinates.get(i);
-//            distances[i] = distance;
-//        }
-//        Median median = new Median();
-//        double medianValue = median.evaluate(distances);
-//        System.out.println("Median : " + medianValue);
-//
-//        return medianValue;
-//    }
-
-    static double getAutoMedian(ArrayList<Double> listOfValues) {
+    static double getMedian(ArrayList<Double> listOfValues) {
         double[] distancesArray = new double[listOfValues.size()];
         for (int i = 0; i < listOfValues.size(); i++) {
             distancesArray[i] = listOfValues.get(i);
@@ -232,18 +163,6 @@ public class DriftCorrection {
         Median median = new Median();
         double medianValue = median.evaluate(distancesArray);
         return medianValue;
-    }
-
-    static double getManualMedian(ArrayList<Double> listOfValues) {
-//        ArrayList<Double> sortedListOfValues =
-        Collections.sort(listOfValues);
-        int middle = listOfValues.size()/2;
-        if(listOfValues.size()%2 == 1){
-            return listOfValues.get(middle);
-        } else {
-            double meanMiddle = (listOfValues.get(middle-1) + listOfValues.get(middle))/2.0;
-            return  meanMiddle;
-        }
     }
 
     static List<Integer> getModesDisplacements(ArrayList<Double> listOfValues) {
@@ -289,7 +208,7 @@ public class DriftCorrection {
             int count = 0;
             for (int j = 0; j < listOfValues.size(); j ++){
                 if(listOfValues.get(j) == listOfValues.get(i)){
-                    count += 1;
+                    count ++;
                 }
             }
             if (count > maxCount){
@@ -404,18 +323,18 @@ public class DriftCorrection {
         return imgGoodMatches;
     }
 
-    //*********************************//
-    //******* Main method ************//
-    //*******************************//
+
+    //********************************************************************************//
+    //********************************** Main method *********************************//
+    //********************************************************************************//
     public static double[] driftCorrection(Mat img1, Mat img2, double calibration, double intervalInMin, double umPerStep,
                                            Integer detectorAlgo, Integer descriptorExtractor, Integer descriptorMatcher) {
+
         long startTime = new Date().getTime();
 
         /* 1 - Detect keypoints */
         MatOfKeyPoint keypoints1 = findKeypoints(img1, detectorAlgo);
         MatOfKeyPoint keypoints2 = findKeypoints(img2, detectorAlgo);
-        System.out.println("Keypoints img ref : " + keypoints1.rows());
-        System.out.println("Keypoints img 2 : " + keypoints2.rows());
 
         /* 2 - Calculate descriptors */
         Mat img1_descriptors = calculDescriptors(img1, keypoints1, descriptorExtractor);
@@ -430,21 +349,9 @@ public class DriftCorrection {
 
         /* 3 - Matching descriptor */
         MatOfDMatch matcher = matchingDescriptor(img1_descriptors, img2_descriptors, descriptorMatcher);
-        System.out.println("Number of Matches : " + matcher.rows());
 
         /* 4 - Select and display Good Matches */
         ArrayList<DMatch> good_matchesList = getGoodMatchesValues(matcher, keypoints1, keypoints2, umPerStep, calibration, intervalInMin);
-        System.out.println("Number of Good Matches : " + good_matchesList.size());
-
-//        Mat imgGoodMatches = drawGoodMatches(img1, img2, keypoints1, keypoints2, good_matchesList);
-//        displayImageIJ("Good Matches", imgGoodMatches);
-
-//        /* 5 - Get coordinates of GoodMatches Keypoints */
-//        ArrayList<Float> img1_keypoints_xCoordinates = getGoodMatchesXCoordinates(keypoints1, good_matchesList,true);
-//        ArrayList<Float> img1_keypoints_yCoordinates = getGoodMatchesYCoordinates(keypoints1, good_matchesList, true);
-//
-//        ArrayList<Float> img2_keypoints_xCoordinates = getGoodMatchesXCoordinates(keypoints2, good_matchesList,false);
-//        ArrayList<Float> img2_keypoints_yCoordinates = getGoodMatchesYCoordinates(keypoints2, good_matchesList, false);
 
         /* 5 - Get Good Matches Indexes and distances */
         ArrayList<Integer> listOfGoodMatchesIndex = getGoodMatchesIndex(matcher, keypoints1, keypoints2, umPerStep, calibration, intervalInMin);
@@ -454,32 +361,22 @@ public class DriftCorrection {
         /* Calculate statistics */
         float meanXdisplacement = getMean(goodMatchesXDistances);
         float meanYdisplacement = getMean(goodMatchesYDistances);
-        System.out.println("X mean displacement : " + meanXdisplacement);
-        System.out.println("Y mean displacement : " + meanYdisplacement + "\n");
 
-        double minXDisplacement = getMin(goodMatchesXDistances);
-        double minYDisplacement = getMin(goodMatchesYDistances);
+        double minXDisplacement = getMinimum(goodMatchesXDistances);
+        double minYDisplacement = getMinimum(goodMatchesYDistances);
 
-        double autoMedianXDisplacement = getAutoMedian(goodMatchesXDistances);
-        double autoMedianYDisplacement = getAutoMedian(goodMatchesYDistances);
-
-        double manualMedianXDisplacement = getManualMedian(goodMatchesXDistances);
-        double manualMedianYDisplacement = getManualMedian(goodMatchesYDistances);
+        double medianXDisplacement = getMedian(goodMatchesXDistances);
+        double medianYDisplacement = getMedian(goodMatchesYDistances);
 
         double modeXDisplacement = getMode(goodMatchesXDistances);
         double modeYDisplacement = getMode(goodMatchesYDistances);
-
-        double varianceXDisplacement = getVariance(goodMatchesXDistances);
-        double varianceYDisplacement = getVariance(goodMatchesYDistances);
-
 
         long endTime = new Date().getTime();
         long algorithmDuration = endTime - startTime;
 
         return new double[]{meanXdisplacement, meanYdisplacement, matcher.rows(), good_matchesList.size(), algorithmDuration,
-                autoMedianXDisplacement, autoMedianYDisplacement, manualMedianXDisplacement, manualMedianYDisplacement,
-                minXDisplacement, minYDisplacement, modeXDisplacement, modeYDisplacement,
-                varianceXDisplacement, varianceYDisplacement
+                medianXDisplacement, medianYDisplacement, minXDisplacement, minYDisplacement, 
+                modeXDisplacement, modeYDisplacement
         };
     }
 }
