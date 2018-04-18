@@ -16,13 +16,13 @@ import static org.opencv.features2d.Features2d.NOT_DRAW_SINGLE_POINTS;
 public class DriftCorrection {
 
     // Read images from path
-    public static Mat readImage(String pathOfImage) {
-        Mat img = Imgcodecs.imread(pathOfImage, CvType.CV_16UC1);
-        Mat img1 = new Mat(img.cols(), img.rows(), CvType.CV_8UC1);
-        img.convertTo(img1, CvType.CV_8UC1, BFAutofocus.alpha);
-        Mat img2 = equalizeImages(img1);
-        return img2;
-    }
+//    public static Mat readImage(String pathOfImage) {
+//        Mat img = Imgcodecs.imread(pathOfImage, CvType.CV_16UC1);
+//        Mat img1 = new Mat(img.cols(), img.rows(), CvType.CV_8UC1);
+//        img.convertTo(img1, CvType.CV_8UC1, BFAutofocus.alpha);
+//        Mat img2 = equalizeImages(img1);
+//        return img2;
+//    }
 
     static Mat equalizeImages(Mat img) {
         Mat imgEqualized = new Mat(img.cols(), img.rows(), img.type());

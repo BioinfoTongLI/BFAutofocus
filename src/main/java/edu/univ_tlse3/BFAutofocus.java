@@ -1,7 +1,6 @@
 package edu.univ_tlse3;
 
 import ij.process.ImageProcessor;
-import ij.process.ShortProcessor;
 import mmcorej.*;
 import org.json.JSONException;
 import org.micromanager.AutofocusPlugin;
@@ -11,6 +10,7 @@ import org.micromanager.data.Coords;
 import org.micromanager.data.Datastore;
 import org.micromanager.data.Image;
 import org.micromanager.internal.utils.*;
+import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.features2d.DescriptorExtractor;
@@ -77,7 +77,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private double zOffset = -1;
 
     //Constant
-    public final static double alpha = 1/255.0;
+//    public final static double alpha = 1/255.0;
 
     //Global variables
     private Studio studio_;
@@ -236,25 +236,31 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double yCorrection;
 
         if (xy_correction.contentEquals("Yes")){
-            //Define current image as reference for the position if it does not exist
-            if (!refImageDict.containsKey(label)) {
-                refImageDict.put(label, currentMat8Set);
-            } else {
-                //Or calculate XY drift
-                imgRef_Mat = (Mat) refImageDict.get(label);
-                //Test All Possible Algorithms or not:
-                if (testAllAlgos.contentEquals("Yes")) {
+            //Test All Possible Algorithms or not:
+            if (testAllAlgos.contentEquals("Yes")) {
+                double[] xyDriftsBRISKORB = new double[11];
+                double[] xyDriftsORBORB = new double[11];
+                double[] xyDriftsORBBRISK = new double[11];
+                double[] xyDriftsBRISKBRISK = new double[11];
+                double[] xyDriftsAKAZEBRISK = new double[11];
+                double[] xyDriftsAKAZEORB = new double[11];
+                double[] xyDriftsAKAZEAKAZE = new double[11];
 
+                if (!refImageDict.containsKey(label)) {
+                    refImageDict.put(label, currentMat8Set);
+                } else {
+                    //Or calculate XY drift
+                    imgRef_Mat = (Mat) refImageDict.get(label);
                     List<double[]> drifts = getMultipleXYDrifts(currentMat8Set, FeatureDetector.BRISK, FeatureDetector.ORB, FeatureDetector.AKAZE,
                             DescriptorExtractor.BRISK, DescriptorExtractor.ORB, DescriptorExtractor.AKAZE, DescriptorMatcher.FLANNBASED,
                             oldROI, oldState, oldExposure, oldAutoShutterState);
-                    double[] xyDriftsBRISKORB = drifts.get(0);
-                    double[] xyDriftsORBORB = drifts.get(1);
-                    double[] xyDriftsORBBRISK = drifts.get(2);
-                    double[] xyDriftsBRISKBRISK = drifts.get(3);
-                    double[] xyDriftsAKAZEBRISK = drifts.get(4);
-                    double[] xyDriftsAKAZEORB = drifts.get(5);
-                    double[] xyDriftsAKAZEAKAZE = drifts.get(6);
+                    xyDriftsBRISKORB = drifts.get(0);
+                    xyDriftsORBORB = drifts.get(1);
+                    xyDriftsORBBRISK = drifts.get(2);
+                    xyDriftsBRISKBRISK = drifts.get(3);
+                    xyDriftsAKAZEBRISK = drifts.get(4);
+                    xyDriftsAKAZEORB = drifts.get(5);
+                    xyDriftsAKAZEAKAZE = drifts.get(6);
 
                     //Get Correction to apply : 0-1 = mean; 5-6 = median; 7-8 = min distance; 9-10 = mode
                     xCorrection = xyDriftsAKAZEBRISK[5];
@@ -264,36 +270,44 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     System.out.println("Y Correction : " + yCorrection);
                     correctedXPosition = currentXPosition + xCorrection;
                     correctedYPosition = currentYPosition + yCorrection;
+                }
+                long endTime = new Date().getTime();
+                long acquisitionTimeElapsed = endTime - startTime;
+                System.out.println("Acquisition duration in ms : " + acquisitionTimeElapsed);
 
-                    long endTime = new Date().getTime();
-                    long acquisitionTimeElapsed = endTime - startTime;
-                    System.out.println("Acquisition duration in ms : " + acquisitionTimeElapsed);
-
-                    writeMultipleOutput(acquisitionTimeElapsed, label, prefix, oldX, oldY, oldZ,
-                            currentXPosition, correctedXPosition, currentYPosition, correctedYPosition, correctedZPosition,
-                            xyDriftsBRISKORB, xyDriftsORBORB, xyDriftsORBBRISK, xyDriftsBRISKBRISK,
-                            xyDriftsAKAZEBRISK, xyDriftsAKAZEORB, xyDriftsAKAZEAKAZE);
+                writeMultipleOutput(acquisitionTimeElapsed, label, prefix, oldX, oldY, oldZ,
+                        currentXPosition, correctedXPosition, currentYPosition, correctedYPosition, correctedZPosition,
+                        xyDriftsBRISKORB, xyDriftsORBORB, xyDriftsORBBRISK, xyDriftsBRISKBRISK,
+                        xyDriftsAKAZEBRISK, xyDriftsAKAZEORB, xyDriftsAKAZEAKAZE);
+            }else {
+                double currentZPosition = oldZ;
+                double[] drifts = new double[11];
+                //Define current image as reference for the position if it does not exist
+                if (!refImageDict.containsKey(label)) {
+                    refImageDict.put(label, currentMat8Set);
                 } else {
-                    int detector = Integer.valueOf("FeatureDetector." + detectorAlgo);
-                    int matcher = Integer.valueOf("DescriptorExtractor." + matcherAlgo);
-                    double currentZPosition = oldZ;
+                    //Or calculate XY drift
+                    imgRef_Mat = (Mat) refImageDict.get(label);
+                    int detector = getFeatureDetectorIndex(detectorAlgo);
+                    int matcher = getDescriptorExtractorIndex(matcherAlgo);
                     System.out.println("FeatureDetector : " + detector);
 
                     //Get Correction to apply : 0-1 = mean; 5-6 = median; 7-8 = min distance; 9-10 = mode
-                    double[] drifts = calculateXYDrifts(currentMat8Set, detector, matcher, DescriptorMatcher.FLANNBASED);
+                    drifts = calculateXYDrifts(currentMat8Set, detector, matcher, DescriptorMatcher.FLANNBASED);
                     xCorrection = drifts[5];
                     yCorrection = drifts[6];
 
                     correctedXPosition = currentXPosition + xCorrection;
                     correctedYPosition = currentYPosition + yCorrection;
-                    long endTime = new Date().getTime();
-                    long acquisitionTimeElapsed = endTime - startTime;
-                    System.out.println("Acquisition duration in ms : " + acquisitionTimeElapsed);
 
-                    writeOutput(acquisitionTimeElapsed, label, prefix, currentXPosition, correctedXPosition,
-                            currentYPosition, correctedYPosition, currentZPosition, correctedZPosition,
-                            drifts, intervalInMin);
                 }
+                long endTime = new Date().getTime();
+                long acquisitionTimeElapsed = endTime - startTime;
+                System.out.println("Acquisition duration in ms : " + acquisitionTimeElapsed);
+
+                writeOutput(acquisitionTimeElapsed, label, prefix, currentXPosition, correctedXPosition,
+                        currentYPosition, correctedYPosition, currentZPosition, correctedZPosition,
+                        drifts, intervalInMin);
             }
             setXYPosition(correctedXPosition, correctedYPosition);
 
@@ -319,6 +333,41 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         return correctedZPosition;
     }
 
+    private int getFeatureDetectorIndex(String name){
+        int index = -1;
+        switch (name){
+            case "AKAZE":
+                index = FeatureDetector.AKAZE;
+                break;
+            case "ORB":
+                index = FeatureDetector.ORB;
+                break;
+            case "BRISK":
+                index = FeatureDetector.BRISK;
+                break;
+            default:
+                ReportingUtils.logError("Can not handle this algorithm name");
+        }
+        return index;
+    }
+
+    private int getDescriptorExtractorIndex(String name){
+        int index = -1;
+        switch (name){
+            case "AKAZE":
+                index = DescriptorExtractor.AKAZE;
+                break;
+            case "ORB":
+                index = DescriptorExtractor.ORB;
+                break;
+            case "BRISK":
+                index = DescriptorExtractor.BRISK;
+                break;
+            default:
+                ReportingUtils.logError("Can not handle this algorithm name");
+        }
+        return index;
+    }
     //Methods
     private void resetInitialCondition(Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState) throws Exception {
         //Reinitialize origin ROI and all other parameters
@@ -425,12 +474,12 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         TaggedImage currentImg;
         Datastore store = null;
         if (save){
-             store = studio_.data().createMultipageTIFFDatastore(
-                   savingPath + File.separator + positionLabel + "_T" + String.valueOf(timepoint),
-                   false,false);
+            store = studio_.data().createMultipageTIFFDatastore(
+                    savingPath + File.separator + positionLabel + "_T" + String.valueOf(timepoint),
+                    false,false);
 //            studio_.displays().createDisplay(store);
         }
-        
+
         for (int i =0; i< zpositions.length ;i++){
             setZPosition(zpositions[i]);
             core_.waitForDevice(core_.getCameraDevice());
@@ -455,7 +504,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             studio_.core().clearCircularBuffer();
 //            studio_.displays().manage(store);
         }
-        
+
         int rawIndex = getZfocus(stdAtZPositions);
         return optimizeZFocus(rawIndex, stdAtZPositions, zpositions);
     }
@@ -552,20 +601,23 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private static Mat convertTo8BitsMat(TaggedImage taggedImage) throws JSONException {
         Mat mat16 = convertToMat(taggedImage);
         Mat mat8 = new Mat(mat16.cols(), mat16.rows(), CvType.CV_8UC1);
-        mat16.convertTo(mat8, CvType.CV_8UC1, alpha);
+        Core.MinMaxLocResult minMaxResult = Core.minMaxLoc(mat16);
+        double min = minMaxResult.minVal;
+        double max = minMaxResult.maxVal;
+        mat16.convertTo(mat8, CvType.CV_8UC1, 255/(max-min));
         return DriftCorrection.equalizeImages(mat8);
     }
 
     //Convert MM Short Processor to OpenCV Mat
-    private static Mat toMat(ShortProcessor sp) {
-        final int w = sp.getWidth();
-        final int h = sp.getHeight();
-        Mat mat = new Mat(h, w, CvType.CV_16UC1);
-        mat.put(0,0, (short[]) sp.getPixels());
-        Mat res = new Mat(h, w, CvType.CV_8UC1);
-        mat.convertTo(res, CvType.CV_8UC1, alpha);
-        return DriftCorrection.equalizeImages(res);
-    }
+//    private static Mat toMat(ShortProcessor sp) {
+//        final int w = sp.getWidth();
+//        final int h = sp.getHeight();
+//        Mat mat = new Mat(h, w, CvType.CV_16UC1);
+//        mat.put(0,0, (short[]) sp.getPixels());
+//        Mat res = new Mat(h, w, CvType.CV_8UC1);
+//        mat.convertTo(res, CvType.CV_8UC1, alpha);
+//        return DriftCorrection.equalizeImages(res);
+//    }
 
     //Write output file when testing all algorithms
     private void writeMultipleOutput(long acquisitionDuration, String label, String prefix, double oldX,
@@ -601,7 +653,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     "medianXdisplacementORBBRISK", "medianYdisplacementORBBRISK", "medianXdisplacementBRISKBRISK", "medianYdisplacementBRISKBRISK",
                     "medianXdisplacementAKAZEBRISK", "medianYdisplacementAKAZEBRISK", "medianXdisplacementAKAZEORB", "medianYdisplacementAKAZEORB",
                     "medianXdisplacementAKAZEAKAZE", "medianYdisplacementAKAZEAKAZE",
-                    
+
 
                     "minXdisplacementBRISKORB", "minYdisplacementBRISKORB", "minXdisplacementORBORB", "minYdisplacementORBORB",
                     "minXdisplacementORBBRISK", "minYdisplacementORBBRISK", "minXdisplacementBRISKBRISK", "minYdisplacementBRISKBRISK",
@@ -612,7 +664,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     "modeXdisplacementORBBRISK", "modeYdisplacementORBBRISK", "modeXdisplacementBRISKBRISK", "modeYdisplacementBRISKBRISK",
                     "modeXdisplacementAKAZEBRISK", "modeYdisplacementAKAZEBRISK", "modeXdisplacementAKAZEORB", "modeYdisplacementAKAZEORB",
                     "modeXdisplacementAKAZEAKAZE", "modeYdisplacementAKAZEAKAZE"
-                    
+
             } ;
 
             fw.write(String.join(",", headersOfFile) + System.lineSeparator());
@@ -727,7 +779,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     + medianXDisplacementORBBRISK + "," + medianYDisplacementORBBRISK + "," + medianXDisplacementBRISKBRISK + "," + medianYDisplacementBRISKBRISK + ","
                     + medianXDisplacementAKAZEBRISK + "," + medianYDisplacementAKAZEBRISK + "," + medianXDisplacementAKAZEORB + "," + medianYDisplacementAKAZEORB + ","
                     + medianXDisplacementAKAZEAKAZE + "," + medianYDisplacementAKAZEAKAZE + ","
-                    
+
                     + minXDisplacementBRISKORB + "," + minYDisplacementBRISKORB + "," + minXDisplacementORBORB + "," + minYDisplacementORBORB + ","
                     + minXDisplacementORBBRISK + "," + minYDisplacementORBBRISK + "," + minXDisplacementBRISKBRISK + "," + minYDisplacementBRISKBRISK + ","
                     + minXDisplacementAKAZEBRISK + "," + minYDisplacementAKAZEBRISK + "," + minXDisplacementAKAZEORB + "," + minYDisplacementAKAZEORB + ","
@@ -786,7 +838,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             double minYDisplacement = xyDrifts[8];
             double modeXDisplacement = xyDrifts[9];
             double modeYDisplacement = xyDrifts[10];
-            
+
             FileWriter fw1 = new FileWriter(f1, true);
             fw1.write(currentXPosition + "," + correctedXPosition + ","
 
@@ -798,14 +850,14 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
                     + medianXDisplacement + "," + medianYDisplacement + ","
 
-                    + minXDisplacement + "," + minYDisplacement + "," 
+                    + minXDisplacement + "," + minYDisplacement + ","
 
                     + modeXDisplacement + "," + modeYDisplacement + ","
 
                     + numberOfMatches + "," + numberOfGoodMatches + ","
 
                     + algorithmDuration + "," + acquisitionDuration + "," + intervalInMin_
-                    
+
                     + System.lineSeparator());
             fw1.close();
         }
