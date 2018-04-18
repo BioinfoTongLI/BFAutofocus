@@ -374,7 +374,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
     }
 
-    private static double[] calculateZPositions(double searchRange, double step, double startZUm){
+    public static double[] calculateZPositions(double searchRange, double step, double startZUm){
         double lower = startZUm - searchRange/2;
         int nstep  = new Double(searchRange/step).intValue() + 1;
         double[] zpos = new double[nstep];
@@ -410,7 +410,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
              store = studio_.data().createMultipageTIFFDatastore(
                    savingPath + File.separator + positionLabel + "_T" + String.valueOf(timepoint),
                    false,false);
-            studio_.displays().createDisplay(store);
+//            studio_.displays().createDisplay(store);
         }
         
         for (int i =0; i< zpositions.length ;i++){
@@ -435,7 +435,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             store.freeze();
             store.close();
             studio_.core().clearCircularBuffer();
-            studio_.displays().manage(store);
+//            studio_.displays().manage(store);
         }
         
         int rawIndex = getZfocus(stdAtZPositions);
