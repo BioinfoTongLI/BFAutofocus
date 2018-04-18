@@ -31,6 +31,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
    private static final String SHOW_IMAGES = "ShowImages";
    private static final String[] SHOWVALUES = {"Yes", "No"};
    private static final String STEP_SIZE = "Step_size";
+   private static final String Z_OFFSET = "Z offset";
 
    private double searchRange = 6;
    private double cropFactor = 1;
@@ -39,11 +40,13 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
    private String show = "Yes";
    private int imageCount_;
    private double step = 0.3;
+   private double zOffset = 0;
 
    public BFAutofocus() {
       super.createProperty(SEARCH_RANGE, NumberUtils.doubleToDisplayString(searchRange));
       super.createProperty(CROP_FACTOR, NumberUtils.doubleToDisplayString(cropFactor));
       super.createProperty(EXPOSURE, NumberUtils.doubleToDisplayString(exposure));
+      super.createProperty(Z_OFFSET, NumberUtils.doubleToDisplayString(zOffset));
       super.createProperty(SHOW_IMAGES, show, SHOWVALUES);
       super.createProperty(STEP_SIZE, NumberUtils.doubleToDisplayString(step));
       super.createProperty(CHANNEL, channel);
@@ -57,6 +60,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
          cropFactor = MathFunctions.clip(0.01, cropFactor, 1.0);
          channel = getPropertyValue(CHANNEL);
          exposure = NumberUtils.displayStringToDouble(getPropertyValue(EXPOSURE));
+         zOffset = NumberUtils.displayStringToDouble(getPropertyValue(Z_OFFSET));
          show = getPropertyValue(SHOW_IMAGES);
 
       } catch (MMException ex) {
@@ -104,7 +108,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
          core.setSystemState(oldState);
       }
       core.setExposure(oldExposure);
-      setZPosition(z);
+      setZPosition(z + zOffset);
       return z;
    }
 
