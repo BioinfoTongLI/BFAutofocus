@@ -68,8 +68,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private int timepoint = 0;
     private double step = 0.3;
     private String xy_correction = "Yes";
-    private Map refImageDict = null;
-    private Map oldPositionsDict = null;
+    private Map<String, Mat> refImageDict = new HashMap<>();
+    private Map<String, double[]> oldPositionsDict = new HashMap<>();
     private double umPerStep = 15;
     private String testAllAlgos = "Yes";
     private String detectorAlgo = "AKAZE";
@@ -180,15 +180,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         //Incrementation of position counter; does not work at another place
         positionIndex += 1;
 
-        //Initialization of reference Images and old positions dictionaries
-        if (refImageDict == null){
-            refImageDict = new HashMap<String, Mat>();
-        }
-
-        if (oldPositionsDict == null){
-            oldPositionsDict = new HashMap<String, double[]>();
-        }
-
         double[] oldCorrectedPositions;
         double oldX = core_.getXPosition();
         double oldY = core_.getYPosition();
@@ -250,7 +241,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     refImageDict.put(label, currentMat8Set);
                 } else {
                     //Or calculate XY drift
-                    imgRef_Mat = (Mat) refImageDict.get(label);
+                    imgRef_Mat = refImageDict.get(label);
                     List<double[]> drifts = getMultipleXYDrifts(currentMat8Set, FeatureDetector.BRISK, FeatureDetector.ORB, FeatureDetector.AKAZE,
                             DescriptorExtractor.BRISK, DescriptorExtractor.ORB, DescriptorExtractor.AKAZE, DescriptorMatcher.FLANNBASED,
                             oldROI, oldState, oldExposure, oldAutoShutterState);
@@ -287,7 +278,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     refImageDict.put(label, currentMat8Set);
                 } else {
                     //Or calculate XY drift
-                    imgRef_Mat = (Mat) refImageDict.get(label);
+                    imgRef_Mat = refImageDict.get(label);
                     int detector = getFeatureDetectorIndex(detectorAlgo);
                     int matcher = getDescriptorExtractorIndex(matcherAlgo);
                     System.out.println("FeatureDetector : " + detector);
@@ -320,7 +311,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
 
         //Reset conditions
-        resetInitialCondition(oldROI, oldState, oldExposure, oldAutoShutterState);
+        resetInitialMicroscopeCondition(oldROI, oldState, oldExposure, oldAutoShutterState);
 
         //Set to the focus
         setZPosition(correctedZPosition);
@@ -329,8 +320,19 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         refreshOldXYZposition(correctedXPosition, correctedYPosition, correctedZPosition, label);
 
 
+        if (!studio_.acquisitions().isAcquisitionRunning() ||
+              timepoint >= studio_.acquisitions().getAcquisitionSettings().numFrames){
+            resetParameters();
+        }
 
         return correctedZPosition;
+    }
+    
+    private void resetParameters(){
+        refImageDict = new HashMap<>();
+        oldPositionsDict = new HashMap<>();
+        imageCount = 0;
+        timepoint = 0;
     }
 
     private int getFeatureDetectorIndex(String name){
@@ -369,7 +371,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         return index;
     }
     //Methods
-    private void resetInitialCondition(Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState) throws Exception {
+    private void resetInitialMicroscopeCondition(Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState) throws Exception {
         //Reinitialize origin ROI and all other parameters
         core_.setAutoShutter(oldAutoShutterState);
 
@@ -395,7 +397,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
     //XYZ-Methods
     private double[] getXYZPosition(String label) {
-        return (double[]) oldPositionsDict.get(label);
+        return oldPositionsDict.get(label);
     }
 
     private void refreshOldXYZposition(double correctedXPosition, double correctedYPosition, double correctedZPosition, String label) {
@@ -559,14 +561,15 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         jobs[6] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
                 intervalInMin, umPerStep, detectorAlgo3, descriptorExtractor3, descriptorMatcher));
 
-        List<double[]> drifts = new ArrayList<double[]>();
+        List<double[]> drifts = new ArrayList<>();
         try {
             for (int i = 0; i < jobs.length; i++) {
                 drifts.add(i, (double[]) jobs[i].get());
             }
         } catch (InterruptedException | ExecutionException e) {
             try {
-                resetInitialCondition(oldROI, oldState, oldExposure, oldAutoShutterState);
+                resetInitialMicroscopeCondition(oldROI, oldState, oldExposure, oldAutoShutterState);
+                resetParameters();
             } catch (Exception e1) {
                 e1.printStackTrace();
             }
