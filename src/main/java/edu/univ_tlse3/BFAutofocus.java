@@ -43,7 +43,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private static final String EXPOSURE = "Exposure";
     private static final String SHOW_IMAGES = "ShowImages";
     private static final String SAVEIMGS = "SaveImages";
-    private static final String INCREMENTAL = "incremental";
     private static final String XY_CORRECTION_TEXT = "Correct XY at same time";
     private static final String DETECTORALGO_TEXT = "Feature detector algorithm";
     private static final String MATCHERALGO_TEXT = "Matches extractor algorithm";
@@ -53,7 +52,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private static final String[] SAVEVALUES = {"Yes", "No"};
     private static final String STEP_SIZE = "Step_size";
     private static final String[] XY_CORRECTION = {"Yes", "No"};
-    private static final String[] INCREMENTAL_VALUES = {"Yes", "No"};
     private static final String UMPERSTEP = "µm displacement allowed per time point";
     private static final String Z_OFFSET = "Z offset";
 
@@ -64,8 +62,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private double exposure = 50;
     private String show = "No";
     private String save = "Yes";
-    private String incremental = "No";
-    private int imageCount_ = 0;
+    private int imageCount = 0;
     private int timepoint = 0;
     private double step = 0.3;
     private String xy_correction = "Yes";
@@ -74,7 +71,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private double umPerStep = 15;
     private String detectorAlgo = "AKAZE";
     private String matcherAlgo = "BRISK";
-    private double zOffset = -0.5;
+    private double zOffset = -1;
 
     //Constant
     public final static double alpha = 1/255.0;
@@ -83,12 +80,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private Studio studio_;
     private CMMCore core_;
     private Mat imgRef_Mat = null;
-
     private double calibration = 0;
     private double intervalInMin = 0;
     private int positionIndex = 0;
     private String savingPath;
-    
 
     //Begin autofocus
     public BFAutofocus() {
@@ -97,7 +92,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         super.createProperty(EXPOSURE, NumberUtils.doubleToDisplayString(exposure));
         super.createProperty(Z_OFFSET, NumberUtils.doubleToDisplayString(zOffset));
         super.createProperty(SHOW_IMAGES, show, SHOWVALUES);
-//        super.createProperty(INCREMENTAL, incremental, INCREMENTAL_VALUES);
         super.createProperty(XY_CORRECTION_TEXT, xy_correction, XY_CORRECTION);
         super.createProperty(DETECTORALGO_TEXT, detectorAlgo, DETECTORALGO);
         super.createProperty(MATCHERALGO_TEXT, matcherAlgo, MATCHERALGO);
@@ -117,7 +111,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             exposure = NumberUtils.displayStringToDouble(getPropertyValue(EXPOSURE));
             zOffset = NumberUtils.displayStringToDouble(getPropertyValue(Z_OFFSET));
             show = getPropertyValue(SHOW_IMAGES);
-//            incremental = getPropertyValue(INCREMENTAL);
             xy_correction = getPropertyValue(XY_CORRECTION_TEXT);
             detectorAlgo = getPropertyValue(DETECTORALGO_TEXT);
             matcherAlgo = getPropertyValue(MATCHERALGO_TEXT);
@@ -219,7 +212,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         System.out.println("Corrected Z Position : " + correctedZPosition);
         //Set to the focus
         setZPosition(correctedZPosition + zOffset);
-        setZPosition(correctedZPosition-1);
 
         //Get an image to define reference image, for each position
         core_.waitForDevice(core_.getCameraDevice());
@@ -421,7 +413,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             core_.waitForDevice(core_.getCameraDevice());
             core_.snapImage();
             currentImg = core_.getTaggedImage();
-            imageCount_++;
+            imageCount++;
             Coords.CoordsBuilder builder = studio_.data().getCoordsBuilder().z(i).channel(0).stagePosition(0).time(timepoint);
             Image img = studio_.data().convertTaggedImage(currentImg, builder.build(), null);
             if (save){
@@ -804,7 +796,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
     @Override
     public int getNumberOfImages() {
-        return imageCount_;
+        return imageCount;
     }
 
     @Override
