@@ -55,6 +55,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private static final String[] XY_CORRECTION = {"Yes", "No"};
     private static final String[] INCREMENTAL_VALUES = {"Yes", "No"};
     private static final String UMPERSTEP = "µm displacement allowed per time point";
+    private static final String Z_OFFSET = "Z offset";
 
     //Set default parameters
     private double searchRange = 5;
@@ -73,6 +74,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private double umPerStep = 15;
     private String detectorAlgo = "AKAZE";
     private String matcherAlgo = "BRISK";
+    private double zOffset = -0.5;
 
     //Constant
     public final static double alpha = 1/255.0;
@@ -93,8 +95,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         super.createProperty(SEARCH_RANGE, NumberUtils.doubleToDisplayString(searchRange));
         super.createProperty(CROP_FACTOR, NumberUtils.doubleToDisplayString(cropFactor));
         super.createProperty(EXPOSURE, NumberUtils.doubleToDisplayString(exposure));
+        super.createProperty(Z_OFFSET, NumberUtils.doubleToDisplayString(zOffset));
         super.createProperty(SHOW_IMAGES, show, SHOWVALUES);
-        super.createProperty(INCREMENTAL, incremental, INCREMENTAL_VALUES);
+//        super.createProperty(INCREMENTAL, incremental, INCREMENTAL_VALUES);
         super.createProperty(XY_CORRECTION_TEXT, xy_correction, XY_CORRECTION);
         super.createProperty(DETECTORALGO_TEXT, detectorAlgo, DETECTORALGO);
         super.createProperty(MATCHERALGO_TEXT, matcherAlgo, MATCHERALGO);
@@ -112,14 +115,15 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             cropFactor = NumberUtils.displayStringToDouble(getPropertyValue(CROP_FACTOR));
             cropFactor = MathFunctions.clip(0.01, cropFactor, 1.0);
             exposure = NumberUtils.displayStringToDouble(getPropertyValue(EXPOSURE));
+            zOffset = NumberUtils.displayStringToDouble(getPropertyValue(Z_OFFSET));
             show = getPropertyValue(SHOW_IMAGES);
-            save = getPropertyValue(SAVEIMGS);
-            incremental = getPropertyValue(INCREMENTAL);
+//            incremental = getPropertyValue(INCREMENTAL);
             xy_correction = getPropertyValue(XY_CORRECTION_TEXT);
             detectorAlgo = getPropertyValue(DETECTORALGO_TEXT);
             matcherAlgo = getPropertyValue(MATCHERALGO_TEXT);
             channel = getPropertyValue(CHANNEL);
             umPerStep = NumberUtils.displayStringToDouble(getPropertyValue(UMPERSTEP));
+            save = getPropertyValue(SAVEIMGS);
         } catch (MMException | ParseException ex) {
             studio_.logs().logError(ex);
         }
@@ -214,7 +218,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double correctedZPosition = calculateZFocus(oldZ, label, timepoint, save.contentEquals("Yes"));
         System.out.println("Corrected Z Position : " + correctedZPosition);
         //Set to the focus
-        setZPosition(correctedZPosition-0.5);
+        setZPosition(correctedZPosition + zOffset);
 
         //Get an image to define reference image, for each position
         core_.waitForDevice(core_.getCameraDevice());
