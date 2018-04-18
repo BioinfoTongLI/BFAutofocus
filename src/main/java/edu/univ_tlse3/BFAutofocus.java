@@ -214,7 +214,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double correctedZPosition = calculateZFocus(oldZ, label, timepoint, save.contentEquals("Yes"));
         System.out.println("Corrected Z Position : " + correctedZPosition);
         //Set to the focus
-        setZPosition(correctedZPosition-0.5);
+        setZPosition(correctedZPosition-1);
 
         //Get an image to define reference image, for each position
         core_.waitForDevice(core_.getCameraDevice());
@@ -362,16 +362,14 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     }
 
     private void showImage(TaggedImage currentImg) {
-        if (show.contentEquals("Yes")) {
-            SwingUtilities.invokeLater(() -> {
-                try {
-                    studio_.live().displayImage(studio_.data().convertTaggedImage(currentImg));
-                }
-                catch (JSONException | IllegalArgumentException e) {
-                    studio_.logs().showError(e);
-                }
-            });
-        }
+        SwingUtilities.invokeLater(() -> {
+            try {
+                studio_.live().displayImage(studio_.data().convertTaggedImage(currentImg));
+            }
+            catch (JSONException | IllegalArgumentException e) {
+                studio_.logs().showError(e);
+            }
+        });
     }
 
     public static double[] calculateZPositions(double searchRange, double step, double startZUm){
