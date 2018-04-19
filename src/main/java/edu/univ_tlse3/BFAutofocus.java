@@ -300,15 +300,19 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                         currentYPosition, correctedYPosition, currentZPosition, correctedZPosition,
                         drifts, intervalInMin);
             }
-            setXYPosition(correctedXPosition, correctedYPosition);
-
-            //Reference image incremental
-            core_.waitForDevice(core_.getCameraDevice());
-            core_.snapImage();
-            TaggedImage newRefTaggedImage = core_.getTaggedImage();
-            Mat newRefMat = convertTo8BitsMat(newRefTaggedImage);
-            refImageDict.replace(label, newRefMat);
         }
+
+        System.out.println("Out of XYCorrection statement");
+
+        //If XY Correction, new coordinates; else, corrected = current coordinates;
+        setXYPosition(correctedXPosition, correctedYPosition);
+
+        //Reference image incremental
+        core_.waitForDevice(core_.getCameraDevice());
+        core_.snapImage();
+        TaggedImage newRefTaggedImage = core_.getTaggedImage();
+        Mat newRefMat = convertTo8BitsMat(newRefTaggedImage);
+        refImageDict.replace(label, newRefMat);
 
         //Reset conditions
         resetInitialMicroscopeCondition(oldROI, oldState, oldExposure, oldAutoShutterState);
@@ -319,7 +323,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         //Refresh positions in position dictionary
         refreshOldXYZposition(correctedXPosition, correctedYPosition, correctedZPosition, label);
 
-
         if (!studio_.acquisitions().isAcquisitionRunning() ||
               timepoint >= studio_.acquisitions().getAcquisitionSettings().numFrames){
             resetParameters();
@@ -327,7 +330,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         return correctedZPosition;
     }
-    
+
+
+    //Methods
     private void resetParameters(){
         refImageDict = new HashMap<>();
         oldPositionsDict = new HashMap<>();
@@ -370,7 +375,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
         return index;
     }
-    //Methods
+
     private void resetInitialMicroscopeCondition(Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState) throws Exception {
         //Reinitialize origin ROI and all other parameters
         core_.setAutoShutter(oldAutoShutterState);
@@ -569,7 +574,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         } catch (InterruptedException | ExecutionException e) {
             try {
                 resetInitialMicroscopeCondition(oldROI, oldState, oldExposure, oldAutoShutterState);
-                resetParameters();
+
             } catch (Exception e1) {
                 e1.printStackTrace();
             }
