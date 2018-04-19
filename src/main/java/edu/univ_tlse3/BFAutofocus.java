@@ -175,7 +175,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }else{
             label = getLabelOfPositions(positionList);
         }
-        System.out.println("Label Position : " + label + " at time point : " + timepoint);
+        ReportingUtils.logMessage("Label Position : " + label + " at time point : " + timepoint);
 
         //Incrementation of position counter; does not work at another place
         positionIndex += 1;
@@ -205,7 +205,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         //Calculate Focus
         double correctedZPosition = calculateZFocus(oldZ, label, timepoint, save.contentEquals("Yes"));
-        System.out.println("Corrected Z Position : " + correctedZPosition);
+        ReportingUtils.logMessage("Corrected Z Position : " + correctedZPosition);
         //Set to the focus
         setZPosition(correctedZPosition + zOffset);
 
@@ -257,14 +257,14 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     xCorrection = xyDriftsAKAZEBRISK[5];
                     yCorrection = xyDriftsAKAZEBRISK[6];
 
-                    System.out.println("X Correction : " + xCorrection);
-                    System.out.println("Y Correction : " + yCorrection);
+                    ReportingUtils.logMessage("X Correction : " + xCorrection);
+                    ReportingUtils.logMessage("Y Correction : " + yCorrection);
                     correctedXPosition = currentXPosition + xCorrection;
                     correctedYPosition = currentYPosition + yCorrection;
                 }
                 long endTime = new Date().getTime();
                 long acquisitionTimeElapsed = endTime - startTime;
-                System.out.println("Acquisition duration in ms : " + acquisitionTimeElapsed);
+                ReportingUtils.logMessage("Acquisition duration in ms : " + acquisitionTimeElapsed);
 
                 writeMultipleOutput(acquisitionTimeElapsed, label, prefix, oldX, oldY, oldZ,
                         currentXPosition, correctedXPosition, currentYPosition, correctedYPosition, correctedZPosition,
@@ -281,7 +281,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     imgRef_Mat = refImageDict.get(label);
                     int detector = getFeatureDetectorIndex(detectorAlgo);
                     int matcher = getDescriptorExtractorIndex(matcherAlgo);
-                    System.out.println("FeatureDetector : " + detector);
+                    ReportingUtils.logMessage("FeatureDetector : " + detector);
 
                     //Get Correction to apply : 0-1 = mean; 5-6 = median; 7-8 = min distance; 9-10 = mode
                     drifts = calculateXYDrifts(currentMat8Set, detector, matcher, DescriptorMatcher.FLANNBASED);
@@ -294,7 +294,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                 }
                 long endTime = new Date().getTime();
                 long acquisitionTimeElapsed = endTime - startTime;
-                System.out.println("Acquisition duration in ms : " + acquisitionTimeElapsed);
+                ReportingUtils.logMessage("Acquisition duration in ms : " + acquisitionTimeElapsed);
 
                 writeOutput(acquisitionTimeElapsed, label, prefix, currentXPosition, correctedXPosition,
                         currentYPosition, correctedYPosition, currentZPosition, correctedZPosition,
@@ -479,7 +479,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             store = studio_.data().createMultipageTIFFDatastore(
                     savingPath + File.separator + positionLabel + "_T" + String.valueOf(timepoint),
                     false,false);
-//            studio_.displays().createDisplay(store);
         }
 
         for (int i =0; i< zpositions.length ;i++){
@@ -504,7 +503,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             store.freeze();
             store.close();
             studio_.core().clearCircularBuffer();
-//            studio_.displays().manage(store);
         }
 
         int rawIndex = getZfocus(stdAtZPositions);
