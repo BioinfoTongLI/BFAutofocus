@@ -11,13 +11,13 @@ import java.util.Arrays;
 import java.util.Collection;
 
 @RunWith(Parameterized.class)
-public class Tests {
+public class BFAutofocusTest {
 
    @Parameterized.Parameters
    public static Collection<Object[]> prepareFiles() {
+      nu.pattern.OpenCV.loadShared();
       String root = System.getProperty("user.dir") + "/src/main/resources/";
       ImagePlus tmpbfimg = IJ.openImage(root + "BF.tif");
-//      ImagePlus tmpbfimg = IJ.openImage("/media/tong/screening/17_11_17/BF_1/BF_1_MMStack_mph1.ome.tif");
       int zsliceNb = tmpbfimg.getDimensions()[3];
       double[] varArray = new double[zsliceNb];
       ImageProcessor[] bfProcessors = new ImageProcessor[zsliceNb];
@@ -42,19 +42,5 @@ public class Tests {
       double startZ = 0.;
       double[] expected = new double[]{-0.5, -0.2, 0.1, 0.4};
       Assert.assertArrayEquals(expected, BFAutofocus.calculateZPositions(range,step, startZ), 0.01);
-   }
-
-   @Test
-   public void calculateFocusZPositionTest(){
-      Assert.assertEquals(15, BFAutofocus.getZfocus(vars),1);
-   }
-
-   @Test
-   public void optimizeZFocusTest(){
-      double[] zposList = new double[vars.length];
-      for (int  i = 0; i< zposList.length; i++){
-         zposList[i] = (double) i ;
-      }
-      Assert.assertEquals(15.5 -1, BFAutofocus.optimizeZFocus(14, vars, zposList),0.3);
    }
 }
