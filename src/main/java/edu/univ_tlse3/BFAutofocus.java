@@ -260,6 +260,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                         //Get Correction to apply : 0-1 = mean; 5-6 = median; 7-8 = min distance; 9-10 = mode
                         xCorrection = xyDriftsAKAZEBRISK[5];
                         yCorrection = xyDriftsAKAZEBRISK[6];
+                        if (Double.isNaN(xCorrection) || Double.isNaN(yCorrection)){
+                            ReportingUtils.logMessage("Drift correction failed at position " + label + " timepoint " + timepoint);
+                            xCorrection = 0;
+                            yCorrection = 0;
+                        }
                     }
 
                     ReportingUtils.logMessage("X Correction : " + xCorrection);
