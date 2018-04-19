@@ -245,17 +245,22 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     List<double[]> drifts = getMultipleXYDrifts(currentMat8Set, FeatureDetector.BRISK, FeatureDetector.ORB, FeatureDetector.AKAZE,
                             DescriptorExtractor.BRISK, DescriptorExtractor.ORB, DescriptorExtractor.AKAZE, DescriptorMatcher.FLANNBASED,
                             oldROI, oldState, oldExposure, oldAutoShutterState);
-                    xyDriftsBRISKORB = drifts.get(0);
-                    xyDriftsORBORB = drifts.get(1);
-                    xyDriftsORBBRISK = drifts.get(2);
-                    xyDriftsBRISKBRISK = drifts.get(3);
-                    xyDriftsAKAZEBRISK = drifts.get(4);
-                    xyDriftsAKAZEORB = drifts.get(5);
-                    xyDriftsAKAZEAKAZE = drifts.get(6);
+                    if (drifts.size() < 7){
+                        xCorrection = 0;
+                        yCorrection = 0;
+                    }else{
+                        xyDriftsBRISKORB = drifts.get(0);
+                        xyDriftsORBORB = drifts.get(1);
+                        xyDriftsORBBRISK = drifts.get(2);
+                        xyDriftsBRISKBRISK = drifts.get(3);
+                        xyDriftsAKAZEBRISK = drifts.get(4);
+                        xyDriftsAKAZEORB = drifts.get(5);
+                        xyDriftsAKAZEAKAZE = drifts.get(6);
 
-                    //Get Correction to apply : 0-1 = mean; 5-6 = median; 7-8 = min distance; 9-10 = mode
-                    xCorrection = xyDriftsAKAZEBRISK[5];
-                    yCorrection = xyDriftsAKAZEBRISK[6];
+                        //Get Correction to apply : 0-1 = mean; 5-6 = median; 7-8 = min distance; 9-10 = mode
+                        xCorrection = xyDriftsAKAZEBRISK[5];
+                        yCorrection = xyDriftsAKAZEBRISK[6];
+                    }
 
                     ReportingUtils.logMessage("X Correction : " + xCorrection);
                     ReportingUtils.logMessage("Y Correction : " + yCorrection);
@@ -300,19 +305,17 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                         currentYPosition, correctedYPosition, currentZPosition, correctedZPosition,
                         drifts, intervalInMin);
             }
+
+            //If XY Correction, new coordinates; else, corrected = current coordinates;
+            setXYPosition(correctedXPosition, correctedYPosition);
+
+            //Reference image incremental
+            core_.waitForDevice(core_.getCameraDevice());
+            core_.snapImage();
+            TaggedImage newRefTaggedImage = core_.getTaggedImage();
+            Mat newRefMat = convertTo8BitsMat(newRefTaggedImage);
+            refImageDict.replace(label, newRefMat);
         }
-
-        System.out.println("Out of XYCorrection statement");
-
-        //If XY Correction, new coordinates; else, corrected = current coordinates;
-        setXYPosition(correctedXPosition, correctedYPosition);
-
-        //Reference image incremental
-        core_.waitForDevice(core_.getCameraDevice());
-        core_.snapImage();
-        TaggedImage newRefTaggedImage = core_.getTaggedImage();
-        Mat newRefMat = convertTo8BitsMat(newRefTaggedImage);
-        refImageDict.replace(label, newRefMat);
 
         //Reset conditions
         resetInitialMicroscopeCondition(oldROI, oldState, oldExposure, oldAutoShutterState);
@@ -565,14 +568,20 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                 intervalInMin, umPerStep, detectorAlgo3, descriptorExtractor3, descriptorMatcher));
 
         List<double[]> drifts = new ArrayList<>();
+        double[] currentRes = null;
+        int algoIndex = -1;
         try {
             for (int i = 0; i < jobs.length; i++) {
-                drifts.add(i, (double[]) jobs[i].get());
+                currentRes = (double[]) jobs[i].get();
+                algoIndex = i;
+                drifts.add(i, currentRes);
             }
         } catch (InterruptedException | ExecutionException e) {
             try {
+                for (double d : currentRes){
+                    ReportingUtils.logMessage("Error in algo " + algoIndex + "_" + d);
+                }
                 resetInitialMicroscopeCondition(oldROI, oldState, oldExposure, oldAutoShutterState);
-
             } catch (Exception e1) {
                 e1.printStackTrace();
             }
