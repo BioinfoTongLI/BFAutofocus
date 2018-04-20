@@ -47,10 +47,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private static final String XY_CORRECTION_TEXT = "Correct XY at same time";
     private static final String DETECTORALGO_TEXT = "Feature detector algorithm";
     private static final String MATCHERALGO_TEXT = "Matches extractor algorithm";
-    private static final String MATCHERALGOwoAKAZE_TEXT = "Matches extractor algorithm";
     private static final String[] DETECTORALGO_VALUES = {"AKAZE", "BRISK", "ORB"};
     private static final String[] MATCHERALGO_VALUES = {"AKAZE", "BRISK", "ORB"};
-    private static final String[] MATCHERALGOwoAKAZE_VALUES = {"BRISK", "ORB"};
     private static final String[] SHOWIMAGES_VALUES = {"Yes", "No"};
     private static final String[] SAVEIMAGES_VALUES = {"Yes", "No"};
     private static final String STEP_SIZE = "Step_size";
@@ -101,12 +99,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         super.createProperty(XY_CORRECTION_TEXT, xy_correction, XY_CORRECTION_VALUES);
         super.createProperty(TESTALLALGOS_TEXT, testAllAlgos, TESTALLALGOS_VALUES);
         super.createProperty(DETECTORALGO_TEXT, detectorAlgo, DETECTORALGO_VALUES);
-        if (detectorAlgo == "AKAZE") {
-            super.createProperty(MATCHERALGO_TEXT, matcherAlgo, MATCHERALGO_VALUES);
-        } else {
-            super.createProperty(MATCHERALGOwoAKAZE_TEXT, matcherAlgo, MATCHERALGOwoAKAZE_VALUES);
-        }
-//        super.createProperty(MATCHERALGO_TEXT, matcherAlgo, MATCHERALGO_VALUES);
+        super.createProperty(MATCHERALGO_TEXT, matcherAlgo, MATCHERALGO_VALUES);
         super.createProperty(STEP_SIZE, NumberUtils.doubleToDisplayString(step));
         super.createProperty(CHANNEL, channel);
         super.createProperty(UMPERSTEP, NumberUtils.doubleToDisplayString(umPerStep));
@@ -126,17 +119,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             xy_correction = getPropertyValue(XY_CORRECTION_TEXT);
             testAllAlgos = getPropertyValue(TESTALLALGOS_TEXT);
             detectorAlgo = getPropertyValue(DETECTORALGO_TEXT);
-//            matcherAlgo = getPropertyValue(MATCHERALGO_TEXT);
-            if (detectorAlgo == "AKAZE") {
-                matcherAlgo = getPropertyValue(MATCHERALGO_TEXT);
-            } else {
-                matcherAlgo = getPropertyValue(MATCHERALGOwoAKAZE_TEXT);
+            matcherAlgo = getPropertyValue(MATCHERALGO_TEXT);
+            if ((detectorAlgo == "ORB" || detectorAlgo == "BRISK") && matcherAlgo == "AKAZE") {
+                ReportingUtils.showMessage("This combination does not work. Please choose another one");
             }
-//            if ((detectorAlgo == "ORB" || detectorAlgo == "BRISK") && matcherAlgo == "AKAZE") {
-//                YesNoCancelDialog
-//            } else {
-//                matcherAlgo = getPropertyValue(MATCHERALGO_TEXT);
-//            }
             if (detectorAlgo == "ORB" && matcherAlgo == "BRISK") {
                 YesNoCancelDialog yesNoCancelDialog = new YesNoCancelDialog(null, "Warning message :",
                         "No result can be guaranteed by using these two algorithms. Proceed anyway?");
