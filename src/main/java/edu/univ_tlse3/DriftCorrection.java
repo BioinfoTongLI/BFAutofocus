@@ -1,5 +1,6 @@
 package edu.univ_tlse3;
 
+import ij.IJ;
 import ij.ImagePlus;
 import org.apache.commons.math3.stat.descriptive.rank.Median;
 import org.opencv.core.*;
@@ -15,14 +16,10 @@ import static org.opencv.features2d.Features2d.NOT_DRAW_SINGLE_POINTS;
 
 public class DriftCorrection {
 
-    // Read images from path
-//    public static Mat readImage(String pathOfImage) {
-//        Mat img = Imgcodecs.imread(pathOfImage, CvType.CV_16UC1);
-//        Mat img1 = new Mat(img.cols(), img.rows(), CvType.CV_8UC1);
-//        img.convertTo(img1, CvType.CV_8UC1, BFAutofocus.alpha);
-//        Mat img2 = equalizeImages(img1);
-//        return img2;
-//    }
+    protected static final int MEAN = 1;
+    protected static final int MEDIAN = 2;
+    protected static final int MIN = 3;
+    protected static final int MODE = 4;
 
     static Mat equalizeImages(Mat img) {
         Mat imgEqualized = new Mat(img.cols(), img.rows(), img.type());
@@ -328,7 +325,8 @@ public class DriftCorrection {
     //********************************** Main method *********************************//
     //********************************************************************************//
     public static double[] driftCorrection(Mat img1, Mat img2, double calibration, double intervalInMin, double umPerStep,
-                                           Integer detectorAlgo, Integer descriptorExtractor, Integer descriptorMatcher) {
+                                           Integer detectorAlgo, Integer descriptorExtractor, Integer descriptorMatcher,
+                                           int flag) {
 
         long startTime = new Date().getTime();
 
@@ -359,25 +357,32 @@ public class DriftCorrection {
         ArrayList<Double> goodMatchesYDistances = getGoodMatchesDistances("yDistances", listOfGoodMatchesIndex, matcher, keypoints1, keypoints2, calibration);
 
         /* Calculate statistics */
-        float meanXdisplacement = getMean(goodMatchesXDistances);
-        float meanYdisplacement = getMean(goodMatchesYDistances);
-
-        double minXDisplacement = getMinimum(goodMatchesXDistances);
-        double minYDisplacement = getMinimum(goodMatchesYDistances);
-
-        double medianXDisplacement = getMedian(goodMatchesXDistances);
-        double medianYDisplacement = getMedian(goodMatchesYDistances);
-
-        double modeXDisplacement = getMode(goodMatchesXDistances);
-        double modeYDisplacement = getMode(goodMatchesYDistances);
-
+        double xDisplacement = 0;
+        double yDisplacement = 0;
+        switch (flag){
+            case MEAN:
+                xDisplacement = getMean(goodMatchesXDistances);
+                yDisplacement = getMean(goodMatchesYDistances);
+                break;
+            case MEDIAN:
+                xDisplacement = getMinimum(goodMatchesXDistances);
+                yDisplacement = getMinimum(goodMatchesYDistances);
+                break;
+            case MIN:
+                xDisplacement = getMedian(goodMatchesXDistances);
+                yDisplacement = getMedian(goodMatchesYDistances);
+                break;
+            case MODE:
+                xDisplacement = getMode(goodMatchesXDistances);
+                yDisplacement = getMode(goodMatchesYDistances);
+                break;
+            default:
+                IJ.error("Unknown method");
+        }
         long endTime = new Date().getTime();
         long algorithmDuration = endTime - startTime;
 
-        return new double[]{meanXdisplacement, meanYdisplacement, matcher.rows(), good_matchesList.size(), algorithmDuration,
-                medianXDisplacement, medianYDisplacement, minXDisplacement, minYDisplacement, 
-                modeXDisplacement, modeYDisplacement
-        };
+        return new double[]{xDisplacement, yDisplacement, matcher.rows(), good_matchesList.size(), algorithmDuration};
     }
 }
 
