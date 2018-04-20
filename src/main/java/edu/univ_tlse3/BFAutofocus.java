@@ -47,6 +47,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private static final String XY_CORRECTION_TEXT = "Correct XY at same time";
     private static final String DETECTORALGO_TEXT = "Feature detector algorithm";
     private static final String MATCHERALGO_TEXT = "Matches extractor algorithm";
+    private static final String MATCHERALGOwoAKAZE_TEXT = "Matches extractor algorithm";
     private static final String[] DETECTORALGO_VALUES = {"AKAZE", "BRISK", "ORB"};
     private static final String[] MATCHERALGO_VALUES = {"AKAZE", "BRISK", "ORB"};
     private static final String[] MATCHERALGOwoAKAZE_VALUES = {"BRISK", "ORB"};
@@ -103,7 +104,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         if (detectorAlgo == "AKAZE") {
             super.createProperty(MATCHERALGO_TEXT, matcherAlgo, MATCHERALGO_VALUES);
         } else {
-            super.createProperty(MATCHERALGO_TEXT, matcherAlgo, MATCHERALGOwoAKAZE_VALUES);
+            super.createProperty(MATCHERALGOwoAKAZE_TEXT, matcherAlgo, MATCHERALGOwoAKAZE_VALUES);
         }
 //        super.createProperty(MATCHERALGO_TEXT, matcherAlgo, MATCHERALGO_VALUES);
         super.createProperty(STEP_SIZE, NumberUtils.doubleToDisplayString(step));
@@ -125,20 +126,20 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             xy_correction = getPropertyValue(XY_CORRECTION_TEXT);
             testAllAlgos = getPropertyValue(TESTALLALGOS_TEXT);
             detectorAlgo = getPropertyValue(DETECTORALGO_TEXT);
-            matcherAlgo = getPropertyValue(MATCHERALGO_TEXT);
-//            if (detectorAlgo == "AKAZE") {
-//                super.createProperty(MATCHERALGO_TEXT, matcherAlgo, MATCHERALGO_VALUES);
-//                matcherAlgo = getPropertyValue(MATCHERALGO_TEXT);
+//            matcherAlgo = getPropertyValue(MATCHERALGO_TEXT);
+            if (detectorAlgo == "AKAZE") {
+                matcherAlgo = getPropertyValue(MATCHERALGO_TEXT);
+            } else {
+                matcherAlgo = getPropertyValue(MATCHERALGOwoAKAZE_TEXT);
+            }
+//            if ((detectorAlgo == "ORB" || detectorAlgo == "BRISK") && matcherAlgo == "AKAZE") {
+//                YesNoCancelDialog
 //            } else {
-//                super.createProperty(MATCHERALGO_TEXT, matcherAlgo, MATCHERALGOwoAKAZE_VALUES);
 //                matcherAlgo = getPropertyValue(MATCHERALGO_TEXT);
 //            }
             if (detectorAlgo == "ORB" && matcherAlgo == "BRISK") {
                 YesNoCancelDialog yesNoCancelDialog = new YesNoCancelDialog(null, "Warning message :",
                         "No result can be guaranteed by using these two algorithms. Proceed anyway?");
-//                if (yesNoCancelDialog.cancelPressed()) {
-//
-//                }
             }
             channel = getPropertyValue(CHANNEL);
             umPerStep = NumberUtils.displayStringToDouble(getPropertyValue(UMPERSTEP));
@@ -354,7 +355,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         refreshOldXYZposition(correctedXPosition, correctedYPosition, correctedZPosition, label);
 
         if (!studio_.acquisitions().isAcquisitionRunning() ||
-              timepoint >= studio_.acquisitions().getAcquisitionSettings().numFrames){
+                timepoint >= studio_.acquisitions().getAcquisitionSettings().numFrames){
             resetParameters();
         }
 
