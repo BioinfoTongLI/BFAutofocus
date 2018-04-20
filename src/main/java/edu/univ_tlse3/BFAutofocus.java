@@ -1,5 +1,6 @@
 package edu.univ_tlse3;
 
+import ij.gui.YesNoCancelDialog;
 import ij.process.ImageProcessor;
 import mmcorej.*;
 import org.json.JSONException;
@@ -48,6 +49,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private static final String MATCHERALGO_TEXT = "Matches extractor algorithm";
     private static final String[] DETECTORALGO_VALUES = {"AKAZE", "BRISK", "ORB"};
     private static final String[] MATCHERALGO_VALUES = {"AKAZE", "BRISK", "ORB"};
+    private static final String[] MATCHERALGOwoAKAZE_VALUES = {"BRISK", "ORB"};
     private static final String[] SHOWIMAGES_VALUES = {"Yes", "No"};
     private static final String[] SAVEIMAGES_VALUES = {"Yes", "No"};
     private static final String STEP_SIZE = "Step_size";
@@ -98,7 +100,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         super.createProperty(XY_CORRECTION_TEXT, xy_correction, XY_CORRECTION_VALUES);
         super.createProperty(TESTALLALGOS_TEXT, testAllAlgos, TESTALLALGOS_VALUES);
         super.createProperty(DETECTORALGO_TEXT, detectorAlgo, DETECTORALGO_VALUES);
-        super.createProperty(MATCHERALGO_TEXT, matcherAlgo, MATCHERALGO_VALUES);
+        if (detectorAlgo != "AKAZE") {
+            super.createProperty(MATCHERALGO_TEXT, matcherAlgo, MATCHERALGOwoAKAZE_VALUES);
+        } else {
+            super.createProperty(MATCHERALGO_TEXT, matcherAlgo, MATCHERALGO_VALUES);
+        }
         super.createProperty(STEP_SIZE, NumberUtils.doubleToDisplayString(step));
         super.createProperty(CHANNEL, channel);
         super.createProperty(UMPERSTEP, NumberUtils.doubleToDisplayString(umPerStep));
@@ -119,9 +125,17 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             testAllAlgos = getPropertyValue(TESTALLALGOS_TEXT);
             detectorAlgo = getPropertyValue(DETECTORALGO_TEXT);
             matcherAlgo = getPropertyValue(MATCHERALGO_TEXT);
+//            if (detectorAlgo == "ORB" && matcherAlgo == "BRISK") {
+//                YesNoCancelDialog yesNoCancelDialog = new YesNoCancelDialog(null, "Warning message :",
+//                        "No result can be guaranteed by using these two algorithms. Proceed anyway?");
+//                if (yesNoCancelDialog.cancelPressed()) {
+//
+//                }
+//            }
             channel = getPropertyValue(CHANNEL);
             umPerStep = NumberUtils.displayStringToDouble(getPropertyValue(UMPERSTEP));
             save = getPropertyValue(SAVEIMGS_TEXT);
+
         } catch (MMException | ParseException ex) {
             studio_.logs().logError(ex);
         }
@@ -996,7 +1010,5 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     umPerStep_, detectorAlgo_, descriptorExtractor_, descriptorMatcher_);
         }
     }
-
-
 }
 
