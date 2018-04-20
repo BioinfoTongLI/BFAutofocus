@@ -55,16 +55,16 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private static final String Z_OFFSET = "Z offset";
 
     //Set default parameters
-    private double searchRange = 5;
+    private double searchRange = 10;
     private double cropFactor = 1;
     private String channel = "BF";
     private double exposure = 50;
-    private String show = "No";
+    private String show = "Yes";
     private String save = "Yes";
     private int imageCount = 0;
     private int timepoint = 0;
     private double step = 0.3;
-    private String xy_correction = "No";
+    private String xy_correction = "Yes";
     private Map<String, Mat> refImageDict = new HashMap<>();
     private Map<String, double[]> oldPositionsDict = new HashMap<>();
     private double umPerStep = 15;
@@ -270,7 +270,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         //Refresh positions in position dictionary
         refreshOldXYZposition(correctedXPosition, correctedYPosition, correctedZPosition, label);
-
+        if (positionList.getNumberOfPositions() == 0) {
+            timepoint++;
+        }
         if (!studio_.acquisitions().isAcquisitionRunning() ||
                 timepoint >= studio_.acquisitions().getAcquisitionSettings().numFrames){
             resetParameters();
@@ -284,6 +286,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private void resetParameters(){
         refImageDict = new HashMap<>();
         oldPositionsDict = new HashMap<>();
+        positionIndex = 0;
         imageCount = 0;
         timepoint = 0;
         IJ.log("BF AutoFocus internal parameters have been reset");
