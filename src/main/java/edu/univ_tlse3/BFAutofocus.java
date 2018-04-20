@@ -100,11 +100,12 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         super.createProperty(XY_CORRECTION_TEXT, xy_correction, XY_CORRECTION_VALUES);
         super.createProperty(TESTALLALGOS_TEXT, testAllAlgos, TESTALLALGOS_VALUES);
         super.createProperty(DETECTORALGO_TEXT, detectorAlgo, DETECTORALGO_VALUES);
-        if (detectorAlgo != "AKAZE") {
-            super.createProperty(MATCHERALGO_TEXT, matcherAlgo, MATCHERALGOwoAKAZE_VALUES);
-        } else {
+        if (detectorAlgo == "AKAZE") {
             super.createProperty(MATCHERALGO_TEXT, matcherAlgo, MATCHERALGO_VALUES);
+        } else {
+            super.createProperty(MATCHERALGO_TEXT, matcherAlgo, MATCHERALGOwoAKAZE_VALUES);
         }
+//        super.createProperty(MATCHERALGO_TEXT, matcherAlgo, MATCHERALGO_VALUES);
         super.createProperty(STEP_SIZE, NumberUtils.doubleToDisplayString(step));
         super.createProperty(CHANNEL, channel);
         super.createProperty(UMPERSTEP, NumberUtils.doubleToDisplayString(umPerStep));
@@ -125,13 +126,20 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             testAllAlgos = getPropertyValue(TESTALLALGOS_TEXT);
             detectorAlgo = getPropertyValue(DETECTORALGO_TEXT);
             matcherAlgo = getPropertyValue(MATCHERALGO_TEXT);
-//            if (detectorAlgo == "ORB" && matcherAlgo == "BRISK") {
-//                YesNoCancelDialog yesNoCancelDialog = new YesNoCancelDialog(null, "Warning message :",
-//                        "No result can be guaranteed by using these two algorithms. Proceed anyway?");
+//            if (detectorAlgo == "AKAZE") {
+//                super.createProperty(MATCHERALGO_TEXT, matcherAlgo, MATCHERALGO_VALUES);
+//                matcherAlgo = getPropertyValue(MATCHERALGO_TEXT);
+//            } else {
+//                super.createProperty(MATCHERALGO_TEXT, matcherAlgo, MATCHERALGOwoAKAZE_VALUES);
+//                matcherAlgo = getPropertyValue(MATCHERALGO_TEXT);
+//            }
+            if (detectorAlgo == "ORB" && matcherAlgo == "BRISK") {
+                YesNoCancelDialog yesNoCancelDialog = new YesNoCancelDialog(null, "Warning message :",
+                        "No result can be guaranteed by using these two algorithms. Proceed anyway?");
 //                if (yesNoCancelDialog.cancelPressed()) {
 //
 //                }
-//            }
+            }
             channel = getPropertyValue(CHANNEL);
             umPerStep = NumberUtils.displayStringToDouble(getPropertyValue(UMPERSTEP));
             save = getPropertyValue(SAVEIMGS_TEXT);
