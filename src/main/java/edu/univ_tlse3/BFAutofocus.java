@@ -1,5 +1,6 @@
 package edu.univ_tlse3;
 
+import ij.IJ;
 import ij.gui.YesNoCancelDialog;
 import ij.process.ImageProcessor;
 import mmcorej.*;
@@ -353,8 +354,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private void resetParameters(){
         refImageDict = new HashMap<>();
         oldPositionsDict = new HashMap<>();
+        positionIndex = 0;
         imageCount = 0;
         timepoint = 0;
+        IJ.log("BF AutoFocus internal parameters have been reset");
     }
 
     private int getFeatureDetectorIndex(String name){
