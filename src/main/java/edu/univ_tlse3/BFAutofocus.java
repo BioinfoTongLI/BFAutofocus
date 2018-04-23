@@ -304,8 +304,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
                     //Get Correction to apply : 0-1 = mean; 5-6 = median; 7-8 = min distance; 9-10 = mode
                     drifts = calculateXYDrifts(currentMat8Set, detector, matcher, DescriptorMatcher.FLANNBASED);
-                    xCorrection = drifts[5];
-                    yCorrection = drifts[6];
+                    xCorrection = drifts[0];
+                    yCorrection = drifts[1];
 
                     correctedXPosition = currentXPosition + xCorrection;
                     correctedYPosition = currentYPosition + yCorrection;
@@ -566,8 +566,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         jobs[1] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
                 intervalInMin, umPerStep, detectorAlgo2, descriptorExtractor2, descriptorMatcher));
         //ORB-BRISK
-        jobs[2] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
-                intervalInMin, umPerStep, detectorAlgo2, descriptorExtractor1, descriptorMatcher));
+        jobs[2] = null;//es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
+                //intervalInMin, umPerStep, detectorAlgo2, descriptorExtractor1, descriptorMatcher));
         //BRISK-BRISK
         jobs[3] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
                 intervalInMin, umPerStep, detectorAlgo1, descriptorExtractor1, descriptorMatcher));
