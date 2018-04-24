@@ -352,6 +352,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         //Refresh positions in position dictionary
         refreshOldXYZposition(correctedXPosition, correctedYPosition, correctedZPosition, label);
 
+        if (positionList.getNumberOfPositions() == 0) {
+            timepoint++;
+        }
+
         if (!studio_.acquisitions().isAcquisitionRunning() ||
                 timepoint >= studio_.acquisitions().getAcquisitionSettings().numFrames){
             resetParameters();
