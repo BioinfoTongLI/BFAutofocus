@@ -60,7 +60,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private static final String[] TESTALLALGOS_VALUES = {"Yes", "No"};
 
     //Set default parameters
-    private double searchRange = 5;
+    private double searchRange = 6;
     private double cropFactor = 1;
     private String channel = "BF";
     private double exposure = 50;
@@ -72,7 +72,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private String xy_correction = "Yes";
     private Map<String, Mat> refImageDict = new HashMap<>();
     private Map<String, double[]> oldPositionsDict = new HashMap<>();
-    private double umPerStep = 15;
+    private double umPerStep = 10;
     private String testAllAlgos = "Yes";
     private String detectorAlgo = "AKAZE";
     private String matcherAlgo = "BRISK";
@@ -309,6 +309,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     if (Double.isNaN(xCorrection) || Double.isNaN(yCorrection)){
                         ReportingUtils.logMessage("Drift correction failed at position " + label + " timepoint " + timepoint);
                         xCorrection = 0;
+                        yCorrection = 0;
+                    } else if (Math.abs(xCorrection) < 0.01) {
+                        xCorrection = 0;
+                    } else if (Math.abs(yCorrection) < 0.01) {
                         yCorrection = 0;
                     }
 
