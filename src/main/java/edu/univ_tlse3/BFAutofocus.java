@@ -301,12 +301,14 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     imgRef_Mat = refImageDict.get(label);
                     int detector = getFeatureDetectorIndex(detectorAlgo);
                     int matcher = getDescriptorExtractorIndex(matcherAlgo);
-                    ReportingUtils.logMessage("FeatureDetector : " + detector);
 
                     //Get Correction to apply : 0-1 = mean; 5-6 = median; 7-8 = min distance; 9-10 = mode
                     drifts = calculateXYDrifts(currentMat8Set, detector, matcher, DescriptorMatcher.FLANNBASED);
                     xCorrection = drifts[0];
                     yCorrection = drifts[1];
+
+                    ReportingUtils.logMessage("X Correction : " + xCorrection);
+                    ReportingUtils.logMessage("Y Correction : " + yCorrection);
 
                     correctedXPosition = currentXPosition + xCorrection;
                     correctedYPosition = currentYPosition + yCorrection;
@@ -658,7 +660,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                                      double[] xyDriftsORBORB, double[] xyDriftsORBBRISK, double[] xyDriftsBRISKBRISK,
                                      double[] xyDriftsAKAZEAKAZE, double[] xyDriftsAKAZEBRISK, double[] xyDriftsAKAZEORB) throws IOException {
 
-        File f1 = new File(savingPath + prefix + "_Stats_" + label + ".csv");
+        File f1 = new File(savingPath + prefix + label + "_Stats_" + ".csv");
         if (!f1.exists()) {
             f1.createNewFile();
             FileWriter fw = new FileWriter(f1);
@@ -832,7 +834,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                              double currentYPosition, double correctedYPosition,
                              double currentZPosition, double correctedZPosition, double[] xyDrifts, double intervalInMin_) throws IOException {
 
-        File f1 = new File(savingPath + prefix + "_Stats_" + label + ".csv");
+        File f1 = new File(savingPath + prefix + label + "_Stats_" + ".csv");
         if (!f1.exists()) {
             f1.createNewFile();
             FileWriter fw = new FileWriter(f1);
