@@ -8,9 +8,9 @@ import org.json.JSONException;
 import org.micromanager.AutofocusPlugin;
 import org.micromanager.PositionList;
 import org.micromanager.Studio;
-import org.micromanager.data.Coords;
 import org.micromanager.data.Datastore;
 import org.micromanager.data.Image;
+import org.micromanager.data.internal.DefaultMetadata;
 import org.micromanager.internal.utils.*;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
@@ -193,7 +193,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             store = studio_.data().createMultipageTIFFDatastore(
                   savingPath + File.separator + label + "_BFs",
                   false,false);
-//            studio_.displays().createDisplay(store);
+            if (show.contentEquals("Yes")) {
+                studio_.displays().createDisplay(store);
+            }
         }
         
         //Incrementation of position counter; does not work at another place
@@ -369,7 +371,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                 store.freeze();
                 store.close();
                 studio_.core().clearCircularBuffer();
-//            studio_.displays().manage(store);
+                if (show.contentEquals("Yes")) {
+                    studio_.displays().manage(store);
+                }
             }
             resetParameters();
         }
@@ -485,17 +489,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         return maxIdx;
     }
 
-    private void showImage(TaggedImage currentImg) {
-        SwingUtilities.invokeLater(() -> {
-            try {
-                studio_.live().displayImage(studio_.data().convertTaggedImage(currentImg));
-            }
-            catch (JSONException | IllegalArgumentException e) {
-                studio_.logs().showError(e);
-            }
-        });
-    }
-
     public static double[] calculateZPositions(double searchRange, double step, double startZUm){
         double lower = startZUm - searchRange/2;
         int nstep  = new Double(searchRange/step).intValue() + 1;
@@ -534,16 +527,14 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             core_.snapImage();
             currentImg = core_.getTaggedImage();
             imageCount++;
-            Coords.CoordsBuilder builder = studio_.data().getCoordsBuilder().z(i).channel(0).stagePosition(0).time(timepoint);
-            Image img = studio_.data().convertTaggedImage(currentImg, builder.build(), null);
+            Image img = studio_.data().convertTaggedImage(currentImg,
+                  studio_.data().getCoordsBuilder().z(i).channel(0).stagePosition(0).time(timepoint).build(),
+                  studio_.data().getMetadataBuilder().pixelSizeUm(studio_.core().getPixelSizeUm()).build());
             if (save){
                 assert store != null;
                 store.putImage(img);
             }
             stdAtZPositions[i] = studio_.data().ij().createProcessor(img).getStatistics().stdDev;
-            if (show.contentEquals("Yes")) {
-                showImage(currentImg);
-            }
         }
         
         int rawIndex = getZfocus(stdAtZPositions);
