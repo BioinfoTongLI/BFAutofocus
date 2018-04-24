@@ -315,12 +315,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     ReportingUtils.logMessage("X Correction : " + xCorrection);
                     ReportingUtils.logMessage("Y Correction : " + yCorrection);
 
-                    if (Double.isNaN(xCorrection) || Double.isNaN(yCorrection)){
-                        ReportingUtils.logMessage("Drift correction failed at position " + label + " timepoint " + timepoint);
-                        xCorrection = 0;
-                        yCorrection = 0;
-                    }
-
                     correctedXPosition = currentXPosition + xCorrection;
                     correctedYPosition = currentYPosition + yCorrection;
 
