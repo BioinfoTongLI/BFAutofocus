@@ -87,6 +87,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private double intervalInMin = 0;
     private int positionIndex = 0;
     private String savingPath;
+    private Datastore store;
 
     //Begin autofocus
     public BFAutofocus() {
@@ -176,7 +177,13 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             label = getLabelOfPositions(positionList);
         }
         System.out.println("Label Position : " + label + " at time point : " + timepoint);
-
+    
+        if (save.contentEquals("Yes") && !new File(savingPath + File.separator + label + "_BFs").exists()){
+            store = studio_.data().createMultipageTIFFDatastore(
+                  savingPath + File.separator + label + "_BFs",
+                  false,false);
+//            studio_.displays().createDisplay(store);
+        }
         //Incrementation of position counter; does not work at another place
         positionIndex += 1;
 
@@ -204,7 +211,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
 
         //Calculate Focus
-        double correctedZPosition = calculateZFocus(oldZ, label, timepoint, save.contentEquals("Yes"));
+        double correctedZPosition = calculateZFocus(oldZ, timepoint, save.contentEquals("Yes"));
         System.out.println("Corrected Z Position : " + correctedZPosition);
         //Set to the focus
         setZPosition(correctedZPosition + zOffset);
@@ -322,6 +329,12 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         if (!studio_.acquisitions().isAcquisitionRunning() ||
               timepoint >= studio_.acquisitions().getAcquisitionSettings().numFrames){
+            if (save.contentEquals("Yes")) {
+                store.freeze();
+                store.close();
+                studio_.core().clearCircularBuffer();
+//            studio_.displays().manage(store);
+            }
             resetParameters();
         }
 
@@ -470,18 +483,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
     }
 
-    private double calculateZFocus(double oldZ, String positionLabel, int timepoint, boolean save) throws Exception {
+    private double calculateZFocus(double oldZ, int timepoint, boolean save) throws Exception {
         double[] zpositions = calculateZPositions(searchRange, step, oldZ);
         double[] stdAtZPositions = new double[zpositions.length];
         TaggedImage currentImg;
-        Datastore store = null;
-        if (save){
-            store = studio_.data().createMultipageTIFFDatastore(
-                    savingPath + File.separator + positionLabel + "_T" + String.valueOf(timepoint),
-                    false,false);
-//            studio_.displays().createDisplay(store);
-        }
-
+        
         for (int i =0; i< zpositions.length ;i++){
             setZPosition(zpositions[i]);
             core_.waitForDevice(core_.getCameraDevice());
@@ -498,13 +504,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             if (show.contentEquals("Yes")) {
                 showImage(currentImg);
             }
-        }
-
-        if (save) {
-            store.freeze();
-            store.close();
-            studio_.core().clearCircularBuffer();
-//            studio_.displays().manage(store);
         }
 
         int rawIndex = getZfocus(stdAtZPositions);
