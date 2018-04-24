@@ -10,6 +10,7 @@ import org.micromanager.PositionList;
 import org.micromanager.Studio;
 import org.micromanager.data.Datastore;
 import org.micromanager.data.Image;
+import org.micromanager.data.internal.DefaultCoords;
 import org.micromanager.data.internal.DefaultMetadata;
 import org.micromanager.internal.utils.*;
 import org.opencv.core.Core;
@@ -64,7 +65,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private double cropFactor = 1;
     private String channel = "BF";
     private double exposure = 50;
-    private String show = "No";
+    private String show = "Yes";
     private String save = "Yes";
     private int imageCount = 0;
     private int timepoint = 0;
@@ -73,7 +74,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private Map<String, Mat> refImageDict = new HashMap<>();
     private Map<String, double[]> oldPositionsDict = new HashMap<>();
     private double umPerStep = 10;
-    private String testAllAlgos = "Yes";
+    private String testAllAlgos = "No";
     private String detectorAlgo = "AKAZE";
     private String matcherAlgo = "BRISK";
     private double zOffset = -1;
@@ -188,18 +189,17 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
         
         System.out.println("Label Position : " + label + " at time point : " + timepoint);
-    
-        if (save.contentEquals("Yes") && !new File(savingPath + File.separator + label + "_BFs").exists()){
+
+        String bfPath = savingPath + File.separator +"BFs";
+        if (save.contentEquals("Yes") && !new File(bfPath).exists()){
             store = studio_.data().createMultipageTIFFDatastore(
-                  savingPath + File.separator + label + "_BFs",
-                  false,false);
+                    bfPath, false,true);
             if (show.contentEquals("Yes")) {
                 studio_.displays().createDisplay(store);
             }
         }
         
-        //Incrementation of position counter; does not work at another place
-        positionIndex += 1;
+
 
         double[] oldCorrectedPositions;
         double oldX = core_.getXPosition();
@@ -226,7 +226,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         //Calculate Focus
 
-        double correctedZPosition = calculateZFocus(oldZ, timepoint, save.contentEquals("Yes"));
+        double correctedZPosition = calculateZFocus(oldZ, save.contentEquals("Yes"));
         System.out.println("Corrected Z Position : " + correctedZPosition);
 
         //Set to the focus
@@ -369,10 +369,15 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             timepoint++;
         }
 
+        //Incrementation of position counter; does not work at another place
+        positionIndex += 1;
+
         if (!studio_.acquisitions().isAcquisitionRunning() ||
-              timepoint >= studio_.acquisitions().getAcquisitionSettings().numFrames){
+                (timepoint >= studio_.acquisitions().getAcquisitionSettings().numFrames-1
+                && store.getAxisLength("position") == positionIndex)){
             if (save.contentEquals("Yes")) {
                 store.freeze();
+                store.save(Datastore.SaveMode.MULTIPAGE_TIFF, bfPath + "another");
                 store.close();
                 studio_.core().clearCircularBuffer();
                 if (show.contentEquals("Yes")) {
@@ -520,7 +525,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
     }
 
-    private double calculateZFocus(double oldZ, int timepoint, boolean save) throws Exception {
+    private double calculateZFocus(double oldZ, boolean save) throws Exception {
         double[] zpositions = calculateZPositions(searchRange, step, oldZ);
         double[] stdAtZPositions = new double[zpositions.length];
         TaggedImage currentImg;
@@ -532,8 +537,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             currentImg = core_.getTaggedImage();
             imageCount++;
             Image img = studio_.data().convertTaggedImage(currentImg,
-                  studio_.data().getCoordsBuilder().z(i).channel(0).stagePosition(0).time(timepoint).build(),
-                  studio_.data().getMetadataBuilder().pixelSizeUm(studio_.core().getPixelSizeUm()).build());
+                  studio_.data().getCoordsBuilder().z(i).channel(0).stagePosition(positionIndex).time(timepoint).build(),
+                    studio_.data().getMetadataBuilder().pixelSizeUm(studio_.core().getPixelSizeUm()).build());
             if (save){
                 assert store != null;
                 store.putImage(img);
