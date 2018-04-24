@@ -185,7 +185,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }else{
             label = getLabelOfPositions(positionList);
         }
-        ReportingUtils.logMessage("Label Position : " + label + " at time point : " + timepoint);
+        ReportingUtils.logMessage("Position : " + label + " at time point : " + timepoint);
 
         //Incrementation of position counter; does not work at another place
         positionIndex += 1;
@@ -306,6 +306,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     drifts = calculateXYDrifts(currentMat8Set, detector, matcher, DescriptorMatcher.FLANNBASED);
                     xCorrection = drifts[0];
                     yCorrection = drifts[1];
+                    if (Double.isNaN(xCorrection) || Double.isNaN(yCorrection)){
+                        ReportingUtils.logMessage("Drift correction failed at position " + label + " timepoint " + timepoint);
+                        xCorrection = 0;
+                        yCorrection = 0;
+                    }
 
                     ReportingUtils.logMessage("X Correction : " + xCorrection);
                     ReportingUtils.logMessage("Y Correction : " + yCorrection);

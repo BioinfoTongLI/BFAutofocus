@@ -2,6 +2,7 @@ package edu.univ_tlse3;
 
 import ij.ImagePlus;
 import org.apache.commons.math3.stat.descriptive.rank.Median;
+import org.micromanager.internal.utils.ReportingUtils;
 import org.opencv.core.*;
 import org.opencv.features2d.*;
 import org.opencv.imgcodecs.Imgcodecs;
@@ -341,10 +342,10 @@ public class DriftCorrection {
         Mat img2_descriptors = calculDescriptors(img2, keypoints2, descriptorExtractor);
 
         if(img1_descriptors.empty()) {
-            System.out.println("Descriptor ref image empty");
+            ReportingUtils.logMessage("Descriptor ref image empty");
         }
         if(img2_descriptors.empty()){
-            System.out.println("Descriptor image 2 empty");
+            ReportingUtils.logMessage("Descriptor image 2 empty");
         }
 
         /* 3 - Matching descriptor */
