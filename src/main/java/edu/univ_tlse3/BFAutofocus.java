@@ -6,12 +6,11 @@ import ij.process.ImageProcessor;
 import mmcorej.*;
 import org.json.JSONException;
 import org.micromanager.AutofocusPlugin;
-import org.micromanager.MultiStagePosition;
 import org.micromanager.PositionList;
 import org.micromanager.Studio;
 import org.micromanager.data.Datastore;
 import org.micromanager.data.Image;
-import org.micromanager.data.internal.DefaultCoords;
+import org.micromanager.data.Metadata;
 import org.micromanager.data.internal.DefaultMetadata;
 import org.micromanager.internal.utils.*;
 import org.opencv.core.Core;
@@ -24,7 +23,6 @@ import org.opencv.imgcodecs.Imgcodecs;
 import org.scijava.plugin.Plugin;
 import org.scijava.plugin.SciJavaPlugin;
 
-import javax.swing.*;
 import java.awt.*;
 import java.io.*;
 import java.text.ParseException;
@@ -80,9 +78,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private String matcherAlgo = "BRISK";
     private double zOffset = -1;
 
-    //Constant
-//    public final static double alpha = 1/255.0;
-
     //Global variables
     private Studio studio_;
     private CMMCore core_;
@@ -92,6 +87,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private int positionIndex = 0;
     private String savingPath;
     private Datastore store;
+    private int zslicesNb;
 
     //Begin autofocus
     public BFAutofocus() {
@@ -124,10 +120,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             testAllAlgos = getPropertyValue(TESTALLALGOS_TEXT);
             detectorAlgo = getPropertyValue(DETECTORALGO_TEXT);
             matcherAlgo = getPropertyValue(MATCHERALGO_TEXT);
-            if ((detectorAlgo == "ORB" || detectorAlgo == "BRISK") && matcherAlgo == "AKAZE") {
+            if ((detectorAlgo.equals("ORB") || detectorAlgo.equals("BRISK")) && matcherAlgo.equals("AKAZE")) {
                 ReportingUtils.showMessage("This combination does not work. Please choose another one");
             }
-            if (detectorAlgo == "ORB" && matcherAlgo == "BRISK") {
+            if (detectorAlgo.equals("ORB") && matcherAlgo.equals("BRISK")) {
                 YesNoCancelDialog yesNoCancelDialog = new YesNoCancelDialog(null, "Warning message :",
                         "No result can be guaranteed by using these two algorithms. Proceed anyway?");
             }
@@ -183,7 +179,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         //Get label of position
         PositionList positionList = studio_.positions().getPositionList();
         String label;
+        
         if (positionList.getNumberOfPositions() == 0){
+            if (positionIndex > 0 ) {
+                positionIndex = 0;
+            }
             label = positionList.generateLabel();
         }else{
             label = getLabelOfPositions(positionList);
@@ -196,11 +196,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         if (save.contentEquals("Yes") && !new File(bfPath).exists()){
             store = studio_.data().createMultipageTIFFDatastore(
                     bfPath, false,true);
-            MultiStagePosition[] posList = new MultiStagePosition[positionList.getNumberOfPositions()];
-            for (int i = 0; i < positionList.getNumberOfPositions() ; i++){
-                posList[i] = positionList.getPosition(i);
-            }
-            store.setSummaryMetadata(studio_.data().getSummaryMetadataBuilder().stagePositions(posList).build());
             if (show.contentEquals("Yes")) {
                 studio_.displays().createDisplay(store);
             }
@@ -239,8 +234,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         //Get an image to define reference image, for each position
         core_.waitForDevice(core_.getCameraDevice());
         core_.snapImage();
-        TaggedImage taggedImagePosition = core_.getTaggedImage();
-        Mat currentMat8Set = convertTo8BitsMat(taggedImagePosition);
+        Mat currentMat8Set = convertTo8BitsMat(core_.getTaggedImage());
         Imgcodecs.imwrite(savingPath + prefix + "_" + label + "_T" + timepoint + "_Ref.tif", currentMat8Set);
 
         //Calculation of XY Drifts only if the parameter "Correct XY at same time" is set to Yes;
@@ -368,21 +362,20 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         //Refresh positions in position dictionary
         refreshOldXYZposition(correctedXPosition, correctedYPosition, correctedZPosition, label);
-
+    
         if (positionList.getNumberOfPositions() == 0) {
             timepoint++;
         }
-
-        //Incrementation of position counter; does not work at another place
-        positionIndex += 1;
-
+        
+        positionIndex ++;
+        
         if (!studio_.acquisitions().isAcquisitionRunning() ||
-                (timepoint >= studio_.acquisitions().getAcquisitionSettings().numFrames-1
+                (timepoint == studio_.acquisitions().getAcquisitionSettings().numFrames
                 && store.getAxisLength("position") == positionIndex)){
             if (save.contentEquals("Yes")) {
+                store.setSummaryMetadata(studio_.data().getSummaryMetadataBuilder().intendedDimensions(
+                      studio_.data().createCoords("position="+positionIndex+",z="+ zslicesNb +",time="+ timepoint +",channel=1")).build());
                 store.freeze();
-                store.save(Datastore.SaveMode.MULTIPAGE_TIFF, bfPath + "another");
-                store.close();
                 studio_.core().clearCircularBuffer();
                 if (show.contentEquals("Yes")) {
                     studio_.displays().manage(store);
@@ -390,7 +383,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             }
             resetParameters();
         }
-
+        
         return correctedZPosition;
     }
 
@@ -529,6 +522,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
     private double calculateZFocus(double oldZ, boolean save) throws Exception {
         double[] zpositions = calculateZPositions(searchRange, step, oldZ);
+        zslicesNb = zpositions.length;
         double[] stdAtZPositions = new double[zpositions.length];
         TaggedImage currentImg;
 
@@ -538,16 +532,20 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             core_.snapImage();
             currentImg = core_.getTaggedImage();
             imageCount++;
+            Metadata metadata = DefaultMetadata.legacyFromJSON(currentImg.tags);
+            PositionList posList = studio_.positions().getPositionList();
+            if (posList.getNumberOfPositions()>0){
+                metadata = metadata.copy().positionName(posList.getPosition(positionIndex).getLabel()).build();
+            }
             Image img = studio_.data().convertTaggedImage(currentImg,
                   studio_.data().getCoordsBuilder().z(i).channel(0).stagePosition(positionIndex).time(timepoint).build(),
-                    studio_.data().getMetadataBuilder().pixelSizeUm(studio_.core().getPixelSizeUm()).build());
+                  metadata);
             if (save){
                 assert store != null;
                 store.putImage(img);
             }
             stdAtZPositions[i] = studio_.data().ij().createProcessor(img).getStatistics().stdDev;
         }
-        
         int rawIndex = getZfocus(stdAtZPositions);
         return optimizeZFocus(rawIndex, stdAtZPositions, zpositions);
     }
