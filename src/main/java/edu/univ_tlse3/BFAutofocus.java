@@ -190,7 +190,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         
         System.out.println("Label Position : " + label + " at time point : " + timepoint);
 
-        String bfPath = savingPath + File.separator +"BFs";
+        //Creation of BF saving directory
+        String bfPath = savingPath + "BFs";
         if (save.contentEquals("Yes") && !new File(bfPath).exists()){
             store = studio_.data().createMultipageTIFFDatastore(
                     bfPath, false,true);
@@ -198,8 +199,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                 studio_.displays().createDisplay(store);
             }
         }
-        
-
 
         double[] oldCorrectedPositions;
         double oldX = core_.getXPosition();
@@ -225,7 +224,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
 
         //Calculate Focus
-
         double correctedZPosition = calculateZFocus(oldZ, save.contentEquals("Yes"));
         System.out.println("Corrected Z Position : " + correctedZPosition);
 
@@ -390,7 +388,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         return correctedZPosition;
     }
 
-
     //Methods
     private void resetParameters(){
         refImageDict = new HashMap<>();
@@ -440,7 +437,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private void resetInitialMicroscopeCondition(Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState) throws Exception {
         //Reinitialize origin ROI and all other parameters
         core_.setAutoShutter(oldAutoShutterState);
-
 
         if (cropFactor < 1.0) {
             studio_.app().setROI(oldROI);
@@ -674,7 +670,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                                      double[] xyDriftsORBORB, double[] xyDriftsORBBRISK, double[] xyDriftsBRISKBRISK,
                                      double[] xyDriftsAKAZEAKAZE, double[] xyDriftsAKAZEBRISK, double[] xyDriftsAKAZEORB) throws IOException {
 
-        File f1 = new File(savingPath + prefix + label + "_Stats_" + ".csv");
+        File f1 = new File(savingPath + prefix + "_" + label + "_Stats" + ".csv");
         if (!f1.exists()) {
             f1.createNewFile();
             FileWriter fw = new FileWriter(f1);
@@ -848,7 +844,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                              double currentYPosition, double correctedYPosition,
                              double currentZPosition, double correctedZPosition, double[] xyDrifts, double intervalInMin_) throws IOException {
 
-        File f1 = new File(savingPath + prefix + label + "_Stats_" + ".csv");
+        File f1 = new File(savingPath + prefix + "_" + label + "_Stats" + ".csv");
         if (!f1.exists()) {
             f1.createNewFile();
             FileWriter fw = new FileWriter(f1);
