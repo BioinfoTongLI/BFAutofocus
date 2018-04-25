@@ -11,7 +11,10 @@ import org.micromanager.Studio;
 import org.micromanager.data.Datastore;
 import org.micromanager.data.Image;
 import org.micromanager.data.Metadata;
+import org.micromanager.data.SummaryMetadata;
+import org.micromanager.data.internal.DefaultCoords;
 import org.micromanager.data.internal.DefaultMetadata;
+import org.micromanager.data.internal.DefaultSummaryMetadata;
 import org.micromanager.internal.utils.*;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
@@ -373,13 +376,28 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                 (timepoint == studio_.acquisitions().getAcquisitionSettings().numFrames
                 && store.getAxisLength("position") == positionIndex)){
             if (save.contentEquals("Yes")) {
-                store.setSummaryMetadata(studio_.data().getSummaryMetadataBuilder().intendedDimensions(
-                      studio_.data().createCoords("position="+positionIndex+",z="+ zslicesNb +",time="+ timepoint +",channel=1")).build());
+                SummaryMetadata summary = store.getSummaryMetadata();
+                if (summary == null) {
+                    // Create dummy summary metadata just for saving.
+                    summary = (new DefaultSummaryMetadata.Builder()).build();
+                }
+                // Insert intended dimensions if they aren't already present.
+                if (summary.getIntendedDimensions() == null) {
+                    DefaultCoords.Builder builder = new DefaultCoords.Builder();
+                    for (String axis : store.getAxes()) {
+                        builder.index(axis, store.getAxisLength(axis));
+                    }
+                    summary = summary.copy().intendedDimensions(builder.build()).build();
+                }
+                store.setSummaryMetadata(summary);
                 store.freeze();
+                store.save(Datastore.SaveMode.MULTIPAGE_TIFF, bfPath+"_ordered");
+                store.close();
                 studio_.core().clearCircularBuffer();
                 if (show.contentEquals("Yes")) {
                     studio_.displays().manage(store);
                 }
+                
             }
             resetParameters();
         }
