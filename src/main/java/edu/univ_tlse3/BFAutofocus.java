@@ -6,6 +6,7 @@ import ij.process.ImageProcessor;
 import mmcorej.*;
 import org.json.JSONException;
 import org.micromanager.AutofocusPlugin;
+import org.micromanager.MultiStagePosition;
 import org.micromanager.PositionList;
 import org.micromanager.Studio;
 import org.micromanager.data.Datastore;
@@ -195,6 +196,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         if (save.contentEquals("Yes") && !new File(bfPath).exists()){
             store = studio_.data().createMultipageTIFFDatastore(
                     bfPath, false,true);
+            MultiStagePosition[] posList = new MultiStagePosition[positionList.getNumberOfPositions()];
+            for (int i = 0; i < positionList.getNumberOfPositions() ; i++){
+                posList[i] = positionList.getPosition(i);
+            }
+            store.setSummaryMetadata(studio_.data().getSummaryMetadataBuilder().stagePositions(posList).build());
             if (show.contentEquals("Yes")) {
                 studio_.displays().createDisplay(store);
             }
