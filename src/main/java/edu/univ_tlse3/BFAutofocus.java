@@ -188,7 +188,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             label = getLabelOfPositions(positionList);
         }
         
-        System.out.println("Label Position : " + label + " at time point : " + timepoint);
+        ReportingUtils.logMessage("Position : " + label + " at time point : " + timepoint);
 
         //Creation of BF saving directory
         String bfPath = savingPath + "BFs";
@@ -225,7 +225,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         //Calculate Focus
         double correctedZPosition = calculateZFocus(oldZ, save.contentEquals("Yes"));
-        System.out.println("Corrected Z Position : " + correctedZPosition);
+        ReportingUtils.logMessage("Corrected Z Position : " + correctedZPosition);
 
         //Set to the focus
         setZPosition(correctedZPosition + zOffset);
@@ -235,7 +235,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         core_.snapImage();
         TaggedImage taggedImagePosition = core_.getTaggedImage();
         Mat currentMat8Set = convertTo8BitsMat(taggedImagePosition);
-        Imgcodecs.imwrite(savingPath + prefix + label + "_T" + timepoint + "_Ref.tif", currentMat8Set);
+        Imgcodecs.imwrite(savingPath + prefix + "_" + label + "_T" + timepoint + "_Ref.tif", currentMat8Set);
 
         //Calculation of XY Drifts only if the parameter "Correct XY at same time" is set to Yes;
         double currentXPosition = core_.getXPosition();
