@@ -63,7 +63,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private static final String[] TESTALLALGOS_VALUES = {"Yes", "No"};
 
     //Set default parameters
-    private double searchRange = 6;
+    private double searchRange = 10;
     private double cropFactor = 1;
     private String channel = "BF";
     private double exposure = 50;
@@ -388,13 +388,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         //Refresh positions in position dictionary
         refreshOldXYZposition(correctedXPosition, correctedYPosition, correctedZPosition, label);
-
-        System.out.println(timepoint);
-        System.out.println(studio_.acquisitions().getAcquisitionSettings().numFrames-1);
-
-        System.out.println(store.getAxisLength("position")-1);
-        System.out.println(positionIndex);
-
 
         if (!studio_.acquisitions().isAcquisitionRunning() ||
                 (timepoint == studio_.acquisitions().getAcquisitionSettings().numFrames-1
