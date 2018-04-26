@@ -91,6 +91,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private String savingPath;
     private Datastore store;
     private int zslicesNb;
+    private static final int MEAN = 1;
+    private static final int MEDIAN = 2;
+    private static final int MIN = 3;
+    private final int flag = MEAN;
 
     //Begin autofocus
     public BFAutofocus() {
@@ -182,7 +186,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         //Get label of position
         PositionList positionList = studio_.positions().getPositionList();
         String label;
-        
+
         if (positionList.getNumberOfPositions() == 0){
             if (positionIndex > 0 ) {
                 positionIndex = 0;
@@ -191,7 +195,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }else{
             label = getLabelOfPositions(positionList);
         }
-        
+
         ReportingUtils.logMessage("Position : " + label + " at time point : " + timepoint);
 
         //Creation of BF saving directory
@@ -247,8 +251,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double correctedXPosition = currentXPosition;
         double correctedYPosition = currentYPosition;
 
-        double xCorrection;
-        double yCorrection;
+        double xCorrection = 0;
+        double yCorrection = 0;
 
         if (xy_correction.contentEquals("Yes")){
             //Test All Possible Algorithms or not:
@@ -315,18 +319,37 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     imgRef_Mat = refImageDict.get(label);
                     int detector = getFeatureDetectorIndex(detectorAlgo);
                     int matcher = getDescriptorExtractorIndex(matcherAlgo);
-
+                    double threshold = 0;
                     //Get Correction to apply : 0-1 = mean; 5-6 = median; 7-8 = min distance; 9-10 = mode
                     drifts = calculateXYDrifts(currentMat8Set, detector, matcher, DescriptorMatcher.FLANNBASED);
-                    xCorrection = drifts[0];
-                    yCorrection = drifts[1];
+
+                    switch (flag) {
+                        case(MEAN):
+                            xCorrection = drifts[0];
+                            yCorrection = drifts[1];
+                            threshold = 0.05;
+                            break;
+                        case(MEDIAN):
+                            xCorrection = drifts[5];
+                            yCorrection = drifts[6];
+                            threshold = 0.05;
+                            break;
+                        case(MIN):
+                            xCorrection = drifts[7];
+                            yCorrection = drifts[8];
+                            threshold = 0.001;
+                            break;
+                        default:
+                            IJ.error("Unknown method");
+                    }
+
                     if (Double.isNaN(xCorrection) || Double.isNaN(yCorrection)){
                         ReportingUtils.logMessage("Drift correction failed at position " + label + " timepoint " + timepoint);
                         xCorrection = 0;
                         yCorrection = 0;
-                    } else if (Math.abs(xCorrection) < 0.05) {
+                    } else if (Math.abs(xCorrection) < threshold) {
                         xCorrection = 0;
-                    } else if (Math.abs(yCorrection) < 0.05) {
+                    } else if (Math.abs(yCorrection) < threshold) {
                         yCorrection = 0;
                     }
 
@@ -365,16 +388,16 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         //Refresh positions in position dictionary
         refreshOldXYZposition(correctedXPosition, correctedYPosition, correctedZPosition, label);
-    
+
         if (positionList.getNumberOfPositions() == 0) {
             timepoint++;
         }
-        
+
         positionIndex ++;
-        
+
         if (!studio_.acquisitions().isAcquisitionRunning() ||
                 (timepoint == studio_.acquisitions().getAcquisitionSettings().numFrames
-                && store.getAxisLength("position") == positionIndex)){
+                        && store.getAxisLength("position") == positionIndex)){
             if (save.contentEquals("Yes")) {
                 SummaryMetadata summary = store.getSummaryMetadata();
                 if (summary == null) {
@@ -397,11 +420,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                 if (show.contentEquals("Yes")) {
                     studio_.displays().manage(store);
                 }
-                
+
             }
             resetParameters();
         }
-        
+
         return correctedZPosition;
     }
 
@@ -556,8 +579,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                 metadata = metadata.copy().positionName(posList.getPosition(positionIndex).getLabel()).build();
             }
             Image img = studio_.data().convertTaggedImage(currentImg,
-                  studio_.data().getCoordsBuilder().z(i).channel(0).stagePosition(positionIndex).time(timepoint).build(),
-                  metadata);
+                    studio_.data().getCoordsBuilder().z(i).channel(0).stagePosition(positionIndex).time(timepoint).build(),
+                    metadata);
             if (save){
                 assert store != null;
                 store.putImage(img);
@@ -604,7 +627,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                 intervalInMin, umPerStep, detectorAlgo2, descriptorExtractor2, descriptorMatcher));
         //ORB-BRISK
         jobs[2] = null;//es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
-                //intervalInMin, umPerStep, detectorAlgo2, descriptorExtractor1, descriptorMatcher));
+        //intervalInMin, umPerStep, detectorAlgo2, descriptorExtractor1, descriptorMatcher));
         //BRISK-BRISK
         jobs[3] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
                 intervalInMin, umPerStep, detectorAlgo1, descriptorExtractor1, descriptorMatcher));
