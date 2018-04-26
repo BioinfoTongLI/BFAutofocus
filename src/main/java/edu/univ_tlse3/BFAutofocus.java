@@ -324,9 +324,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                         ReportingUtils.logMessage("Drift correction failed at position " + label + " timepoint " + timepoint);
                         xCorrection = 0;
                         yCorrection = 0;
-                    } else if (Math.abs(xCorrection) < 0.01) {
+                    } else if (Math.abs(xCorrection) < 0.05) {
                         xCorrection = 0;
-                    } else if (Math.abs(yCorrection) < 0.01) {
+                    } else if (Math.abs(yCorrection) < 0.05) {
                         yCorrection = 0;
                     }
 
