@@ -90,7 +90,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private int positionIndex = 0;
     private String savingPath;
     private Datastore store;
-    private int zslicesNb;
     private static final int MEAN = 1;
     private static final int MEDIAN = 2;
     private static final int MIN = 3;
@@ -390,15 +389,16 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         //Refresh positions in position dictionary
         refreshOldXYZposition(correctedXPosition, correctedYPosition, correctedZPosition, label);
 
-        if (positionList.getNumberOfPositions() == 0) {
-            timepoint++;
-        }
+        System.out.println(timepoint);
+        System.out.println(studio_.acquisitions().getAcquisitionSettings().numFrames-1);
 
-        positionIndex ++;
+        System.out.println(store.getAxisLength("position")-1);
+        System.out.println(positionIndex);
+
 
         if (!studio_.acquisitions().isAcquisitionRunning() ||
-                (timepoint == studio_.acquisitions().getAcquisitionSettings().numFrames
-                        && store.getAxisLength("position") == positionIndex)){
+                (timepoint == studio_.acquisitions().getAcquisitionSettings().numFrames-1
+                        && store.getAxisLength("position")-1 == positionIndex)){
             if (save.contentEquals("Yes")) {
                 SummaryMetadata summary = store.getSummaryMetadata();
                 if (summary == null) {
@@ -424,6 +424,19 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                 }
             }
             resetParameters();
+        }else{
+            if (positionList.getNumberOfPositions() == 0) {
+                timepoint++;
+            } else if(positionList.getNumberOfPositions() == 1){
+                timepoint ++;
+            } else {
+                positionIndex++;
+                if (positionIndex == positionList.getNumberOfPositions()){
+                    positionIndex = 0;
+                    timepoint ++;
+                }
+            }
+
         }
 
         return correctedZPosition;
@@ -434,6 +447,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         refImageDict = new HashMap<>();
         oldPositionsDict = new HashMap<>();
         positionIndex = 0;
+        store = null;
         imageCount = 0;
         timepoint = 0;
         IJ.log("BF AutoFocus internal parameters have been reset");
@@ -491,10 +505,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     }
 
     private String getLabelOfPositions(PositionList positionList) {
-        if (positionIndex == positionList.getNumberOfPositions() ) {
-            positionIndex = 0;
-            timepoint++;
-        }
         return positionList.getPosition(positionIndex).getLabel();
     }
 
@@ -564,7 +574,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
     private double calculateZFocus(double oldZ, boolean save) throws Exception {
         double[] zpositions = calculateZPositions(searchRange, step, oldZ);
-        zslicesNb = zpositions.length;
         double[] stdAtZPositions = new double[zpositions.length];
         TaggedImage currentImg;
 
