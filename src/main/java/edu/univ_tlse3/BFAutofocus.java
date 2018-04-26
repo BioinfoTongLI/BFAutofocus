@@ -203,6 +203,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         if (save.contentEquals("Yes") && !new File(bfPath).exists()){
             store = studio_.data().createMultipageTIFFDatastore(
                     bfPath, false,true);
+            ReportingUtils.logMessage("Datastore created for position : " + label + " at time point : " + timepoint);
             if (show.contentEquals("Yes")) {
                 studio_.displays().createDisplay(store);
             }
@@ -415,12 +416,12 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                 store.setSummaryMetadata(summary);
                 store.freeze();
                 store.save(Datastore.SaveMode.MULTIPAGE_TIFF, bfPath+"_ordered");
+                ReportingUtils.logMessage("Datastore saved");
                 store.close();
                 studio_.core().clearCircularBuffer();
                 if (show.contentEquals("Yes")) {
                     studio_.displays().manage(store);
                 }
-
             }
             resetParameters();
         }
@@ -474,8 +475,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         return index;
     }
 
+    //Reinitialize origin ROI and all other parameters
     private void resetInitialMicroscopeCondition(Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState) throws Exception {
-        //Reinitialize origin ROI and all other parameters
         core_.setAutoShutter(oldAutoShutterState);
 
         if (cropFactor < 1.0) {
