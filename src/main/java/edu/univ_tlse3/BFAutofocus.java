@@ -202,7 +202,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         if (save.contentEquals("Yes") && !new File(bfPath).exists()){
             store = studio_.data().createMultipageTIFFDatastore(
                     bfPath, false,true);
-            ReportingUtils.logMessage("Datastore created for position : " + label + " at time point : " + timepoint);
             if (show.contentEquals("Yes")) {
                 studio_.displays().createDisplay(store);
             }
@@ -321,7 +320,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     int matcher = getDescriptorExtractorIndex(matcherAlgo);
                     double threshold = 0;
                     //Get Correction to apply : 0-1 = mean; 5-6 = median; 7-8 = min distance; 9-10 = mode
-                    drifts = calculateXYDrifts(currentMat8Set, detector, matcher, DescriptorMatcher.FLANNBASED);
+                    drifts = calculateXYDrifts(currentMat8Set, detector, matcher, DescriptorMatcher.FLANNBASED,
+                            oldROI, oldState, oldExposure, oldAutoShutterState);
 
                     switch (flag) {
                         case(MEAN):
@@ -566,12 +566,12 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     }
 
     private double calculateZFocus(double oldZ, boolean save) throws Exception {
-        double[] zpositions = calculateZPositions(searchRange, step, oldZ);
-        double[] stdAtZPositions = new double[zpositions.length];
+        double[] zPositions = calculateZPositions(searchRange, step, oldZ);
+        double[] stdAtZPositions = new double[zPositions.length];
         TaggedImage currentImg;
 
-        for (int i =0; i< zpositions.length ;i++){
-            setZPosition(zpositions[i]);
+        for (int i =0; i< zPositions.length ;i++){
+            setZPosition(zPositions[i]);
             core_.waitForDevice(core_.getCameraDevice());
             core_.snapImage();
             currentImg = core_.getTaggedImage();
@@ -591,7 +591,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             stdAtZPositions[i] = studio_.data().ij().createProcessor(img).getStatistics().stdDev;
         }
         int rawIndex = getZfocus(stdAtZPositions);
-        return optimizeZFocus(rawIndex, stdAtZPositions, zpositions);
+        return optimizeZFocus(rawIndex, stdAtZPositions, zPositions);
     }
 
     private void setZPosition(double z) throws Exception {
@@ -601,7 +601,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     }
 
     //XY-Methods
-    private double[] calculateXYDrifts(Mat currentImgMat, Integer detectorAlgo, Integer descriptorExtractor, Integer descriptorMatcher) throws Exception {
+    private double[] calculateXYDrifts(Mat currentImgMat, Integer detectorAlgo, Integer descriptorExtractor, Integer descriptorMatcher,
+                                       Rectangle oldROI, Configuration oldState, double oldExposure,
+                                       boolean oldAutoShutterState) throws Exception {
+
         ExecutorService es = Executors.newSingleThreadExecutor();
         Future job = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
                 intervalInMin, umPerStep, detectorAlgo, descriptorExtractor, descriptorMatcher));
@@ -610,7 +613,12 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         try {
             es.awaitTermination(1, TimeUnit.MINUTES);
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            try {
+                resetInitialMicroscopeCondition(oldROI, oldState, oldExposure, oldAutoShutterState);
+                ReportingUtils.logMessage("Error in algorithm; initial microscope condition have been reset");
+            } catch (Exception e1) {
+                e1.printStackTrace();
+            }
         }
         return xyDrifts;
     }
@@ -629,8 +637,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         jobs[1] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
                 intervalInMin, umPerStep, detectorAlgo2, descriptorExtractor2, descriptorMatcher));
         //ORB-BRISK
-        jobs[2] = null;//es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
-        //intervalInMin, umPerStep, detectorAlgo2, descriptorExtractor1, descriptorMatcher));
+        jobs[2] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
+                intervalInMin, umPerStep, detectorAlgo2, descriptorExtractor1, descriptorMatcher));
         //BRISK-BRISK
         jobs[3] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
                 intervalInMin, umPerStep, detectorAlgo1, descriptorExtractor1, descriptorMatcher));
