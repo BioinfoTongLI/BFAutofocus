@@ -329,7 +329,7 @@ public class DriftCorrection {
     //********************************** Main method *********************************//
     //********************************************************************************//
     public static double[] driftCorrection(Mat img1, Mat img2, double calibration, double intervalInMin, double umPerStep,
-                                           Integer detectorAlgo, Integer descriptorExtractor, Integer descriptorMatcher) {
+                                           Integer detectorAlgo, Integer descriptorExtractor, Integer descriptorMatcher) throws Exception {
 
         long startTime = new Date().getTime();
 
@@ -343,9 +343,11 @@ public class DriftCorrection {
 
         if(img1_descriptors.empty()) {
             ReportingUtils.logMessage("Descriptor ref image empty");
+            throw new Exception("Empty descriptor");
         }
         if(img2_descriptors.empty()){
             ReportingUtils.logMessage("Descriptor image 2 empty");
+            throw new Exception("Empty descriptor");
         }
 
         /* 3 - Matching descriptor */

@@ -8,10 +8,9 @@ import org.json.JSONException;
 import org.micromanager.AutofocusPlugin;
 import org.micromanager.PositionList;
 import org.micromanager.Studio;
-import org.micromanager.data.Datastore;
+import org.micromanager.data.*;
 import org.micromanager.data.Image;
 import org.micromanager.data.Metadata;
-import org.micromanager.data.SummaryMetadata;
 import org.micromanager.data.internal.DefaultCoords;
 import org.micromanager.data.internal.DefaultMetadata;
 import org.micromanager.data.internal.DefaultSummaryMetadata;
@@ -271,7 +270,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     imgRef_Mat = refImageDict.get(label);
                     List<double[]> drifts = getMultipleXYDrifts(currentMat8Set, FeatureDetector.BRISK, FeatureDetector.ORB, FeatureDetector.AKAZE,
                             DescriptorExtractor.BRISK, DescriptorExtractor.ORB, DescriptorExtractor.AKAZE, DescriptorMatcher.FLANNBASED,
-                            oldROI, oldState, oldExposure, oldAutoShutterState);
+                            oldROI, oldState, oldExposure, oldAutoShutterState, positionList, label, bfPath,
+                            correctedZPosition, correctedXPosition, correctedYPosition);
                     if (drifts.size() < 7){
                         xCorrection = 0;
                         yCorrection = 0;
@@ -321,7 +321,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     double threshold = 0;
                     //Get Correction to apply : 0-1 = mean; 5-6 = median; 7-8 = min distance; 9-10 = mode
                     drifts = calculateXYDrifts(currentMat8Set, detector, matcher, DescriptorMatcher.FLANNBASED,
-                            oldROI, oldState, oldExposure, oldAutoShutterState);
+                            oldROI, oldState, oldExposure, oldAutoShutterState,
+                            positionList, label, bfPath, correctedZPosition, correctedXPosition, correctedYPosition);
 
                     switch (flag) {
                         case(MEAN):
@@ -380,6 +381,15 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             refImageDict.replace(label, newRefMat);
         }
 
+        finalizeAcquisition(oldROI, oldState, oldExposure, oldAutoShutterState, positionList, label, bfPath, correctedZPosition, correctedXPosition, correctedYPosition);
+
+
+        return correctedZPosition;
+    }
+
+    private void finalizeAcquisition(Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState,
+                                     PositionList positionList, String label, String bfPath, double correctedZPosition,
+                                     double correctedXPosition, double correctedYPosition) {
         //Reset conditions
         resetInitialMicroscopeCondition(oldROI, oldState, oldExposure, oldAutoShutterState);
 
@@ -406,12 +416,26 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     }
                     summary = summary.copy().intendedDimensions(builder.build()).build();
                 }
-                store.setSummaryMetadata(summary);
+
+                try {
+                    store.setSummaryMetadata(summary);
+                } catch (DatastoreFrozenException | DatastoreRewriteException e) {
+                    e.printStackTrace();
+                    ReportingUtils.logMessage("Unable to set metadata");
+                }
+
                 store.freeze();
                 store.save(Datastore.SaveMode.MULTIPAGE_TIFF, bfPath+"_ordered");
                 ReportingUtils.logMessage("Datastore saved");
                 store.close();
-                studio_.core().clearCircularBuffer();
+
+//                try {
+//                    studio_.core().clearCircularBuffer();
+//                } catch (Exception e) {
+//                    e.printStackTrace();
+//                    ReportingUtils.logMessage("Unable to clear circular buffer");
+//                }
+
                 if (show.contentEquals("Yes")) {
                     studio_.displays().manage(store);
                 }
@@ -431,8 +455,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             }
 
         }
-
-        return correctedZPosition;
     }
 
     //Methods
@@ -483,18 +505,30 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     }
 
     //Reinitialize origin ROI and all other parameters
-    private void resetInitialMicroscopeCondition(Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState) throws Exception {
+    private void resetInitialMicroscopeCondition(Rectangle oldROI, Configuration oldState, double oldExposure,
+                                                 boolean oldAutoShutterState) {
         core_.setAutoShutter(oldAutoShutterState);
 
         if (cropFactor < 1.0) {
-            studio_.app().setROI(oldROI);
-            core_.waitForDevice(core_.getCameraDevice());
+            try {
+                studio_.app().setROI(oldROI);
+                core_.waitForDevice(core_.getCameraDevice());
+            } catch (Exception e) {
+                e.printStackTrace();
+                ReportingUtils.showError("Unable to reset ROI");
+            }
         }
 
         if (oldState != null) {
             core_.setSystemState(oldState);
         }
-        core_.setExposure(oldExposure);
+
+        try {
+            core_.setExposure(oldExposure);
+        } catch (Exception e) {
+            e.printStackTrace();
+            ReportingUtils.showError("Unable to reset exposure");
+        }
     }
 
     private String getLabelOfPositions(PositionList positionList) {
@@ -514,15 +548,21 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         oldPositionsDict.replace(label, refreshedXYZposition);
     }
 
-    private void setToLastCorrectedPosition(double oldX, double oldY, double oldZ) throws Exception {
+    private void setToLastCorrectedPosition(double oldX, double oldY, double oldZ) {
         setXYPosition(oldX, oldY);
         setZPosition(oldZ);
     }
 
     //Z-Methods
-    private double getZPosition() throws Exception {
+    private double getZPosition() {
         String focusDevice = core_.getFocusDevice();
-        double z = core_.getPosition(focusDevice);
+        double z = 0;
+        try {
+            z = core_.getPosition(focusDevice);
+        } catch (Exception e) {
+            e.printStackTrace();
+            ReportingUtils.showError("Unable to get Z Position");
+        }
         return z;
     }
 
@@ -565,28 +605,40 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
     }
 
-    private double calculateZFocus(double oldZ, boolean save) throws Exception {
+    private double calculateZFocus(double oldZ, boolean save) {
         double[] zPositions = calculateZPositions(searchRange, step, oldZ);
         double[] stdAtZPositions = new double[zPositions.length];
-        TaggedImage currentImg;
+        TaggedImage currentImg = null;
 
         for (int i =0; i< zPositions.length ;i++){
             setZPosition(zPositions[i]);
-            core_.waitForDevice(core_.getCameraDevice());
-            core_.snapImage();
-            currentImg = core_.getTaggedImage();
+            try {
+                core_.waitForDevice(core_.getCameraDevice());
+                core_.snapImage();
+                currentImg = core_.getTaggedImage();
+            } catch (Exception e) {
+                e.printStackTrace();
+                ReportingUtils.showError("Cannot take snapshot");
+            }
             imageCount++;
+            assert currentImg != null;
             Metadata metadata = DefaultMetadata.legacyFromJSON(currentImg.tags);
             PositionList posList = studio_.positions().getPositionList();
             if (posList.getNumberOfPositions()>0){
                 metadata = metadata.copy().positionName(posList.getPosition(positionIndex).getLabel()).build();
             }
-            Image img = studio_.data().convertTaggedImage(currentImg,
-                    studio_.data().getCoordsBuilder().z(i).channel(0).stagePosition(positionIndex).time(timepoint).build(),
-                    metadata);
-            if (save){
-                assert store != null;
-                store.putImage(img);
+            Image img = null;
+            try {
+                img = studio_.data().convertTaggedImage(currentImg,
+                        studio_.data().getCoordsBuilder().z(i).channel(0).stagePosition(positionIndex).time(timepoint).build(),
+                        metadata);
+                if (save){
+                    assert store != null;
+                    store.putImage(img);
+                }
+            } catch (JSONException | DatastoreRewriteException | DatastoreFrozenException e) {
+                e.printStackTrace();
+                ReportingUtils.showError("Unable to save current z image at " + i);
             }
             stdAtZPositions[i] = studio_.data().ij().createProcessor(img).getStatistics().stdDev;
         }
@@ -594,39 +646,59 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         return optimizeZFocus(rawIndex, stdAtZPositions, zPositions);
     }
 
-    private void setZPosition(double z) throws Exception {
+    private void setZPosition(double z) {
         String focusDevice = core_.getFocusDevice();
-        core_.setPosition(focusDevice, z);
-        core_.waitForDevice(focusDevice);
+        try {
+            core_.setPosition(focusDevice, z);
+            core_.waitForDevice(focusDevice);
+        } catch (Exception e) {
+            e.printStackTrace();
+            ReportingUtils.showError("  Unable to set Z Position");
+        }
     }
 
     //XY-Methods
     private double[] calculateXYDrifts(Mat currentImgMat, Integer detectorAlgo, Integer descriptorExtractor, Integer descriptorMatcher,
-                                       Rectangle oldROI, Configuration oldState, double oldExposure,
-                                       boolean oldAutoShutterState) throws Exception {
+                                       Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState,
+                                       PositionList positionList, String label, String bfPath, double correctedZPosition,
+                                       double correctedXPosition, double correctedYPosition) {
 
         ExecutorService es = Executors.newSingleThreadExecutor();
         Future job = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
                 intervalInMin, umPerStep, detectorAlgo, descriptorExtractor, descriptorMatcher));
-        double[] xyDrifts = (double[]) job.get();
+        double[] xyDrifts = new double[11];
+        try {
+            xyDrifts = (double[]) job.get();
+        } catch (Exception e1) {
+            e1.printStackTrace();
+            finalizeAcquisition(oldROI, oldState, oldExposure, oldAutoShutterState, positionList, label, bfPath,
+                    correctedZPosition, correctedXPosition, correctedYPosition);
+            ReportingUtils.logMessage("Error in algorithm; initial microscope condition have been reset");
+        }
+
         es.shutdown();
         try {
             es.awaitTermination(1, TimeUnit.MINUTES);
         } catch (InterruptedException e) {
             try {
-                resetInitialMicroscopeCondition(oldROI, oldState, oldExposure, oldAutoShutterState);
-                ReportingUtils.logMessage("Error in algorithm; initial microscope condition have been reset");
+                finalizeAcquisition(oldROI, oldState, oldExposure, oldAutoShutterState, positionList, label, bfPath,
+                        correctedZPosition, correctedXPosition, correctedYPosition);
+                ReportingUtils.logMessage("Calculation took too much time; initial microscope condition have been reset;" +
+                        "pass to next time point");
             } catch (Exception e1) {
                 e1.printStackTrace();
             }
         }
+
         return xyDrifts;
     }
 
     private List<double[]> getMultipleXYDrifts(Mat currentImgMat, Integer detectorAlgo1, Integer detectorAlgo2, Integer detectorAlgo3,
                                                Integer descriptorExtractor1, Integer descriptorExtractor2, Integer descriptorExtractor3,
-                                               Integer descriptorMatcher, Rectangle oldROI, Configuration oldState,
-                                               double oldExposure, boolean oldAutoShutterState){
+                                               Integer descriptorMatcher,Rectangle oldROI, Configuration oldState, double oldExposure,
+                                               boolean oldAutoShutterState,
+                                               PositionList positionList, String label, String bfPath, double correctedZPosition,
+                                               double correctedXPosition, double correctedYPosition){
         int nThread = Runtime.getRuntime().availableProcessors() - 2;
         ExecutorService es = Executors.newFixedThreadPool(nThread);
         Future[] jobs = new Future[7];
@@ -666,7 +738,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                 for (double d : currentRes){
                     ReportingUtils.logMessage("Error in algo " + algoIndex + "_" + d);
                 }
-                resetInitialMicroscopeCondition(oldROI, oldState, oldExposure, oldAutoShutterState);
+                finalizeAcquisition(oldROI, oldState, oldExposure, oldAutoShutterState, positionList, label, bfPath,
+                        correctedZPosition, correctedXPosition, correctedYPosition);
             } catch (Exception e1) {
                 e1.printStackTrace();
             }
@@ -680,25 +753,37 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         return drifts;
     }
 
-    private void setXYPosition(double x, double y) throws Exception {
+    private void setXYPosition(double x, double y) {
         assert x != 0;
         assert y != 0;
         String xyDevice = core_.getXYStageDevice();
-        core_.setXYPosition(x,y);
-        core_.waitForDevice(xyDevice);
+        try {
+            core_.setXYPosition(x,y);
+            core_.waitForDevice(xyDevice);
+        } catch (Exception e) {
+            e.printStackTrace();
+            ReportingUtils.showError("Unable to set XY position");
+        }
     }
 
     //Convert MM TaggedImage to OpenCV Mat
-    private static Mat convertToMat(TaggedImage img) throws JSONException {
-        int width = img.tags.getInt("Width");
-        int height = img.tags.getInt("Height");
+    private static Mat convertToMat(TaggedImage img){
+        int width = 0;
+        int height = 0;
+        try {
+            width = img.tags.getInt("Width");
+            height = img.tags.getInt("Height");
+        } catch (JSONException e) {
+            e.printStackTrace();
+            ReportingUtils.showError("Unable to get width/height");
+        }
         Mat mat = new Mat(height, width, CvType.CV_16UC1);
         mat.put(0,0, (short[]) img.pix);
         return mat;
     }
 
     //Convert MM TaggedImage to OpenCV 8 bits Mat
-    private static Mat convertTo8BitsMat(TaggedImage taggedImage) throws JSONException {
+    private static Mat convertTo8BitsMat(TaggedImage taggedImage) {
         Mat mat16 = convertToMat(taggedImage);
         Mat mat8 = new Mat(mat16.cols(), mat16.rows(), CvType.CV_8UC1);
         Core.MinMaxLocResult minMaxResult = Core.minMaxLoc(mat16);
@@ -724,12 +809,18 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                                      double oldY, double oldZ, double currentXPosition, double correctedXPosition, double currentYPosition,
                                      double correctedYPosition, double correctedZPosition, double[] xyDriftsBRISKORB,
                                      double[] xyDriftsORBORB, double[] xyDriftsORBBRISK, double[] xyDriftsBRISKBRISK,
-                                     double[] xyDriftsAKAZEAKAZE, double[] xyDriftsAKAZEBRISK, double[] xyDriftsAKAZEORB) throws IOException {
+                                     double[] xyDriftsAKAZEAKAZE, double[] xyDriftsAKAZEBRISK, double[] xyDriftsAKAZEORB) {
 
         File f1 = new File(savingPath + prefix + "_" + label + "_Stats" + ".csv");
+        FileWriter fw = null;
         if (!f1.exists()) {
-            f1.createNewFile();
-            FileWriter fw = new FileWriter(f1);
+            try {
+                f1.createNewFile();
+                fw = new FileWriter(f1);
+            } catch (IOException e) {
+                e.printStackTrace();
+                ReportingUtils.showError("Unable to create file");
+            }
             String[] headersOfFile = new String[]{"labelOfPosition", "oldX", "oldY", "oldZ",
                     "currentXPosition", "correctedXPosition", "currentYPosition", "correctedYPosition",
                     "correctedZPosition", "acquisitionDuration(ms)",
@@ -767,8 +858,13 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
             } ;
 
-            fw.write(String.join(",", headersOfFile) + System.lineSeparator());
-            fw.close();
+            try {
+                fw.write(String.join(",", headersOfFile) + System.lineSeparator());
+                fw.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+                ReportingUtils.showError("Unable to write/close file");
+            }
         } else {
             double meanXdisplacementBRISKORB = xyDriftsBRISKORB[0];
             double meanYdisplacementBRISKORB = xyDriftsBRISKORB[1];
@@ -854,56 +950,68 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             double modeXDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[9];
             double modeYDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[10];
 
-            FileWriter fw1 = new FileWriter(f1, true);
-            fw1.write(label + "," + oldX + "," + oldY + "," + oldZ + ","
-                    + currentXPosition + "," + correctedXPosition + "," + currentYPosition + "," + correctedYPosition + ","
-                    + correctedZPosition + "," + acquisitionDuration + ","
+            FileWriter fw1 = null;
+            try {
+                new FileWriter(f1, true);
+                fw1.write(label + "," + oldX + "," + oldY + "," + oldZ + ","
+                        + currentXPosition + "," + correctedXPosition + "," + currentYPosition + "," + correctedYPosition + ","
+                        + correctedZPosition + "," + acquisitionDuration + ","
 
-                    + meanXdisplacementBRISKORB + "," + meanYdisplacementBRISKORB + "," + meanXdisplacementORBORB + "," + meanYdisplacementORBORB + ","
-                    + meanXdisplacementORBBRISK + "," + meanYdisplacementORBBRISK + "," + meanXdisplacementBRISKBRISK + "," + meanYdisplacementBRISKBRISK + ","
-                    + meanXdisplacementAKAZEBRISK + "," + meanYdisplacementAKAZEBRISK + "," + meanXdisplacementAKAZEORB + "," + meanYdisplacementAKAZEORB + ","
-                    + meanXdisplacementAKAZEAKAZE + "," + meanYdisplacementAKAZEAKAZE + ","
+                        + meanXdisplacementBRISKORB + "," + meanYdisplacementBRISKORB + "," + meanXdisplacementORBORB + "," + meanYdisplacementORBORB + ","
+                        + meanXdisplacementORBBRISK + "," + meanYdisplacementORBBRISK + "," + meanXdisplacementBRISKBRISK + "," + meanYdisplacementBRISKBRISK + ","
+                        + meanXdisplacementAKAZEBRISK + "," + meanYdisplacementAKAZEBRISK + "," + meanXdisplacementAKAZEORB + "," + meanYdisplacementAKAZEORB + ","
+                        + meanXdisplacementAKAZEAKAZE + "," + meanYdisplacementAKAZEAKAZE + ","
 
-                    + numberOfMatchesBRISKORB + "," + numberOfMatchesORBORB + "," + numberOfMatchesORBBRISK + "," + numberOfMatchesBRISKBRISK + ","
-                    + numberOfMatchesAKAZEBRISK + "," + numberOfMatchesAKAZEORB + "," + numberOfMatchesAKAZEAKAZE + ","
+                        + numberOfMatchesBRISKORB + "," + numberOfMatchesORBORB + "," + numberOfMatchesORBBRISK + "," + numberOfMatchesBRISKBRISK + ","
+                        + numberOfMatchesAKAZEBRISK + "," + numberOfMatchesAKAZEORB + "," + numberOfMatchesAKAZEAKAZE + ","
 
-                    + numberOfGoodMatchesBRISKORB + "," + numberOfGoodMatchesORBORB + "," + numberOfGoodMatchesORBBRISK + ","
-                    + numberOfGoodMatchesBRISKBRISK + "," + numberOfGoodMatchesAKAZEBRISK + "," + numberOfGoodMatchesAKAZEORB + ","
-                    + numberOfGoodMatchesAKAZEAKAZE + ","
+                        + numberOfGoodMatchesBRISKORB + "," + numberOfGoodMatchesORBORB + "," + numberOfGoodMatchesORBBRISK + ","
+                        + numberOfGoodMatchesBRISKBRISK + "," + numberOfGoodMatchesAKAZEBRISK + "," + numberOfGoodMatchesAKAZEORB + ","
+                        + numberOfGoodMatchesAKAZEAKAZE + ","
 
-                    + algorithmDurationBRISKORB + "," + algorithmDurationORBORB + "," + algorithmDurationORBBRISK + ","
-                    + algorithmDurationBRISKBRISK + "," + algorithmDurationAKAZEBRISK + "," + algorithmDurationAKAZEORB + ","
-                    + algorithmDurationAKAZEAKAZE + ","
+                        + algorithmDurationBRISKORB + "," + algorithmDurationORBORB + "," + algorithmDurationORBBRISK + ","
+                        + algorithmDurationBRISKBRISK + "," + algorithmDurationAKAZEBRISK + "," + algorithmDurationAKAZEORB + ","
+                        + algorithmDurationAKAZEAKAZE + ","
 
-                    + medianXDisplacementBRISKORB + "," + medianYDisplacementBRISKORB + "," + medianXDisplacementORBORB + "," + medianYDisplacementORBORB + ","
-                    + medianXDisplacementORBBRISK + "," + medianYDisplacementORBBRISK + "," + medianXDisplacementBRISKBRISK + "," + medianYDisplacementBRISKBRISK + ","
-                    + medianXDisplacementAKAZEBRISK + "," + medianYDisplacementAKAZEBRISK + "," + medianXDisplacementAKAZEORB + "," + medianYDisplacementAKAZEORB + ","
-                    + medianXDisplacementAKAZEAKAZE + "," + medianYDisplacementAKAZEAKAZE + ","
+                        + medianXDisplacementBRISKORB + "," + medianYDisplacementBRISKORB + "," + medianXDisplacementORBORB + "," + medianYDisplacementORBORB + ","
+                        + medianXDisplacementORBBRISK + "," + medianYDisplacementORBBRISK + "," + medianXDisplacementBRISKBRISK + "," + medianYDisplacementBRISKBRISK + ","
+                        + medianXDisplacementAKAZEBRISK + "," + medianYDisplacementAKAZEBRISK + "," + medianXDisplacementAKAZEORB + "," + medianYDisplacementAKAZEORB + ","
+                        + medianXDisplacementAKAZEAKAZE + "," + medianYDisplacementAKAZEAKAZE + ","
 
-                    + minXDisplacementBRISKORB + "," + minYDisplacementBRISKORB + "," + minXDisplacementORBORB + "," + minYDisplacementORBORB + ","
-                    + minXDisplacementORBBRISK + "," + minYDisplacementORBBRISK + "," + minXDisplacementBRISKBRISK + "," + minYDisplacementBRISKBRISK + ","
-                    + minXDisplacementAKAZEBRISK + "," + minYDisplacementAKAZEBRISK + "," + minXDisplacementAKAZEORB + "," + minYDisplacementAKAZEORB + ","
-                    + minXDisplacementAKAZEAKAZE + "," + minYDisplacementAKAZEAKAZE + ","
+                        + minXDisplacementBRISKORB + "," + minYDisplacementBRISKORB + "," + minXDisplacementORBORB + "," + minYDisplacementORBORB + ","
+                        + minXDisplacementORBBRISK + "," + minYDisplacementORBBRISK + "," + minXDisplacementBRISKBRISK + "," + minYDisplacementBRISKBRISK + ","
+                        + minXDisplacementAKAZEBRISK + "," + minYDisplacementAKAZEBRISK + "," + minXDisplacementAKAZEORB + "," + minYDisplacementAKAZEORB + ","
+                        + minXDisplacementAKAZEAKAZE + "," + minYDisplacementAKAZEAKAZE + ","
 
-                    + modeXDisplacementBRISKORB + "," + modeYDisplacementBRISKORB + "," + modeXDisplacementORBORB + "," + modeYDisplacementORBORB + ","
-                    + modeXDisplacementORBBRISK + "," + modeYDisplacementORBBRISK + "," + modeXDisplacementBRISKBRISK + "," + modeYDisplacementBRISKBRISK + ","
-                    + modeXDisplacementAKAZEBRISK + "," + modeYDisplacementAKAZEBRISK + "," + modeXDisplacementAKAZEORB + "," + modeYDisplacementAKAZEORB + ","
-                    + modeXDisplacementAKAZEAKAZE + "," + modeYDisplacementAKAZEAKAZE
+                        + modeXDisplacementBRISKORB + "," + modeYDisplacementBRISKORB + "," + modeXDisplacementORBORB + "," + modeYDisplacementORBORB + ","
+                        + modeXDisplacementORBBRISK + "," + modeYDisplacementORBBRISK + "," + modeXDisplacementBRISKBRISK + "," + modeYDisplacementBRISKBRISK + ","
+                        + modeXDisplacementAKAZEBRISK + "," + modeYDisplacementAKAZEBRISK + "," + modeXDisplacementAKAZEORB + "," + modeYDisplacementAKAZEORB + ","
+                        + modeXDisplacementAKAZEAKAZE + "," + modeYDisplacementAKAZEAKAZE
 
-                    + System.lineSeparator());
-            fw1.close();
+                        + System.lineSeparator());
+                fw1.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+                ReportingUtils.showError("Unable to add lines to file");
+            }
         }
     }
 
     //Write output file
     private void writeOutput(long acquisitionDuration, String label, String prefix, double currentXPosition, double correctedXPosition,
                              double currentYPosition, double correctedYPosition,
-                             double currentZPosition, double correctedZPosition, double[] xyDrifts, double intervalInMin_) throws IOException {
+                             double currentZPosition, double correctedZPosition, double[] xyDrifts, double intervalInMin_) {
 
         File f1 = new File(savingPath + prefix + "_" + label + "_Stats" + ".csv");
+        FileWriter fw = null;
         if (!f1.exists()) {
-            f1.createNewFile();
-            FileWriter fw = new FileWriter(f1);
+            try {
+                f1.createNewFile();
+                fw = new FileWriter(f1);
+            } catch (IOException e) {
+                e.printStackTrace();
+                ReportingUtils.showError("Unable to create file");
+            }
             String[] headersOfFile = new String[]{"currentXPosition", "correctedXPosition",
                     "currentYPosition", "correctedYPosition",
 
@@ -923,8 +1031,13 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
             } ;
 
-            fw.write(String.join(",", headersOfFile) + System.lineSeparator());
-            fw.close();
+            try {
+                fw.write(String.join(",", headersOfFile) + System.lineSeparator());
+                fw.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+                ReportingUtils.showError("Unable to write/close file");
+            }
 
         } else {
             double meanXdisplacement = xyDrifts[0];
@@ -939,27 +1052,33 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             double modeXDisplacement = xyDrifts[9];
             double modeYDisplacement = xyDrifts[10];
 
-            FileWriter fw1 = new FileWriter(f1, true);
-            fw1.write(currentXPosition + "," + correctedXPosition + ","
+            FileWriter fw1 = null;
+            try {
+                fw1 = new FileWriter(f1, true);
+                fw1.write(currentXPosition + "," + correctedXPosition + ","
 
-                    + currentYPosition + "," + correctedYPosition + ","
+                        + currentYPosition + "," + correctedYPosition + ","
 
-                    + currentZPosition + "," + correctedZPosition  + ","
+                        + currentZPosition + "," + correctedZPosition  + ","
 
-                    + meanXdisplacement + "," + meanYdisplacement + ","
+                        + meanXdisplacement + "," + meanYdisplacement + ","
 
-                    + medianXDisplacement + "," + medianYDisplacement + ","
+                        + medianXDisplacement + "," + medianYDisplacement + ","
 
-                    + minXDisplacement + "," + minYDisplacement + ","
+                        + minXDisplacement + "," + minYDisplacement + ","
 
-                    + modeXDisplacement + "," + modeYDisplacement + ","
+                        + modeXDisplacement + "," + modeYDisplacement + ","
 
-                    + numberOfMatches + "," + numberOfGoodMatches + ","
+                        + numberOfMatches + "," + numberOfGoodMatches + ","
 
-                    + algorithmDuration + "," + acquisitionDuration + "," + intervalInMin_
+                        + algorithmDuration + "," + acquisitionDuration + "," + intervalInMin_
 
-                    + System.lineSeparator());
-            fw1.close();
+                        + System.lineSeparator());
+                fw1.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+                ReportingUtils.showError("Unable to add lines to file");
+            }
         }
     }
 
@@ -1071,7 +1190,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
 
         @Override
-        public double[] call() {
+        public double[] call() throws Exception {
             return DriftCorrection.driftCorrection(img1_, img2_, calibration_, intervalInMs_,
                     umPerStep_, detectorAlgo_, descriptorExtractor_, descriptorMatcher_);
         }
