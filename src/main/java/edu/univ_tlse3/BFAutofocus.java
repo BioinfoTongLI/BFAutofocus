@@ -93,6 +93,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private static final int MEDIAN = 2;
     private static final int MIN = 3;
     private final int flag = MEAN;
+    private final String algoToUseMultiple = "AKAZEBRISK";
 
     //Begin autofocus
     public BFAutofocus() {
@@ -251,6 +252,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
         double xCorrection = 0;
         double yCorrection = 0;
+        double threshold = 0;
 
         if (xy_correction.contentEquals("Yes")){
             //Test All Possible Algorithms or not:
@@ -268,37 +270,89 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                 } else {
                     //Or calculate XY drift
                     imgRef_Mat = refImageDict.get(label);
-                    List<double[]> drifts = getMultipleXYDrifts(currentMat8Set, FeatureDetector.BRISK, FeatureDetector.ORB, FeatureDetector.AKAZE,
-                            DescriptorExtractor.BRISK, DescriptorExtractor.ORB, DescriptorExtractor.AKAZE, DescriptorMatcher.FLANNBASED,
+                    List<double[]> listOfDrifts = calculateMultipleXYDrifts(currentMat8Set, FeatureDetector.BRISK, FeatureDetector.ORB,
+                            FeatureDetector.AKAZE, DescriptorExtractor.BRISK, DescriptorExtractor.ORB,
+                            DescriptorExtractor.AKAZE, DescriptorMatcher.FLANNBASED,
                             oldROI, oldState, oldExposure, oldAutoShutterState, positionList, label, bfPath,
                             correctedZPosition, correctedXPosition, correctedYPosition);
-                    if (drifts.size() < 7){
+                    if (listOfDrifts.size() < 7){
                         xCorrection = 0;
                         yCorrection = 0;
-                    }else{
-                        xyDriftsBRISKORB = drifts.get(0);
-                        xyDriftsORBORB = drifts.get(1);
-                        xyDriftsORBBRISK = drifts.get(2);
-                        xyDriftsBRISKBRISK = drifts.get(3);
-                        xyDriftsAKAZEBRISK = drifts.get(4);
-                        xyDriftsAKAZEORB = drifts.get(5);
-                        xyDriftsAKAZEAKAZE = drifts.get(6);
+                    } else {
+                        xyDriftsBRISKORB = listOfDrifts.get(0);
+                        xyDriftsORBORB = listOfDrifts.get(1);
+                        xyDriftsORBBRISK = listOfDrifts.get(2);
+                        xyDriftsBRISKBRISK = listOfDrifts.get(3);
+                        xyDriftsAKAZEBRISK = listOfDrifts.get(4);
+                        xyDriftsAKAZEORB = listOfDrifts.get(5);
+                        xyDriftsAKAZEAKAZE = listOfDrifts.get(6);
 
-                        //Get Correction to apply : 0-1 = mean; 5-6 = median; 7-8 = min distance; 9-10 = mode
-                        xCorrection = xyDriftsAKAZEBRISK[5];
-                        yCorrection = xyDriftsAKAZEBRISK[6];
+                        double[] drifts = new double[11];
+
+                        switch (algoToUseMultiple) {
+                            case "BRISKORB":
+                                drifts = xyDriftsBRISKORB;
+                                break;
+                            case "ORBORB":
+                                drifts = xyDriftsORBORB;
+                                break;
+                            case "ORBBRISK":
+                                drifts = xyDriftsORBBRISK;
+                                break;
+                            case "BRISKBRISK":
+                                drifts = xyDriftsBRISKBRISK;
+                                break;
+                            case "AKAZEBRISK":
+                                drifts = xyDriftsAKAZEBRISK;
+                                break;
+                            case "AKAZEORB":
+                                drifts = xyDriftsAKAZEORB;
+                                break;
+                            case "AKAZEAKAZE":
+                                drifts = xyDriftsAKAZEAKAZE;
+                                break;
+                            default:
+                                IJ.error("Unknown method of algorithm combination");
+                        }
+
+                        switch (flag) {
+                            case(MEAN):
+                                xCorrection = drifts[0];
+                                yCorrection = drifts[1];
+                                threshold = 0.05;
+                                break;
+                            case(MEDIAN):
+                                xCorrection = drifts[5];
+                                yCorrection = drifts[6];
+                                threshold = 0.05;
+                                break;
+                            case(MIN):
+                                xCorrection = drifts[7];
+                                yCorrection = drifts[8];
+                                threshold = 0.001;
+                                break;
+                            default:
+                                IJ.error("Unknown method of correction");
+                        }
+
                         if (Double.isNaN(xCorrection) || Double.isNaN(yCorrection)){
                             ReportingUtils.logMessage("Drift correction failed at position " + label + " timepoint " + timepoint);
                             xCorrection = 0;
+                            yCorrection = 0;
+                        } else if (Math.abs(xCorrection) < threshold) {
+                            xCorrection = 0;
+                        } else if (Math.abs(yCorrection) < threshold) {
                             yCorrection = 0;
                         }
                     }
 
                     ReportingUtils.logMessage("X Correction : " + xCorrection);
                     ReportingUtils.logMessage("Y Correction : " + yCorrection);
+
                     correctedXPosition = currentXPosition + xCorrection;
                     correctedYPosition = currentYPosition + yCorrection;
                 }
+                
                 long endTime = new Date().getTime();
                 long acquisitionTimeElapsed = endTime - startTime;
                 ReportingUtils.logMessage("Acquisition duration in ms : " + acquisitionTimeElapsed);
@@ -307,7 +361,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                         currentXPosition, correctedXPosition, currentYPosition, correctedYPosition, correctedZPosition,
                         xyDriftsBRISKORB, xyDriftsORBORB, xyDriftsORBBRISK, xyDriftsBRISKBRISK,
                         xyDriftsAKAZEBRISK, xyDriftsAKAZEORB, xyDriftsAKAZEAKAZE);
-            }else {
+            } else {
                 double currentZPosition = oldZ;
                 double[] drifts = new double[11];
                 //Define current image as reference for the position if it does not exist
@@ -318,8 +372,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     imgRef_Mat = refImageDict.get(label);
                     int detector = getFeatureDetectorIndex(detectorAlgo);
                     int matcher = getDescriptorExtractorIndex(matcherAlgo);
-                    double threshold = 0;
-                    //Get Correction to apply : 0-1 = mean; 5-6 = median; 7-8 = min distance; 9-10 = mode
+
                     drifts = calculateXYDrifts(currentMat8Set, detector, matcher, DescriptorMatcher.FLANNBASED,
                             oldROI, oldState, oldExposure, oldAutoShutterState,
                             positionList, label, bfPath, correctedZPosition, correctedXPosition, correctedYPosition);
@@ -361,6 +414,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     correctedYPosition = currentYPosition + yCorrection;
 
                 }
+                
                 long endTime = new Date().getTime();
                 long acquisitionTimeElapsed = endTime - startTime;
                 ReportingUtils.logMessage("Acquisition duration in ms : " + acquisitionTimeElapsed);
@@ -381,91 +435,17 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             refImageDict.replace(label, newRefMat);
         }
 
-        finalizeAcquisition(oldROI, oldState, oldExposure, oldAutoShutterState, positionList, label, bfPath, correctedZPosition, correctedXPosition, correctedYPosition);
-
+        finalizeAcquisition(oldROI, oldState, oldExposure, oldAutoShutterState, positionList, label,
+                bfPath, correctedZPosition, correctedXPosition, correctedYPosition);
 
         return correctedZPosition;
     }
+    //*******//
+    //Methods//
+    //*******//
 
-    private void finalizeAcquisition(Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState,
-                                     PositionList positionList, String label, String bfPath, double correctedZPosition,
-                                     double correctedXPosition, double correctedYPosition) {
-        //Reset conditions
-        resetInitialMicroscopeCondition(oldROI, oldState, oldExposure, oldAutoShutterState);
-
-        //Set to the focus
-        setZPosition(correctedZPosition);
-
-        //Refresh positions in position dictionary
-        refreshOldXYZposition(correctedXPosition, correctedYPosition, correctedZPosition, label);
-
-        if (!studio_.acquisitions().isAcquisitionRunning() ||
-                (timepoint == studio_.acquisitions().getAcquisitionSettings().numFrames-1
-                        && store.getAxisLength("position")-1 == positionIndex)){
-            if (save.contentEquals("Yes")) {
-                SummaryMetadata summary = store.getSummaryMetadata();
-                if (summary == null) {
-                    // Create dummy summary metadata just for saving.
-                    summary = (new DefaultSummaryMetadata.Builder()).build();
-                }
-                // Insert intended dimensions if they aren't already present.
-                if (summary.getIntendedDimensions() == null) {
-                    DefaultCoords.Builder builder = new DefaultCoords.Builder();
-                    for (String axis : store.getAxes()) {
-                        builder.index(axis, store.getAxisLength(axis));
-                    }
-                    summary = summary.copy().intendedDimensions(builder.build()).build();
-                }
-
-                try {
-                    store.setSummaryMetadata(summary);
-                } catch (DatastoreFrozenException | DatastoreRewriteException e) {
-                    e.printStackTrace();
-                    ReportingUtils.logMessage("Unable to set metadata");
-                }
-
-                store.freeze();
-                store.save(Datastore.SaveMode.MULTIPAGE_TIFF, bfPath+"_ordered");
-                ReportingUtils.logMessage("Datastore saved");
-                store.close();
-
-//                try {
-//                    studio_.core().clearCircularBuffer();
-//                } catch (Exception e) {
-//                    e.printStackTrace();
-//                    ReportingUtils.logMessage("Unable to clear circular buffer");
-//                }
-
-                if (show.contentEquals("Yes")) {
-                    studio_.displays().manage(store);
-                }
-            }
-            resetParameters();
-        }else{
-            if (positionList.getNumberOfPositions() == 0) {
-                timepoint++;
-            } else if(positionList.getNumberOfPositions() == 1){
-                timepoint ++;
-            } else {
-                positionIndex++;
-                if (positionIndex == positionList.getNumberOfPositions()){
-                    positionIndex = 0;
-                    timepoint ++;
-                }
-            }
-
-        }
-    }
-
-    //Methods
-    private void resetParameters(){
-        refImageDict = new HashMap<>();
-        oldPositionsDict = new HashMap<>();
-        positionIndex = 0;
-        store = null;
-        imageCount = 0;
-        timepoint = 0;
-        IJ.log("BF AutoFocus internal parameters have been reset");
+    private String getLabelOfPositions(PositionList positionList) {
+        return positionList.getPosition(positionIndex).getLabel();
     }
 
     private int getFeatureDetectorIndex(String name){
@@ -503,306 +483,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
         return index;
     }
-
-    //Reinitialize origin ROI and all other parameters
-    private void resetInitialMicroscopeCondition(Rectangle oldROI, Configuration oldState, double oldExposure,
-                                                 boolean oldAutoShutterState) {
-        core_.setAutoShutter(oldAutoShutterState);
-
-        if (cropFactor < 1.0) {
-            try {
-                studio_.app().setROI(oldROI);
-                core_.waitForDevice(core_.getCameraDevice());
-            } catch (Exception e) {
-                e.printStackTrace();
-                ReportingUtils.showError("Unable to reset ROI");
-            }
-        }
-
-        if (oldState != null) {
-            core_.setSystemState(oldState);
-        }
-
-        try {
-            core_.setExposure(oldExposure);
-        } catch (Exception e) {
-            e.printStackTrace();
-            ReportingUtils.showError("Unable to reset exposure");
-        }
-    }
-
-    private String getLabelOfPositions(PositionList positionList) {
-        return positionList.getPosition(positionIndex).getLabel();
-    }
-
-    //XYZ-Methods
-    private double[] getXYZPosition(String label) {
-        return oldPositionsDict.get(label);
-    }
-
-    private void refreshOldXYZposition(double correctedXPosition, double correctedYPosition, double correctedZPosition, String label) {
-        double[] refreshedXYZposition = new double[3];
-        refreshedXYZposition[0] = correctedXPosition;
-        refreshedXYZposition[1] = correctedYPosition;
-        refreshedXYZposition[2] = correctedZPosition;
-        oldPositionsDict.replace(label, refreshedXYZposition);
-    }
-
-    private void setToLastCorrectedPosition(double oldX, double oldY, double oldZ) {
-        setXYPosition(oldX, oldY);
-        setZPosition(oldZ);
-    }
-
-    //Z-Methods
-    private double getZPosition() {
-        String focusDevice = core_.getFocusDevice();
-        double z = 0;
-        try {
-            z = core_.getPosition(focusDevice);
-        } catch (Exception e) {
-            e.printStackTrace();
-            ReportingUtils.showError("Unable to get Z Position");
-        }
-        return z;
-    }
-
-    private static int getZfocus (double[] stdArray){
-        double min = Double.MAX_VALUE;
-        int maxIdx = Integer.MAX_VALUE;
-        for (int i = 0; i < stdArray.length; i++){
-            if (stdArray[i] < min){
-                maxIdx = i;
-                min = stdArray[i];
-            }
-        }
-        return maxIdx;
-    }
-
-    public static double[] calculateZPositions(double searchRange, double step, double startZUm){
-        double lower = startZUm - searchRange/2;
-        int nstep  = new Double(searchRange/step).intValue() + 1;
-        double[] zpos = new double[nstep];
-        for (int p = 0; p < nstep; p++){
-            zpos[p] = lower + p * step;
-        }
-        return zpos;
-    }
-
-    private static double optimizeZFocus(int rawZidx, double[] stdArray, double[] zpositionArray){
-        if (rawZidx == zpositionArray.length-1 || rawZidx == 0){
-            return zpositionArray[rawZidx];
-        }
-        int oneLower = rawZidx-1;
-        int oneHigher = rawZidx+1;
-        double lowerVarDiff = stdArray[oneLower] - stdArray[rawZidx];
-        double upperVarDiff = stdArray[rawZidx] - stdArray[oneHigher];
-        if (lowerVarDiff * lowerVarDiff < upperVarDiff * upperVarDiff){
-            return (zpositionArray[oneLower] + zpositionArray[rawZidx]) / 2;
-        }else if(lowerVarDiff * lowerVarDiff > upperVarDiff * upperVarDiff){
-            return (zpositionArray[rawZidx] + zpositionArray[oneHigher]) / 2;
-        }else{
-            return zpositionArray[rawZidx];
-        }
-    }
-
-    private double calculateZFocus(double oldZ, boolean save) {
-        double[] zPositions = calculateZPositions(searchRange, step, oldZ);
-        double[] stdAtZPositions = new double[zPositions.length];
-        TaggedImage currentImg = null;
-
-        for (int i =0; i< zPositions.length ;i++){
-            setZPosition(zPositions[i]);
-            try {
-                core_.waitForDevice(core_.getCameraDevice());
-                core_.snapImage();
-                currentImg = core_.getTaggedImage();
-            } catch (Exception e) {
-                e.printStackTrace();
-                ReportingUtils.showError("Cannot take snapshot");
-            }
-            imageCount++;
-            assert currentImg != null;
-            Metadata metadata = DefaultMetadata.legacyFromJSON(currentImg.tags);
-            PositionList posList = studio_.positions().getPositionList();
-            if (posList.getNumberOfPositions()>0){
-                metadata = metadata.copy().positionName(posList.getPosition(positionIndex).getLabel()).build();
-            }
-            Image img = null;
-            try {
-                img = studio_.data().convertTaggedImage(currentImg,
-                        studio_.data().getCoordsBuilder().z(i).channel(0).stagePosition(positionIndex).time(timepoint).build(),
-                        metadata);
-                if (save){
-                    assert store != null;
-                    store.putImage(img);
-                }
-            } catch (JSONException | DatastoreRewriteException | DatastoreFrozenException e) {
-                e.printStackTrace();
-                ReportingUtils.showError("Unable to save current z image at " + i);
-            }
-            stdAtZPositions[i] = studio_.data().ij().createProcessor(img).getStatistics().stdDev;
-        }
-        int rawIndex = getZfocus(stdAtZPositions);
-        return optimizeZFocus(rawIndex, stdAtZPositions, zPositions);
-    }
-
-    private void setZPosition(double z) {
-        String focusDevice = core_.getFocusDevice();
-        try {
-            core_.setPosition(focusDevice, z);
-            core_.waitForDevice(focusDevice);
-        } catch (Exception e) {
-            e.printStackTrace();
-            ReportingUtils.showError("  Unable to set Z Position");
-        }
-    }
-
-    //XY-Methods
-    private double[] calculateXYDrifts(Mat currentImgMat, Integer detectorAlgo, Integer descriptorExtractor, Integer descriptorMatcher,
-                                       Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState,
-                                       PositionList positionList, String label, String bfPath, double correctedZPosition,
-                                       double correctedXPosition, double correctedYPosition) {
-
-        ExecutorService es = Executors.newSingleThreadExecutor();
-        Future job = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
-                intervalInMin, umPerStep, detectorAlgo, descriptorExtractor, descriptorMatcher));
-        double[] xyDrifts = new double[11];
-        try {
-            xyDrifts = (double[]) job.get();
-        } catch (Exception e1) {
-            e1.printStackTrace();
-            finalizeAcquisition(oldROI, oldState, oldExposure, oldAutoShutterState, positionList, label, bfPath,
-                    correctedZPosition, correctedXPosition, correctedYPosition);
-            ReportingUtils.logMessage("Error in algorithm; initial microscope condition have been reset");
-        }
-
-        es.shutdown();
-        try {
-            es.awaitTermination(1, TimeUnit.MINUTES);
-        } catch (InterruptedException e) {
-            try {
-                finalizeAcquisition(oldROI, oldState, oldExposure, oldAutoShutterState, positionList, label, bfPath,
-                        correctedZPosition, correctedXPosition, correctedYPosition);
-                ReportingUtils.logMessage("Calculation took too much time; initial microscope condition have been reset;" +
-                        "pass to next time point");
-            } catch (Exception e1) {
-                e1.printStackTrace();
-            }
-        }
-
-        return xyDrifts;
-    }
-
-    private List<double[]> getMultipleXYDrifts(Mat currentImgMat, Integer detectorAlgo1, Integer detectorAlgo2, Integer detectorAlgo3,
-                                               Integer descriptorExtractor1, Integer descriptorExtractor2, Integer descriptorExtractor3,
-                                               Integer descriptorMatcher,Rectangle oldROI, Configuration oldState, double oldExposure,
-                                               boolean oldAutoShutterState,
-                                               PositionList positionList, String label, String bfPath, double correctedZPosition,
-                                               double correctedXPosition, double correctedYPosition){
-        int nThread = Runtime.getRuntime().availableProcessors() - 2;
-        ExecutorService es = Executors.newFixedThreadPool(nThread);
-        Future[] jobs = new Future[7];
-        //BRISK-ORB
-        jobs[0] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
-                intervalInMin, umPerStep, detectorAlgo1, descriptorExtractor2, descriptorMatcher));
-        //ORB-ORB
-        jobs[1] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
-                intervalInMin, umPerStep, detectorAlgo2, descriptorExtractor2, descriptorMatcher));
-        //ORB-BRISK
-        jobs[2] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
-                intervalInMin, umPerStep, detectorAlgo2, descriptorExtractor1, descriptorMatcher));
-        //BRISK-BRISK
-        jobs[3] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
-                intervalInMin, umPerStep, detectorAlgo1, descriptorExtractor1, descriptorMatcher));
-        //AKAZE-BRISK
-        jobs[4] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
-                intervalInMin, umPerStep, detectorAlgo3, descriptorExtractor1, descriptorMatcher));
-        //AKAZE-ORB
-        jobs[5] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
-                intervalInMin, umPerStep, detectorAlgo3, descriptorExtractor2, descriptorMatcher));
-        //AKAZE-AKAZE
-        jobs[6] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
-                intervalInMin, umPerStep, detectorAlgo3, descriptorExtractor3, descriptorMatcher));
-
-        List<double[]> drifts = new ArrayList<>();
-        double[] currentRes = null;
-        int algoIndex = -1;
-        try {
-            for (int i = 0; i < jobs.length; i++) {
-                currentRes = (double[]) jobs[i].get();
-                algoIndex = i;
-                drifts.add(i, currentRes);
-            }
-        } catch (InterruptedException | ExecutionException e) {
-            try {
-                for (double d : currentRes){
-                    ReportingUtils.logMessage("Error in algo " + algoIndex + "_" + d);
-                }
-                finalizeAcquisition(oldROI, oldState, oldExposure, oldAutoShutterState, positionList, label, bfPath,
-                        correctedZPosition, correctedXPosition, correctedYPosition);
-            } catch (Exception e1) {
-                e1.printStackTrace();
-            }
-        }
-        es.shutdown();
-        try{
-            es.awaitTermination(5, TimeUnit.MINUTES);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        return drifts;
-    }
-
-    private void setXYPosition(double x, double y) {
-        assert x != 0;
-        assert y != 0;
-        String xyDevice = core_.getXYStageDevice();
-        try {
-            core_.setXYPosition(x,y);
-            core_.waitForDevice(xyDevice);
-        } catch (Exception e) {
-            e.printStackTrace();
-            ReportingUtils.showError("Unable to set XY position");
-        }
-    }
-
-    //Convert MM TaggedImage to OpenCV Mat
-    private static Mat convertToMat(TaggedImage img){
-        int width = 0;
-        int height = 0;
-        try {
-            width = img.tags.getInt("Width");
-            height = img.tags.getInt("Height");
-        } catch (JSONException e) {
-            e.printStackTrace();
-            ReportingUtils.showError("Unable to get width/height");
-        }
-        Mat mat = new Mat(height, width, CvType.CV_16UC1);
-        mat.put(0,0, (short[]) img.pix);
-        return mat;
-    }
-
-    //Convert MM TaggedImage to OpenCV 8 bits Mat
-    private static Mat convertTo8BitsMat(TaggedImage taggedImage) {
-        Mat mat16 = convertToMat(taggedImage);
-        Mat mat8 = new Mat(mat16.cols(), mat16.rows(), CvType.CV_8UC1);
-        Core.MinMaxLocResult minMaxResult = Core.minMaxLoc(mat16);
-        double min = minMaxResult.minVal;
-        double max = minMaxResult.maxVal;
-        mat16.convertTo(mat8, CvType.CV_8UC1, 255/(max-min));
-        return DriftCorrection.equalizeImages(mat8);
-    }
-
-    //Convert MM Short Processor to OpenCV Mat
-//    private static Mat toMat(ShortProcessor sp) {
-//        final int w = sp.getWidth();
-//        final int h = sp.getHeight();
-//        Mat mat = new Mat(h, w, CvType.CV_16UC1);
-//        mat.put(0,0, (short[]) sp.getPixels());
-//        Mat res = new Mat(h, w, CvType.CV_8UC1);
-//        mat.convertTo(res, CvType.CV_8UC1, alpha);
-//        return DriftCorrection.equalizeImages(res);
-//    }
 
     //Write output file when testing all algorithms
     private void writeMultipleOutput(long acquisitionDuration, String label, String prefix, double oldX,
@@ -997,7 +677,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
     }
 
-    //Write output file
+    //Write output file for one algorithm
     private void writeOutput(long acquisitionDuration, String label, String prefix, double currentXPosition, double correctedXPosition,
                              double currentYPosition, double correctedYPosition,
                              double currentZPosition, double correctedZPosition, double[] xyDrifts, double intervalInMin_) {
@@ -1081,6 +761,394 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             }
         }
     }
+
+    //Reinitialization methods
+
+    //Reinitialize counters and dictionaries
+    private void resetParameters(){
+        refImageDict = new HashMap<>();
+        oldPositionsDict = new HashMap<>();
+        positionIndex = 0;
+        store = null;
+        imageCount = 0;
+        timepoint = 0;
+        IJ.log("BF AutoFocus internal parameters have been reset");
+    }
+
+    //Reinitialize origin ROI and all other parameters
+    private void resetInitialMicroscopeCondition(Rectangle oldROI, Configuration oldState, double oldExposure,
+                                                 boolean oldAutoShutterState) {
+        core_.setAutoShutter(oldAutoShutterState);
+
+        if (cropFactor < 1.0) {
+            try {
+                studio_.app().setROI(oldROI);
+                core_.waitForDevice(core_.getCameraDevice());
+            } catch (Exception e) {
+                e.printStackTrace();
+                ReportingUtils.showError("Unable to reset ROI");
+            }
+        }
+
+        if (oldState != null) {
+            core_.setSystemState(oldState);
+        }
+
+        try {
+            core_.setExposure(oldExposure);
+        } catch (Exception e) {
+            e.printStackTrace();
+            ReportingUtils.showError("Unable to reset exposure");
+        }
+    }
+
+    private void finalizeAcquisition(Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState,
+                                     PositionList positionList, String label, String bfPath, double correctedZPosition,
+                                     double correctedXPosition, double correctedYPosition) {
+        //Reset conditions
+        resetInitialMicroscopeCondition(oldROI, oldState, oldExposure, oldAutoShutterState);
+
+        //Set to the focus
+        setZPosition(correctedZPosition);
+
+        //Refresh positions in position dictionary
+        refreshOldXYZposition(correctedXPosition, correctedYPosition, correctedZPosition, label);
+
+        //Save datastore if acquisition stopped/ all timepoints for all positions have been acquired
+        if (!studio_.acquisitions().isAcquisitionRunning() ||
+                (timepoint == studio_.acquisitions().getAcquisitionSettings().numFrames-1
+                        && store.getAxisLength("position")-1 == positionIndex)){
+            if (save.contentEquals("Yes")) {
+                SummaryMetadata summary = store.getSummaryMetadata();
+                if (summary == null) {
+                    // Create dummy summary metadata just for saving.
+                    summary = (new DefaultSummaryMetadata.Builder()).build();
+                }
+                // Insert intended dimensions if they aren't already present.
+                if (summary.getIntendedDimensions() == null) {
+                    DefaultCoords.Builder builder = new DefaultCoords.Builder();
+                    for (String axis : store.getAxes()) {
+                        builder.index(axis, store.getAxisLength(axis));
+                    }
+                    summary = summary.copy().intendedDimensions(builder.build()).build();
+                }
+
+                //Add summary metadata to data
+                try {
+                    store.setSummaryMetadata(summary);
+                } catch (DatastoreFrozenException | DatastoreRewriteException e) {
+                    e.printStackTrace();
+                    ReportingUtils.logMessage("Unable to set metadata");
+                }
+
+                //Save datastore
+                store.freeze();
+                store.save(Datastore.SaveMode.MULTIPAGE_TIFF, bfPath+"_ordered");
+                ReportingUtils.logMessage("Datastore saved");
+                store.close();
+
+//                try {
+//                    studio_.core().clearCircularBuffer();
+//                } catch (Exception e) {
+//                    e.printStackTrace();
+//                    ReportingUtils.logMessage("Unable to clear circular buffer");
+//                }
+
+                if (show.contentEquals("Yes")) {
+                    studio_.displays().manage(store);
+                }
+            }
+            resetParameters();
+
+            //Increment timepoint and positionIndex if acquisition still running
+        } else {
+            if (positionList.getNumberOfPositions() == 0) {
+                timepoint++;
+            } else if(positionList.getNumberOfPositions() == 1){
+                timepoint ++;
+            } else {
+                positionIndex++;
+                if (positionIndex == positionList.getNumberOfPositions()){
+                    positionIndex = 0;
+                    timepoint ++;
+                }
+            }
+        }
+    }
+
+    //XYZ-Methods
+
+    private double[] getXYZPosition(String label) {
+        return oldPositionsDict.get(label);
+    }
+
+    private void refreshOldXYZposition(double correctedXPosition, double correctedYPosition, double correctedZPosition, String label) {
+        double[] refreshedXYZposition = new double[3];
+        refreshedXYZposition[0] = correctedXPosition;
+        refreshedXYZposition[1] = correctedYPosition;
+        refreshedXYZposition[2] = correctedZPosition;
+        oldPositionsDict.replace(label, refreshedXYZposition);
+    }
+
+    private void setToLastCorrectedPosition(double oldX, double oldY, double oldZ) {
+        setXYPosition(oldX, oldY);
+        setZPosition(oldZ);
+    }
+
+    //Z-Methods
+
+    private double getZPosition() {
+        String focusDevice = core_.getFocusDevice();
+        double z = 0;
+        try {
+            z = core_.getPosition(focusDevice);
+        } catch (Exception e) {
+            e.printStackTrace();
+            ReportingUtils.showError("Unable to get Z Position");
+        }
+        return z;
+    }
+
+    private static int getZfocus (double[] stdArray){
+        double min = Double.MAX_VALUE;
+        int maxIdx = Integer.MAX_VALUE;
+        for (int i = 0; i < stdArray.length; i++){
+            if (stdArray[i] < min){
+                maxIdx = i;
+                min = stdArray[i];
+            }
+        }
+        return maxIdx;
+    }
+
+    public static double[] calculateZPositions(double searchRange, double step, double startZUm){
+        double lower = startZUm - searchRange/2;
+        int nstep  = new Double(searchRange/step).intValue() + 1;
+        double[] zpos = new double[nstep];
+        for (int p = 0; p < nstep; p++){
+            zpos[p] = lower + p * step;
+        }
+        return zpos;
+    }
+
+    private static double optimizeZFocus(int rawZidx, double[] stdArray, double[] zpositionArray){
+        if (rawZidx == zpositionArray.length-1 || rawZidx == 0){
+            return zpositionArray[rawZidx];
+        }
+        int oneLower = rawZidx-1;
+        int oneHigher = rawZidx+1;
+        double lowerVarDiff = stdArray[oneLower] - stdArray[rawZidx];
+        double upperVarDiff = stdArray[rawZidx] - stdArray[oneHigher];
+        if (lowerVarDiff * lowerVarDiff < upperVarDiff * upperVarDiff){
+            return (zpositionArray[oneLower] + zpositionArray[rawZidx]) / 2;
+        }else if(lowerVarDiff * lowerVarDiff > upperVarDiff * upperVarDiff){
+            return (zpositionArray[rawZidx] + zpositionArray[oneHigher]) / 2;
+        }else{
+            return zpositionArray[rawZidx];
+        }
+    }
+
+    private double calculateZFocus(double oldZ, boolean save) {
+        double[] zPositions = calculateZPositions(searchRange, step, oldZ);
+        double[] stdAtZPositions = new double[zPositions.length];
+        TaggedImage currentImg = null;
+
+        for (int i =0; i< zPositions.length ;i++){
+            setZPosition(zPositions[i]);
+            try {
+                core_.waitForDevice(core_.getCameraDevice());
+                core_.snapImage();
+                currentImg = core_.getTaggedImage();
+            } catch (Exception e) {
+                e.printStackTrace();
+                ReportingUtils.showError("Cannot take snapshot");
+            }
+            imageCount++;
+            assert currentImg != null;
+            Metadata metadata = DefaultMetadata.legacyFromJSON(currentImg.tags);
+            PositionList posList = studio_.positions().getPositionList();
+            if (posList.getNumberOfPositions()>0){
+                metadata = metadata.copy().positionName(posList.getPosition(positionIndex).getLabel()).build();
+            }
+            Image img = null;
+            try {
+                img = studio_.data().convertTaggedImage(currentImg,
+                        studio_.data().getCoordsBuilder().z(i).channel(0).stagePosition(positionIndex).time(timepoint).build(),
+                        metadata);
+                if (save){
+                    assert store != null;
+                    store.putImage(img);
+                }
+            } catch (JSONException | DatastoreRewriteException | DatastoreFrozenException e) {
+                e.printStackTrace();
+                ReportingUtils.showError("Unable to save current z image at " + i);
+            }
+            stdAtZPositions[i] = studio_.data().ij().createProcessor(img).getStatistics().stdDev;
+        }
+        int rawIndex = getZfocus(stdAtZPositions);
+        return optimizeZFocus(rawIndex, stdAtZPositions, zPositions);
+    }
+
+    private void setZPosition(double z) {
+        String focusDevice = core_.getFocusDevice();
+        try {
+            core_.setPosition(focusDevice, z);
+            core_.waitForDevice(focusDevice);
+        } catch (Exception e) {
+            e.printStackTrace();
+            ReportingUtils.showError("  Unable to set Z Position");
+        }
+    }
+
+    //XY-Methods
+
+    private double[] calculateXYDrifts(Mat currentImgMat, Integer detectorAlgo, Integer descriptorExtractor, Integer descriptorMatcher,
+                                       Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState,
+                                       PositionList positionList, String label, String bfPath, double correctedZPosition,
+                                       double correctedXPosition, double correctedYPosition) {
+
+        ExecutorService es = Executors.newSingleThreadExecutor();
+        Future job = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
+                intervalInMin, umPerStep, detectorAlgo, descriptorExtractor, descriptorMatcher));
+        double[] xyDrifts = new double[11];
+        try {
+            xyDrifts = (double[]) job.get();
+        } catch (Exception e1) {
+            e1.printStackTrace();
+            finalizeAcquisition(oldROI, oldState, oldExposure, oldAutoShutterState, positionList, label, bfPath,
+                    correctedZPosition, correctedXPosition, correctedYPosition);
+            ReportingUtils.logMessage("Error in algorithm; initial microscope condition have been reset");
+        }
+
+        es.shutdown();
+        try {
+            es.awaitTermination(1, TimeUnit.MINUTES);
+        } catch (InterruptedException e) {
+            try {
+                finalizeAcquisition(oldROI, oldState, oldExposure, oldAutoShutterState, positionList, label, bfPath,
+                        correctedZPosition, correctedXPosition, correctedYPosition);
+                ReportingUtils.logMessage("Calculation took too much time; initial microscope condition have been reset;" +
+                        "pass to next time point");
+            } catch (Exception e1) {
+                e1.printStackTrace();
+            }
+        }
+
+        return xyDrifts;
+    }
+
+    private List<double[]> calculateMultipleXYDrifts(Mat currentImgMat, Integer detectorAlgo1, Integer detectorAlgo2, Integer detectorAlgo3,
+                                                     Integer descriptorExtractor1, Integer descriptorExtractor2, Integer descriptorExtractor3,
+                                                     Integer descriptorMatcher, Rectangle oldROI, Configuration oldState,
+                                                     double oldExposure, boolean oldAutoShutterState,
+                                                     PositionList positionList, String label, String bfPath, double correctedZPosition,
+                                                     double correctedXPosition, double correctedYPosition){
+        int nThread = Runtime.getRuntime().availableProcessors() - 2;
+        ExecutorService es = Executors.newFixedThreadPool(nThread);
+        Future[] jobs = new Future[7];
+        //BRISK-ORB
+        jobs[0] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
+                intervalInMin, umPerStep, detectorAlgo1, descriptorExtractor2, descriptorMatcher));
+        //ORB-ORB
+        jobs[1] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
+                intervalInMin, umPerStep, detectorAlgo2, descriptorExtractor2, descriptorMatcher));
+        //ORB-BRISK
+        jobs[2] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
+                intervalInMin, umPerStep, detectorAlgo2, descriptorExtractor1, descriptorMatcher));
+        //BRISK-BRISK
+        jobs[3] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
+                intervalInMin, umPerStep, detectorAlgo1, descriptorExtractor1, descriptorMatcher));
+        //AKAZE-BRISK
+        jobs[4] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
+                intervalInMin, umPerStep, detectorAlgo3, descriptorExtractor1, descriptorMatcher));
+        //AKAZE-ORB
+        jobs[5] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
+                intervalInMin, umPerStep, detectorAlgo3, descriptorExtractor2, descriptorMatcher));
+        //AKAZE-AKAZE
+        jobs[6] = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
+                intervalInMin, umPerStep, detectorAlgo3, descriptorExtractor3, descriptorMatcher));
+
+        List<double[]> drifts = new ArrayList<>();
+        double[] currentRes = null;
+        int algoIndex = -1;
+        try {
+            for (int i = 0; i < jobs.length; i++) {
+                currentRes = (double[]) jobs[i].get();
+                algoIndex = i;
+                drifts.add(i, currentRes);
+            }
+        } catch (InterruptedException | ExecutionException e) {
+            try {
+                for (double d : currentRes){
+                    ReportingUtils.logMessage("Error in algo " + algoIndex + "_" + d);
+                }
+                finalizeAcquisition(oldROI, oldState, oldExposure, oldAutoShutterState, positionList, label, bfPath,
+                        correctedZPosition, correctedXPosition, correctedYPosition);
+            } catch (Exception e1) {
+                e1.printStackTrace();
+            }
+        }
+        es.shutdown();
+        try{
+            es.awaitTermination(5, TimeUnit.MINUTES);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        return drifts;
+    }
+
+    private void setXYPosition(double x, double y) {
+        assert x != 0;
+        assert y != 0;
+        String xyDevice = core_.getXYStageDevice();
+        try {
+            core_.setXYPosition(x,y);
+            core_.waitForDevice(xyDevice);
+        } catch (Exception e) {
+            e.printStackTrace();
+            ReportingUtils.showError("Unable to set XY position");
+        }
+    }
+
+    //Converters
+
+    //Convert MM TaggedImage to OpenCV Mat
+    private static Mat convertToMat(TaggedImage img){
+        int width = 0;
+        int height = 0;
+        try {
+            width = img.tags.getInt("Width");
+            height = img.tags.getInt("Height");
+        } catch (JSONException e) {
+            e.printStackTrace();
+            ReportingUtils.showError("Unable to get width/height");
+        }
+        Mat mat = new Mat(height, width, CvType.CV_16UC1);
+        mat.put(0,0, (short[]) img.pix);
+        return mat;
+    }
+
+    //Convert MM TaggedImage to OpenCV 8 bits Mat
+    private static Mat convertTo8BitsMat(TaggedImage taggedImage) {
+        Mat mat16 = convertToMat(taggedImage);
+        Mat mat8 = new Mat(mat16.cols(), mat16.rows(), CvType.CV_8UC1);
+        Core.MinMaxLocResult minMaxResult = Core.minMaxLoc(mat16);
+        double min = minMaxResult.minVal;
+        double max = minMaxResult.maxVal;
+        mat16.convertTo(mat8, CvType.CV_8UC1, 255/(max-min));
+        return DriftCorrection.equalizeImages(mat8);
+    }
+
+//    //Convert MM Short Processor to OpenCV Mat
+//    private static Mat toMat(ShortProcessor sp) {
+//        final int h = sp.getHeight();
+//        final int w = sp.getWidth();
+//        Mat mat = new Mat(h, w, CvType.CV_16UC1);
+//        mat.put(0,0, (short[]) sp.getPixels());
+//        Mat res = new Mat(h, w, CvType.CV_8UC1);
+//        mat.convertTo(res, CvType.CV_8UC1, alpha);
+//    return DriftCorrection.equalizeImages(res);
+//    }
 
     //Methods overriding
     @Override

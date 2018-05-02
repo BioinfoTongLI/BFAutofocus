@@ -379,8 +379,7 @@ public class DriftCorrection {
 
         return new double[]{meanXdisplacement, meanYdisplacement, matcher.rows(), good_matchesList.size(), algorithmDuration,
                 medianXDisplacement, medianYDisplacement, minXDisplacement, minYDisplacement, 
-                modeXDisplacement, modeYDisplacement
-        };
+                modeXDisplacement, modeYDisplacement};
     }
 }
 
