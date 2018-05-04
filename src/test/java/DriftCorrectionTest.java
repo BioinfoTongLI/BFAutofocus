@@ -4,6 +4,10 @@
 //import org.junit.runner.RunWith;
 //import org.junit.runners.Parameterized;
 //import org.opencv.core.*;
+//import org.opencv.features2d.DescriptorExtractor;
+//import org.opencv.features2d.DescriptorMatcher;
+//import org.opencv.features2d.FeatureDetector;
+//
 //import java.io.IOException;
 //import java.util.ArrayList;
 //import java.util.Arrays;
@@ -15,11 +19,11 @@
 //    public static Collection<Object[]> prepareFiles() throws IOException {
 //        //need this function to load .so of opencv
 //        nu.pattern.OpenCV.loadShared();
-//        Mat img1 = null;
-//        Mat img2 = null;
+//        Mat img1;
+//        Mat img2;
 //        String root = System.getProperty("user.dir") + "/src/main/resources/";
-//        img1 = DriftCorrection.readImage(root + "1-21.tif");
-//        img2 = DriftCorrection.readImage(root + "2-21.tif");
+//        img1 = DriftCorrection.readImage(root + "BF.tif");
+//        img2 = DriftCorrection.readImage(root + "BF-2.tif");
 //        return Arrays.asList(new Object[][] {{img1,img2}});
 //    }
 //    @Parameterized.Parameter
@@ -27,6 +31,24 @@
 //
 //    @Parameterized.Parameter(1)
 //    public Mat img2;
+//
+//    @Parameterized.Parameter(2)
+//    public Integer detectorAlgo = FeatureDetector.AKAZE;;
+//
+//    @Parameterized.Parameter(3)
+//    public Integer descriptorMatcher = DescriptorExtractor.BRISK;
+//
+//    @Parameterized.Parameter(4)
+//    public Integer descriptorExtractor = DescriptorMatcher.FLANNBASED;
+//
+//    @Parameterized.Parameter(5)
+//    public Integer umPerStep;
+//
+//    @Parameterized.Parameter(6)
+//    public Integer calibration;
+//
+//    @Parameterized.Parameter(7)
+//    public Integer intervalInMin;
 //
 //    @Test
 //    public void assertImagesDims() {
@@ -43,28 +65,24 @@
 //
 //    @Test
 //    public void assertImagesFeaturePoints() {
-//        Integer detectorAlgo = DriftCorrection.DETECTORALGO;
 //        MatOfKeyPoint keypoints1 = DriftCorrection.findKeypoints(img1, detectorAlgo);
 //        Assert.assertEquals(keypoints1.toList().size(), 500);
 //    }
 //
 //    @Test
 //    public void assertDescriptors() {
-//        Integer detectorAlgo = DriftCorrection.DETECTORALGO;
 //        Mat img1_descriptors = DriftCorrection.calculDescriptors(img1,
-//                DriftCorrection.findKeypoints(img1, detectorAlgo), DriftCorrection.DESCRIPTOREXTRACTOR);
+//                DriftCorrection.findKeypoints(img1, detectorAlgo), descriptorExtractor);
 //        Assert.assertEquals((long)img1_descriptors.get(0,1)[0], (long)186);
 //        Assert.assertEquals((long)img1_descriptors.get(0,10)[0], (long)194);
 //    }
 //
 //    @Test
 //    public void assertDescriptorMatching() {
-//        Integer descriptorMatcher = DriftCorrection.DESCRIPTORMATCHER;
-//        Integer detectorAlgo = DriftCorrection.DETECTORALGO;
 //        Mat img1_descriptors = DriftCorrection.calculDescriptors(img1,
-//                DriftCorrection.findKeypoints(img1, detectorAlgo), DriftCorrection.DESCRIPTOREXTRACTOR);
+//                DriftCorrection.findKeypoints(img1, detectorAlgo), descriptorExtractor);
 //        Mat img2_descriptors = DriftCorrection.calculDescriptors(img2,
-//                DriftCorrection.findKeypoints(img2, detectorAlgo), DriftCorrection.DESCRIPTOREXTRACTOR);
+//                DriftCorrection.findKeypoints(img2, detectorAlgo), descriptorExtractor);
 //        MatOfDMatch matcher =
 //                DriftCorrection.matchingDescriptor(img1_descriptors, img2_descriptors, descriptorMatcher);
 //        Assert.assertEquals((long)matcher.toArray()[0].distance, (long)390.6132);
@@ -73,16 +91,14 @@
 //
 //    @Test
 //    public void assertFiltering() {
-//        Integer descriptorMatcher = DriftCorrection.DESCRIPTORMATCHER;
-//        Integer detectorAlgo = DriftCorrection.DETECTORALGO;
 //        MatOfKeyPoint keypoint1 = DriftCorrection.findKeypoints(img1, detectorAlgo);
 //        MatOfKeyPoint keypoint2 = DriftCorrection.findKeypoints(img2, detectorAlgo);
-//        Mat img1_descriptors = DriftCorrection.calculDescriptors(img1, keypoint1, DriftCorrection.DESCRIPTOREXTRACTOR);
-//        Mat img2_descriptors = DriftCorrection.calculDescriptors(img2, keypoint2, DriftCorrection.DESCRIPTOREXTRACTOR);
+//        Mat img1_descriptors = DriftCorrection.calculDescriptors(img1, keypoint1, descriptorExtractor);
+//        Mat img2_descriptors = DriftCorrection.calculDescriptors(img2, keypoint2, descriptorExtractor);
 //        MatOfDMatch matcher = DriftCorrection.matchingDescriptor(img1_descriptors, img2_descriptors, descriptorMatcher);
 //
-//        ArrayList<DMatch> listOfGoodMatches = DriftCorrection.selectGoodMatches(matcher, keypoint1, keypoint2,
-//                DriftCorrection.UMPERMIN, DriftCorrection.UMPERPIX, DriftCorrection.INTERVALINMIN);
+//        ArrayList<DMatch> listOfGoodMatches = DriftCorrection.getGoodMatchesValues(matcher, keypoint1, keypoint2,
+//                umPerStep, calibration, intervalInMin);
 //        Assert.assertEquals(113, listOfGoodMatches.size());
 //        Assert.assertEquals((long) 341.40356,(long) listOfGoodMatches.get(0).distance);
 //        Assert.assertEquals((long) 289.40356,(long) listOfGoodMatches.get(15).distance);

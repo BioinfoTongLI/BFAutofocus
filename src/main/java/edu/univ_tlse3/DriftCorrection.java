@@ -16,36 +16,37 @@ import static org.opencv.features2d.Features2d.NOT_DRAW_SINGLE_POINTS;
 
 public class DriftCorrection {
 
-    // Read images from path
-//    public static Mat readImage(String pathOfImage) {
-//        Mat img = Imgcodecs.imread(pathOfImage, CvType.CV_16UC1);
-//        Mat img1 = new Mat(img.cols(), img.rows(), CvType.CV_8UC1);
-//        img.convertTo(img1, CvType.CV_8UC1, BFAutofocus.alpha);
-//        Mat img2 = equalizeImages(img1);
-//        return img2;
-//    }
+    // Read images from path, for Test
+    public static Mat readImage(String pathOfImage) {
+        double alpha = 0.00390625;
+        Mat img = Imgcodecs.imread(pathOfImage, CvType.CV_16UC1);
+        Mat img1 = new Mat(img.cols(), img.rows(), CvType.CV_8UC1);
+        img.convertTo(img1, CvType.CV_8UC1, alpha);
+        Mat img2 = equalizeImages(img1);
+        return img2;
+    }
 
-    static Mat equalizeImages(Mat img) {
+    public static Mat equalizeImages(Mat img) {
         Mat imgEqualized = new Mat(img.cols(), img.rows(), img.type());
         Imgproc.equalizeHist(img, imgEqualized);
         return imgEqualized;
     }
 
-    static MatOfKeyPoint findKeypoints(Mat img, int detectorType) {
+    public static MatOfKeyPoint findKeypoints(Mat img, int detectorType) {
         MatOfKeyPoint keypoints = new MatOfKeyPoint();
         FeatureDetector featureDetector = FeatureDetector.create(detectorType);
         featureDetector.detect(img, keypoints);
         return keypoints;
     }
 
-    static Mat calculDescriptors(Mat img, MatOfKeyPoint keypoints, int descriptorType) {
+    public static Mat calculDescriptors(Mat img, MatOfKeyPoint keypoints, int descriptorType) {
         Mat img_descript = new Mat();
         DescriptorExtractor extractor = DescriptorExtractor.create(descriptorType);
         extractor.compute(img, keypoints, img_descript);
         return img_descript;
     }
 
-    static MatOfDMatch matchingDescriptor(Mat img1_calcul_descriptors, Mat img2_calcul_descriptors, int descriptorMatcherType) {
+    public static MatOfDMatch matchingDescriptor(Mat img1_calcul_descriptors, Mat img2_calcul_descriptors, int descriptorMatcherType) {
         MatOfDMatch matcher = new MatOfDMatch();
         DescriptorMatcher matcherDescriptor = DescriptorMatcher.create(descriptorMatcherType);
         Mat img1_descriptor = convertMatDescriptorToCV32F(img1_calcul_descriptors);
@@ -55,7 +56,7 @@ public class DriftCorrection {
     }
 
     //Calculate distance (in um) between each pair of points :
-    static Map getDistancesInUm(MatOfDMatch matcher, MatOfKeyPoint keyPoint1, MatOfKeyPoint keyPoint2, double calibration) {
+    public static Map getDistancesInUm(MatOfDMatch matcher, MatOfKeyPoint keyPoint1, MatOfKeyPoint keyPoint2, double calibration) {
         DMatch[] matcherArray = matcher.toArray();
         KeyPoint[] keypoint1Array = keyPoint1.toArray();
         KeyPoint[] keypoint2Array = keyPoint2.toArray();
@@ -95,7 +96,7 @@ public class DriftCorrection {
         return globalListOfDistances;
     }
 
-    static ArrayList<Integer> getGoodMatchesIndex(MatOfDMatch matcher, MatOfKeyPoint keyPoint1, MatOfKeyPoint keyPoint2, double umPerStep, double calibration, double intervalInMin){
+    public static ArrayList<Integer> getGoodMatchesIndex(MatOfDMatch matcher, MatOfKeyPoint keyPoint1, MatOfKeyPoint keyPoint2, double umPerStep, double calibration, double intervalInMin){
         ArrayList<Integer> goodMatchesIndexArray = new ArrayList<>();
         ArrayList<Double> listOfDistancesInUm = getSingleListOfDistancesInUm("distances", matcher, keyPoint1, keyPoint2, calibration);
         for (int i = 0; i < listOfDistancesInUm.size(); i++) {
@@ -106,7 +107,7 @@ public class DriftCorrection {
         return goodMatchesIndexArray;
     }
 
-    static ArrayList<DMatch> getGoodMatchesValues(MatOfDMatch matcher, MatOfKeyPoint keyPoint1, MatOfKeyPoint keyPoint2, double umPerStep, double calibration, double intervalInMin) {
+    public static ArrayList<DMatch> getGoodMatchesValues(MatOfDMatch matcher, MatOfKeyPoint keyPoint1, MatOfKeyPoint keyPoint2, double umPerStep, double calibration, double intervalInMin) {
         DMatch[] matcherArray = matcher.toArray();
         ArrayList<Integer> listOfGoodMatchesIndex = getGoodMatchesIndex(matcher, keyPoint1, keyPoint2, umPerStep, calibration, intervalInMin);
         ArrayList<DMatch> listOfGoodMatchesValues = new ArrayList<>();
@@ -116,13 +117,13 @@ public class DriftCorrection {
         return listOfGoodMatchesValues;
     }
 
-    static ArrayList<Double> getSingleListOfDistancesInUm(String keyToSearch, MatOfDMatch matcher, MatOfKeyPoint keyPoint1, MatOfKeyPoint keyPoint2, double calibration){
+    public static ArrayList<Double> getSingleListOfDistancesInUm(String keyToSearch, MatOfDMatch matcher, MatOfKeyPoint keyPoint1, MatOfKeyPoint keyPoint2, double calibration){
         Map globallistOfDistances = getDistancesInUm(matcher, keyPoint1, keyPoint2, calibration);
         ArrayList<Double> listOfDistances = (ArrayList<Double>) globallistOfDistances.get(keyToSearch);
         return listOfDistances;
     }
 
-    static ArrayList<Double> getGoodMatchesDistances(String keyToSearch, ArrayList<Integer> listOfGoodMatchesIndex, MatOfDMatch matcher, MatOfKeyPoint keyPoint1, MatOfKeyPoint keyPoint2, double calibration){
+    public static ArrayList<Double> getGoodMatchesDistances(String keyToSearch, ArrayList<Integer> listOfGoodMatchesIndex, MatOfDMatch matcher, MatOfKeyPoint keyPoint1, MatOfKeyPoint keyPoint2, double calibration){
         ArrayList<Double> uniqueListOfDistance = getSingleListOfDistancesInUm(keyToSearch, matcher, keyPoint1, keyPoint2,calibration);
         ArrayList<Double> listOfGoodMatchesDistances = new ArrayList<>();
         for (int i = 0; i < listOfGoodMatchesIndex.size(); i++) {
@@ -131,7 +132,7 @@ public class DriftCorrection {
         return listOfGoodMatchesDistances;
     }
 
-    static double getMinimum(ArrayList<Double> listOfValues) {
+    public static double getMinimum(ArrayList<Double> listOfValues) {
         double minAbsValue = Double.MAX_VALUE;
         double minValue = 0;
         for (int i = 0; i < listOfValues.size(); i++) {
@@ -143,7 +144,7 @@ public class DriftCorrection {
         return minValue;
     }
 
-    static Float getMean(ArrayList<Double> listOfValues) {
+    public static Float getMean(ArrayList<Double> listOfValues) {
         int totalNumberOfX = listOfValues.size();
         float sumXDistancesCoordinates = 0;
         float meanXDifferencesCoordinates;
@@ -156,7 +157,7 @@ public class DriftCorrection {
         return meanXDifferencesCoordinates;
     }
 
-    static double getMedian(ArrayList<Double> listOfValues) {
+    public static double getMedian(ArrayList<Double> listOfValues) {
         double[] distancesArray = new double[listOfValues.size()];
         for (int i = 0; i < listOfValues.size(); i++) {
             distancesArray[i] = listOfValues.get(i);
@@ -166,7 +167,7 @@ public class DriftCorrection {
         return medianValue;
     }
 
-    static List<Integer> getModesDisplacements(ArrayList<Double> listOfValues) {
+    public static List<Integer> getModesDisplacements(ArrayList<Double> listOfValues) {
         //Initializations
         double[] distances = new double[listOfValues.size()];
         List<Integer> modes = new ArrayList<>();
@@ -202,7 +203,7 @@ public class DriftCorrection {
         return modes;
     }
 
-    static double getMode(ArrayList<Double> listOfValues){
+    public static double getMode(ArrayList<Double> listOfValues){
         double maxValue = 0;
         int maxCount = 0;
         for (int i =0; i < listOfValues.size(); i++){
@@ -220,7 +221,7 @@ public class DriftCorrection {
         return maxValue;
     }
 
-    static Float getVariance(ArrayList<Double> listOfValues) {
+    public static Float getVariance(ArrayList<Double> listOfValues) {
         int totalNumberOfValues = listOfValues.size();
         float sumDiffSquared = 0;
         float variance;
@@ -233,7 +234,7 @@ public class DriftCorrection {
     }
 
     //Method to not filter matches
-    static ArrayList<DMatch> convertMatOfMatcherToDMatch(MatOfDMatch matcher) {
+    public static ArrayList<DMatch> convertMatOfMatcherToDMatch(MatOfDMatch matcher) {
         List<DMatch> matcherList = matcher.toList();
         ArrayList<DMatch> matcherArrayList = new ArrayList<DMatch>(matcherList.size());
         return matcherArrayList;
@@ -241,7 +242,7 @@ public class DriftCorrection {
 
     // CONVERTERS
     //Convert Descriptors to CV_32F
-    static  Mat convertMatDescriptorToCV32F(Mat descriptor) {
+    public static  Mat convertMatDescriptorToCV32F(Mat descriptor) {
         Mat descriptor32F = new Mat(descriptor.cols(), descriptor.rows(), CvType.CV_32F);
         if (descriptor.type() != CvType.CV_32F) {
             descriptor.convertTo(descriptor32F, CvType.CV_32F);
@@ -249,7 +250,7 @@ public class DriftCorrection {
         return descriptor32F;
     }
     // Convert 8bits Mat images to Buffered
-    static BufferedImage convertMatCV8UC3ToBufferedImage(Mat m) {
+    public static BufferedImage convertMatCV8UC3ToBufferedImage(Mat m) {
         int type = BufferedImage.TYPE_3BYTE_BGR;
         int bufferSize = m.channels() * m.cols() * m.rows();
         byte[] b = new byte[bufferSize];
@@ -259,7 +260,7 @@ public class DriftCorrection {
         return img;
     }
 
-    static BufferedImage convertMatCV8UC1ToBufferedImage(Mat m) {
+    public static BufferedImage convertMatCV8UC1ToBufferedImage(Mat m) {
         int type = BufferedImage.TYPE_BYTE_GRAY;
         int bufferSize = m.channels() * m.cols() * m.rows();
         byte[] b = new byte[bufferSize];
@@ -271,7 +272,7 @@ public class DriftCorrection {
 
     // Convert double Array to byte Array
     //https://stackoverflow.com/questions/15533854/converting-byte-array-to-double-array
-    static byte[] toByteArray(double[] doubleArray){
+    public static byte[] toByteArray(double[] doubleArray){
         int times = Double.SIZE / Byte.SIZE;
         byte[] bytes = new byte[doubleArray.length * times];
         for(int i=0;i<doubleArray.length;i++){
@@ -281,7 +282,7 @@ public class DriftCorrection {
     }
 
     // Convert 64bits Mat images to Buffered
-    static BufferedImage convertMatCV64ToBufferedImage(Mat m) {
+    public static BufferedImage convertMatCV64ToBufferedImage(Mat m) {
         int type = BufferedImage.TYPE_3BYTE_BGR;
         int bufferSize = m.channels() * m.cols() * m.rows();
         double[] d = new double[bufferSize];
@@ -293,7 +294,7 @@ public class DriftCorrection {
     }
 
     //Convert an ArrayList to OpenCV Mat
-    static Mat listToMat(ArrayList<DMatch> list) {
+    public static Mat listToMat(ArrayList<DMatch> list) {
         MatOfDMatch mat = new MatOfDMatch();
         DMatch[] array = list.toArray(new DMatch[list.size()]);
         mat.fromArray(array);
@@ -316,7 +317,7 @@ public class DriftCorrection {
         imgp.show();
     }
 
-    static Mat drawGoodMatches(Mat img1, Mat img2, MatOfKeyPoint keypoints1, MatOfKeyPoint keypoints2, ArrayList<DMatch> good_matchesList) {
+    public static Mat drawGoodMatches(Mat img1, Mat img2, MatOfKeyPoint keypoints1, MatOfKeyPoint keypoints2, ArrayList<DMatch> good_matchesList) {
         Mat good_matches = listToMat(good_matchesList);
         Mat imgGoodMatches = new Mat();
         MatOfByte matchesMask = new MatOfByte();

@@ -35,65 +35,65 @@ import java.util.concurrent.*;
 @Plugin(type = AutofocusPlugin.class)
 public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJavaPlugin {
     //Some info about the plugin
-    private static final String VERSION_INFO = "0.0.1";
-    private static final String NAME = "Bright-field autofocus";
-    private static final String HELPTEXT = "This simple autofocus is only designed to process transmitted-light (or DIC) images, Z-stack is required.";
-    private static final String COPYRIGHT_NOTICE = "CeCILL-B-BSD compatible";
+    public static final String VERSION_INFO = "0.0.1";
+    public static final String NAME = "Bright-field autofocus";
+    public static final String HELPTEXT = "This simple autofocus is only designed to process transmitted-light (or DIC) images, Z-stack is required.";
+    public static final String COPYRIGHT_NOTICE = "CeCILL-B-BSD compatible";
 
     //Parameters of plugin
-    private static final String SEARCH_RANGE = "SearchRange_um";
-    private static final String CROP_FACTOR = "CropFactor";
-    private static final String CHANNEL = "Channel";
-    private static final String EXPOSURE = "Exposure";
-    private static final String SHOWIMAGES_TEXT = "ShowImages";
-    private static final String SAVEIMGS_TEXT = "SaveImages";
-    private static final String XY_CORRECTION_TEXT = "Correct XY at same time";
-    private static final String DETECTORALGO_TEXT = "Feature detector algorithm";
-    private static final String MATCHERALGO_TEXT = "Matches extractor algorithm";
-    private static final String[] DETECTORALGO_VALUES = {"AKAZE", "BRISK", "ORB"};
-    private static final String[] MATCHERALGO_VALUES = {"AKAZE", "BRISK", "ORB"};
-    private static final String[] SHOWIMAGES_VALUES = {"Yes", "No"};
-    private static final String[] SAVEIMAGES_VALUES = {"Yes", "No"};
-    private static final String STEP_SIZE = "Step_size";
-    private static final String[] XY_CORRECTION_VALUES = {"Yes", "No"};
-    private static final String UMPERSTEP = "µm displacement allowed per time point";
-    private static final String Z_OFFSET = "Z offset";
-    private static final String TESTALLALGOS_TEXT = "Test all possible algorithms";
-    private static final String[] TESTALLALGOS_VALUES = {"Yes", "No"};
+    public static final String SEARCH_RANGE = "SearchRange_um";
+    public static final String CROP_FACTOR = "CropFactor";
+    public static final String CHANNEL = "Channel";
+    public static final String EXPOSURE = "Exposure";
+    public static final String SHOWIMAGES_TEXT = "ShowImages";
+    public static final String SAVEIMGS_TEXT = "SaveImages";
+    public static final String XY_CORRECTION_TEXT = "Correct XY at same time";
+    public static final String DETECTORALGO_TEXT = "Feature detector algorithm";
+    public static final String MATCHERALGO_TEXT = "Matches extractor algorithm";
+    public static final String[] DETECTORALGO_VALUES = {"AKAZE", "BRISK", "ORB"};
+    public static final String[] MATCHERALGO_VALUES = {"AKAZE", "BRISK", "ORB"};
+    public static final String[] SHOWIMAGES_VALUES = {"Yes", "No"};
+    public static final String[] SAVEIMAGES_VALUES = {"Yes", "No"};
+    public static final String STEP_SIZE = "Step_size";
+    public static final String[] XY_CORRECTION_VALUES = {"Yes", "No"};
+    public static final String UMPERSTEP = "µm displacement allowed per time point";
+    public static final String Z_OFFSET = "Z offset";
+    public static final String TESTALLALGOS_TEXT = "Test all possible algorithms";
+    public static final String[] TESTALLALGOS_VALUES = {"Yes", "No"};
 
     //Set default parameters
-    private double searchRange = 10;
-    private double cropFactor = 1;
-    private String channel = "BF";
-    private double exposure = 50;
-    private String show = "Yes";
-    private String save = "Yes";
-    private int imageCount = 0;
-    private int timepoint = 0;
-    private double step = 0.3;
-    private String xy_correction = "Yes";
-    private Map<String, Mat> refImageDict = new HashMap<>();
-    private Map<String, double[]> oldPositionsDict = new HashMap<>();
-    private double umPerStep = 10;
-    private String testAllAlgos = "No";
-    private String detectorAlgo = "AKAZE";
-    private String matcherAlgo = "BRISK";
-    private double zOffset = -1;
+    public double searchRange = 10;
+    public double cropFactor = 1;
+    public String channel = "BF";
+    public double exposure = 50;
+    public String show = "Yes";
+    public String save = "Yes";
+    public int imageCount = 0;
+    public int timepoint = 0;
+    public double step = 0.3;
+    public String xy_correction = "Yes";
+    public Map<String, Mat> refImageDict = new HashMap<>();
+    public Map<String, double[]> oldPositionsDict = new HashMap<>();
+    public double umPerStep = 10;
+    public String testAllAlgos = "No";
+    public String detectorAlgo = "AKAZE";
+    public String matcherAlgo = "BRISK";
+    public double zOffset = -1;
 
     //Global variables
-    private Studio studio_;
-    private CMMCore core_;
-    private Mat imgRef_Mat = null;
-    private double calibration = 0;
-    private double intervalInMin = 0;
-    private int positionIndex = 0;
-    private String savingPath;
-    private Datastore store;
-    private static final int MEAN = 1;
-    private static final int MEDIAN = 2;
-    private static final int MIN = 3;
-    private final int flag = MEAN;
-    private final String algoToUseMultiple = "AKAZEBRISK";
+    public Studio studio_;
+    public CMMCore core_;
+    public Mat imgRef_Mat = null;
+    public double calibration = 0;
+    public double intervalInMin = 0;
+    public int positionIndex = 0;
+    public String savingPath;
+    public Datastore store;
+    public static final int MEAN = 1;
+    public static final int MEDIAN = 2;
+    public static final int MIN = 3;
+    public final int flag = MEAN;
+    public final String algoToUseMultiple = "AKAZEBRISK";
 
     //Begin autofocus
     public BFAutofocus() {
@@ -444,11 +444,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     //Methods//
     //*******//
 
-    private String getLabelOfPositions(PositionList positionList) {
+    public String getLabelOfPositions(PositionList positionList) {
         return positionList.getPosition(positionIndex).getLabel();
     }
 
-    private int getFeatureDetectorIndex(String name){
+    public int getFeatureDetectorIndex(String name){
         int index = -1;
         switch (name){
             case "AKAZE":
@@ -466,7 +466,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         return index;
     }
 
-    private int getDescriptorExtractorIndex(String name){
+    public int getDescriptorExtractorIndex(String name){
         int index = -1;
         switch (name){
             case "AKAZE":
@@ -485,7 +485,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     }
 
     //Write output file when testing all algorithms
-    private void writeMultipleOutput(long acquisitionDuration, String label, String prefix, double oldX,
+    public void writeMultipleOutput(long acquisitionDuration, String label, String prefix, double oldX,
                                      double oldY, double oldZ, double currentXPosition, double correctedXPosition, double currentYPosition,
                                      double correctedYPosition, double correctedZPosition, double[] xyDriftsBRISKORB,
                                      double[] xyDriftsORBORB, double[] xyDriftsORBBRISK, double[] xyDriftsBRISKBRISK,
@@ -678,7 +678,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     }
 
     //Write output file for one algorithm
-    private void writeOutput(long acquisitionDuration, String label, String prefix, double currentXPosition, double correctedXPosition,
+    public void writeOutput(long acquisitionDuration, String label, String prefix, double currentXPosition, double correctedXPosition,
                              double currentYPosition, double correctedYPosition,
                              double currentZPosition, double correctedZPosition, double[] xyDrifts, double intervalInMin_) {
 
@@ -765,7 +765,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     //Reinitialization methods
 
     //Reinitialize counters and dictionaries
-    private void resetParameters(){
+    public void resetParameters(){
         refImageDict = new HashMap<>();
         oldPositionsDict = new HashMap<>();
         positionIndex = 0;
@@ -776,7 +776,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     }
 
     //Reinitialize origin ROI and all other parameters
-    private void resetInitialMicroscopeCondition(Rectangle oldROI, Configuration oldState, double oldExposure,
+    public void resetInitialMicroscopeCondition(Rectangle oldROI, Configuration oldState, double oldExposure,
                                                  boolean oldAutoShutterState) {
         core_.setAutoShutter(oldAutoShutterState);
 
@@ -802,7 +802,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
     }
 
-    private void finalizeAcquisition(Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState,
+    public void finalizeAcquisition(Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState,
                                      PositionList positionList, String label, String bfPath, double correctedZPosition,
                                      double correctedXPosition, double correctedYPosition) {
         //Reset conditions
@@ -878,11 +878,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
     //XYZ-Methods
 
-    private double[] getXYZPosition(String label) {
+    public double[] getXYZPosition(String label) {
         return oldPositionsDict.get(label);
     }
 
-    private void refreshOldXYZposition(double correctedXPosition, double correctedYPosition, double correctedZPosition, String label) {
+    public void refreshOldXYZposition(double correctedXPosition, double correctedYPosition, double correctedZPosition, String label) {
         double[] refreshedXYZposition = new double[3];
         refreshedXYZposition[0] = correctedXPosition;
         refreshedXYZposition[1] = correctedYPosition;
@@ -890,14 +890,14 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         oldPositionsDict.replace(label, refreshedXYZposition);
     }
 
-    private void setToLastCorrectedPosition(double oldX, double oldY, double oldZ) {
+    public void setToLastCorrectedPosition(double oldX, double oldY, double oldZ) {
         setXYPosition(oldX, oldY);
         setZPosition(oldZ);
     }
 
     //Z-Methods
 
-    private double getZPosition() {
+    public double getZPosition() {
         String focusDevice = core_.getFocusDevice();
         double z = 0;
         try {
@@ -909,7 +909,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         return z;
     }
 
-    private static int getZfocus (double[] stdArray){
+    public static int getZfocus (double[] stdArray){
         double min = Double.MAX_VALUE;
         int maxIdx = Integer.MAX_VALUE;
         for (int i = 0; i < stdArray.length; i++){
@@ -931,7 +931,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         return zpos;
     }
 
-    private static double optimizeZFocus(int rawZidx, double[] stdArray, double[] zpositionArray){
+    public static double optimizeZFocus(int rawZidx, double[] stdArray, double[] zpositionArray){
         if (rawZidx == zpositionArray.length-1 || rawZidx == 0){
             return zpositionArray[rawZidx];
         }
@@ -948,7 +948,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         }
     }
 
-    private double calculateZFocus(double oldZ, boolean save) {
+    public double calculateZFocus(double oldZ, boolean save) {
         double[] zPositions = calculateZPositions(searchRange, step, oldZ);
         double[] stdAtZPositions = new double[zPositions.length];
         TaggedImage currentImg = null;
@@ -989,7 +989,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         return optimizeZFocus(rawIndex, stdAtZPositions, zPositions);
     }
 
-    private void setZPosition(double z) {
+    public void setZPosition(double z) {
         String focusDevice = core_.getFocusDevice();
         try {
             core_.setPosition(focusDevice, z);
@@ -1002,7 +1002,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
     //XY-Methods
 
-    private double[] calculateXYDrifts(Mat currentImgMat, Integer detectorAlgo, Integer descriptorExtractor, Integer descriptorMatcher,
+    public double[] calculateXYDrifts(Mat currentImgMat, Integer detectorAlgo, Integer descriptorExtractor, Integer descriptorMatcher,
                                        Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState,
                                        PositionList positionList, String label, String bfPath, double correctedZPosition,
                                        double correctedXPosition, double correctedYPosition) {
@@ -1037,7 +1037,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         return xyDrifts;
     }
 
-    private List<double[]> calculateMultipleXYDrifts(Mat currentImgMat, Integer detectorAlgo1, Integer detectorAlgo2, Integer detectorAlgo3,
+    public List<double[]> calculateMultipleXYDrifts(Mat currentImgMat, Integer detectorAlgo1, Integer detectorAlgo2, Integer detectorAlgo3,
                                                      Integer descriptorExtractor1, Integer descriptorExtractor2, Integer descriptorExtractor3,
                                                      Integer descriptorMatcher, Rectangle oldROI, Configuration oldState,
                                                      double oldExposure, boolean oldAutoShutterState,
@@ -1097,7 +1097,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         return drifts;
     }
 
-    private void setXYPosition(double x, double y) {
+    public void setXYPosition(double x, double y) {
         assert x != 0;
         assert y != 0;
         String xyDevice = core_.getXYStageDevice();
@@ -1113,7 +1113,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     //Converters
 
     //Convert MM TaggedImage to OpenCV Mat
-    private static Mat convertToMat(TaggedImage img){
+    public static Mat convertToMat(TaggedImage img){
         int width = 0;
         int height = 0;
         try {
@@ -1129,7 +1129,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     }
 
     //Convert MM TaggedImage to OpenCV 8 bits Mat
-    private static Mat convertTo8BitsMat(TaggedImage taggedImage) {
+    public static Mat convertTo8BitsMat(TaggedImage taggedImage) {
         Mat mat16 = convertToMat(taggedImage);
         Mat mat8 = new Mat(mat16.cols(), mat16.rows(), CvType.CV_8UC1);
         Core.MinMaxLocResult minMaxResult = Core.minMaxLoc(mat16);
@@ -1140,7 +1140,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     }
 
 //    //Convert MM Short Processor to OpenCV Mat
-//    private static Mat toMat(ShortProcessor sp) {
+//    public static Mat toMat(ShortProcessor sp) {
 //        final int h = sp.getHeight();
 //        final int w = sp.getWidth();
 //        Mat mat = new Mat(h, w, CvType.CV_16UC1);
@@ -1234,16 +1234,16 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     //********************************************************************************//
     //*************************** Class for multithreading ***************************//
     //********************************************************************************//
-    private class ThreadAttribution implements Callable<double[]> {
+    public class ThreadAttribution implements Callable<double[]> {
 
-        private Mat img1_;
-        private Mat img2_;
-        private double calibration_;
-        private double intervalInMs_;
-        private double umPerStep_;
-        private Integer detectorAlgo_;
-        private Integer descriptorExtractor_;
-        private Integer descriptorMatcher_;
+        public Mat img1_;
+        public Mat img2_;
+        public double calibration_;
+        public double intervalInMs_;
+        public double umPerStep_;
+        public Integer detectorAlgo_;
+        public Integer descriptorExtractor_;
+        public Integer descriptorMatcher_;
 
         ThreadAttribution(Mat img1, Mat img2, double calibration, double intervalInMs, double umPerStep,
                           Integer detectorAlgo, Integer descriptorExtractor, Integer descriptorMatcher) {
