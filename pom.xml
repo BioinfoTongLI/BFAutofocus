@@ -115,25 +115,6 @@
             <version>${micromanager.version}</version>
         </dependency>
 
-        <!-- OpenCV -->
-        <dependency>
-            <groupId>org.openpnp</groupId>
-            <artifactId>opencv</artifactId>
-            <version>${opencv.version}</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-math3</artifactId>
-            <version>3.6.1</version>
-        </dependency>
-
-        <!--<dependency>-->
-            <!--<groupId>io.github.joheras</groupId>-->
-            <!--<artifactId>IJ-OpenCV</artifactId>-->
-            <!--<version>1.0</version>-->
-        <!--</dependency>-->
-
         <!-- Block for unit tests -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
