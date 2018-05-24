@@ -22,10 +22,13 @@ import org.scijava.plugin.SciJavaPlugin;
 
 import java.awt.*;
 import java.io.File;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.text.ParseException;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.*;
 
 @Plugin(type = AutofocusPlugin.class)
@@ -43,7 +46,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 	public static final String EXPOSURE = "Exposure";
 	public static final String SHOWIMAGES_TEXT = "ShowImages";
 	public static final String SAVEIMGS_TEXT = "SaveImages";
-	public static final String XY_CORRECTION_TEXT = "Correct XY at same time";
 	public static final String[] SHOWIMAGES_VALUES = {"Yes", "No"};
 	public static final String[] SAVEIMAGES_VALUES = {"Yes", "No"};
 	public static final String STEP_SIZE = "Step_size";
@@ -75,10 +77,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 	public int positionIndex = 0;
 	public String savingPath;
 	public Datastore store;
-	public static final int MEAN = 1;
-	public static final int MEDIAN = 2;
-	public static final int MIN = 3;
-	public final int flag = MEAN;
 	
 	//Begin autofocus
 	public BFAutofocus() {
@@ -87,7 +85,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		super.createProperty(EXPOSURE, NumberUtils.doubleToDisplayString(exposure));
 		super.createProperty(Z_OFFSET, NumberUtils.doubleToDisplayString(zOffset));
 		super.createProperty(SHOWIMAGES_TEXT, show, SHOWIMAGES_VALUES);
-		super.createProperty(XY_CORRECTION_TEXT, xy_correction, XY_CORRECTION_VALUES);
 		super.createProperty(STEP_SIZE, NumberUtils.doubleToDisplayString(step));
 		super.createProperty(CHANNEL, channel);
 		super.createProperty(SAVEIMGS_TEXT, save, SAVEIMAGES_VALUES);
@@ -102,7 +99,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			exposure = NumberUtils.displayStringToDouble(getPropertyValue(EXPOSURE));
 			zOffset = NumberUtils.displayStringToDouble(getPropertyValue(Z_OFFSET));
 			show = getPropertyValue(SHOWIMAGES_TEXT);
-			xy_correction = getPropertyValue(XY_CORRECTION_TEXT);
 			channel = getPropertyValue(CHANNEL);
 			save = getPropertyValue(SAVEIMGS_TEXT);
 			
@@ -121,7 +117,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		calibration = core_.getPixelSizeUm();
 		intervalInMin = (studio_.acquisitions().getAcquisitionSettings().intervalMs) / 60000;
 		savingPath = studio_.acquisitions().getAcquisitionSettings().root + File.separator;
-		String prefix = studio_.acquisitions().getAcquisitionSettings().prefix;
 		
 		//ReportingUtils.logMessage("Original ROI: " + oldROI);
 		int w = (int) (oldROI.width * cropFactor);
@@ -218,9 +213,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		double correctedXPosition = currentXPosition;
 		double correctedYPosition = currentYPosition;
 		
-		double xCorrection = 0;
-		double yCorrection = 0;
-		double threshold = 0;
+		double xCorrection;
+		double yCorrection;
 		
 		if (xy_correction.contentEquals("Yes")) {
 			double currentZPosition = oldZ;
@@ -235,35 +229,19 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 				drifts = calculateXYDrifts(currentImp, oldROI, oldState, oldExposure, oldAutoShutterState,
 						positionList, label, bfPath, correctedZPosition, correctedXPosition, correctedYPosition);
 				
-				switch (flag) {
-					case (MEAN):
-						xCorrection = drifts[0];
-						yCorrection = drifts[1];
-						threshold = 0.05;
-						break;
-					case (MEDIAN):
-						xCorrection = drifts[5];
-						yCorrection = drifts[6];
-						threshold = 0.05;
-						break;
-					case (MIN):
-						xCorrection = drifts[7];
-						yCorrection = drifts[8];
-						threshold = 0.001;
-						break;
-					default:
-						IJ.error("Unknown method");
-				}
+				xCorrection = drifts[0] * calibration;
+				yCorrection = drifts[1] * calibration;
 				
 				if (Double.isNaN(xCorrection) || Double.isNaN(yCorrection)) {
 					ReportingUtils.logMessage("Drift correction failed at position " + label + " timepoint " + timepoint);
 					xCorrection = 0;
 					yCorrection = 0;
-				} else if (Math.abs(xCorrection) < threshold) {
-					xCorrection = 0;
-				} else if (Math.abs(yCorrection) < threshold) {
-					yCorrection = 0;
 				}
+//				else if (Math.abs(xCorrection) < threshold) {
+//					xCorrection = 0;
+//				} else if (Math.abs(yCorrection) < threshold) {
+//					yCorrection = 0;
+//				}
 				
 				ReportingUtils.logMessage("X Correction : " + xCorrection);
 				ReportingUtils.logMessage("Y Correction : " + yCorrection);
@@ -339,7 +317,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		}
 	}
 	
-	public void finalizeAcquisition(Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState,
+	private void finalizeAcquisition(Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState,
 											  PositionList positionList, String label, String bfPath, double correctedZPosition,
 											  double correctedXPosition, double correctedYPosition) {
 		//Reset conditions
@@ -544,8 +522,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 												 double correctedXPosition, double correctedYPosition) {
 		
 		ExecutorService es = Executors.newSingleThreadExecutor();
-		Future job = es.submit(new ThreadAttribution(currentImg, currentImg, calibration));
-		double[] xyDrifts = new double[11];
+		Future job = es.submit(new ThreadAttribution(currentImg, currentImg));
+		double[] xyDrifts = new double[2];
 		try {
 			xyDrifts = (double[]) job.get();
 		} catch (Exception e1) {
@@ -673,23 +651,59 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 	//********************************************************************************//
 	//*************************** Class for multithreading ***************************//
 	//********************************************************************************//
-	public class ThreadAttribution implements Callable<double[]> {
+	public static class ThreadAttribution implements Callable<double[]> {
 		
 		private ImagePlus img1_;
 		private ImagePlus img2_;
-		private double calibration_;
 		
-		ThreadAttribution(ImagePlus img1, ImagePlus img2, double calibration) {
+		public ThreadAttribution(ImagePlus img1, ImagePlus img2) {
 			img1_ = img1;
 			img2_ = img2;
-			calibration_ = calibration;
 		}
 		
 		@Override
 		public double[] call() {
-			return null;
-//			return DriftCorrection.driftCorrection(img1_, img2_, calibration_, intervalInMs_,
-//					umPerStep_);
+			Object turboReg;
+			Method method;
+			double[][] sourcePoints = null;
+			double[][] targetPoints = null;
+			final int width = img1_.getWidth();
+			final int height = img2_.getHeight();
+			final String sourcePathAndFileName = IJ.getDirectory("temp") + UUID.randomUUID().toString() + img1_.getTitle();
+			IJ.saveAsTiff(img1_, sourcePathAndFileName);
+			final String targetPathAndFileName = IJ.getDirectory("temp") + UUID.randomUUID().toString() + img2_.getTitle();
+			IJ.saveAsTiff(img2_, targetPathAndFileName);
+			turboReg = IJ.runPlugIn("TurboReg_", "-align"
+					+ " -file " + sourcePathAndFileName
+					+ " 0 0 " + (width - 1) + " " + (height - 1)
+					+ " -file " + targetPathAndFileName
+					+ " 0 0 " + (width - 1) + " " + (height - 1)
+					+ " -translation"
+					+ " " + (width / 2) + " " + (height / 2)
+					+ " " + (width / 2) + " " + (height / 2)
+					+ " -hideOutput"
+			);
+			
+			try {
+				method = turboReg.getClass().getMethod("getSourcePoints", null);
+				sourcePoints = ((double[][]) method.invoke(turboReg, null));
+				method = turboReg.getClass().getMethod("getTargetPoints", null);
+				targetPoints = ((double[][]) method.invoke(turboReg, null));
+			} catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
+				ReportingUtils.showError("Unable to align images with TurboReg.");
+				e.printStackTrace();
+			}
+
+//		System.out.println(sourcePoints[0][0] + "");
+//		System.out.println(targetPoints[0][0] + "");
+		ReportingUtils.logMessage(sourcePoints[0][0] - targetPoints[0][0] + "");
+//
+//		System.out.println(sourcePoints[0][1] + "");
+//		System.out.println(targetPoints[0][1] + "");
+		ReportingUtils.logMessage(sourcePoints[0][1] -  targetPoints[0][1]+ "");
+			
+			return new double[]{targetPoints[0][0] - sourcePoints[0][0],
+					targetPoints[0][1] - sourcePoints[0][1]};
 		}
 	}
 }
