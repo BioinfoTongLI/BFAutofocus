@@ -45,21 +45,23 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     public static final String CROP_FACTOR = "CropFactor";
     public static final String CHANNEL = "Channel";
     public static final String EXPOSURE = "Exposure";
-    public static final String SHOWIMAGES_TEXT = "ShowImages";
-    public static final String SAVEIMGS_TEXT = "SaveImages";
-    public static final String XY_CORRECTION_TEXT = "Correct XY at same time";
     public static final String DETECTORALGO_TEXT = "Feature detector algorithm";
-    public static final String MATCHERALGO_TEXT = "Matches extractor algorithm";
     public static final String[] DETECTORALGO_VALUES = {"AKAZE", "BRISK", "ORB"};
+    public static final String MATCHERALGO_TEXT = "Matches extractor algorithm";
     public static final String[] MATCHERALGO_VALUES = {"AKAZE", "BRISK", "ORB"};
+    public static final String SHOWIMAGES_TEXT = "ShowImages";
     public static final String[] SHOWIMAGES_VALUES = {"Yes", "No"};
+    public static final String SAVEIMGS_TEXT = "SaveImages";
     public static final String[] SAVEIMAGES_VALUES = {"Yes", "No"};
     public static final String STEP_SIZE = "Step_size";
+    public static final String XY_CORRECTION_TEXT = "Correct XY at same time";
     public static final String[] XY_CORRECTION_VALUES = {"Yes", "No"};
     public static final String UMPERSTEP = "µm displacement allowed per time point";
     public static final String Z_OFFSET = "Z offset";
     public static final String TESTALLALGOS_TEXT = "Test all possible algorithms";
     public static final String[] TESTALLALGOS_VALUES = {"Yes", "No"};
+    public static final String DRIFTCALCUL_TEXT = "Method to calculate drift";
+    public static final String[] DRIFTCALCUL_VALUES = {"Mean", "Harmonic Mean", "Median", "Minimum Distance"};
 
     //Set default parameters
     public double searchRange = 10;
@@ -79,6 +81,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     public String detectorAlgo = "AKAZE";
     public String matcherAlgo = "BRISK";
     public double zOffset = -1;
+    public String driftCalcul = "Median";
 
     //Global variables
     public Studio studio_;
@@ -89,24 +92,21 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     public int positionIndex = 0;
     public String savingPath;
     public Datastore store;
-    public static final int MEAN = 1;
-    public static final int MEDIAN = 2;
-    public static final int MIN = 3;
-    public final int flag = MEAN;
     public final String algoToUseMultiple = "AKAZEBRISK";
 
     //Begin autofocus
     public BFAutofocus() {
-        super.createProperty(SEARCH_RANGE, NumberUtils.doubleToDisplayString(searchRange));
         super.createProperty(CROP_FACTOR, NumberUtils.doubleToDisplayString(cropFactor));
         super.createProperty(EXPOSURE, NumberUtils.doubleToDisplayString(exposure));
+        super.createProperty(SEARCH_RANGE, NumberUtils.doubleToDisplayString(searchRange));
+        super.createProperty(STEP_SIZE, NumberUtils.doubleToDisplayString(step));
         super.createProperty(Z_OFFSET, NumberUtils.doubleToDisplayString(zOffset));
         super.createProperty(SHOWIMAGES_TEXT, show, SHOWIMAGES_VALUES);
         super.createProperty(XY_CORRECTION_TEXT, xy_correction, XY_CORRECTION_VALUES);
         super.createProperty(TESTALLALGOS_TEXT, testAllAlgos, TESTALLALGOS_VALUES);
         super.createProperty(DETECTORALGO_TEXT, detectorAlgo, DETECTORALGO_VALUES);
         super.createProperty(MATCHERALGO_TEXT, matcherAlgo, MATCHERALGO_VALUES);
-        super.createProperty(STEP_SIZE, NumberUtils.doubleToDisplayString(step));
+        super.createProperty(DRIFTCALCUL_TEXT, driftCalcul, DRIFTCALCUL_VALUES);
         super.createProperty(CHANNEL, channel);
         super.createProperty(UMPERSTEP, NumberUtils.doubleToDisplayString(umPerStep));
         super.createProperty(SAVEIMGS_TEXT, save, SAVEIMAGES_VALUES);
@@ -116,10 +116,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     @Override
     public void applySettings() {
         try {
-            searchRange = NumberUtils.displayStringToDouble(getPropertyValue(SEARCH_RANGE));
             cropFactor = NumberUtils.displayStringToDouble(getPropertyValue(CROP_FACTOR));
             cropFactor = MathFunctions.clip(0.01, cropFactor, 1.0);
             exposure = NumberUtils.displayStringToDouble(getPropertyValue(EXPOSURE));
+            searchRange = NumberUtils.displayStringToDouble(getPropertyValue(SEARCH_RANGE));
+            step = NumberUtils.displayStringToDouble(getPropertyValue(STEP_SIZE));
             zOffset = NumberUtils.displayStringToDouble(getPropertyValue(Z_OFFSET));
             show = getPropertyValue(SHOWIMAGES_TEXT);
             xy_correction = getPropertyValue(XY_CORRECTION_TEXT);
@@ -131,8 +132,29 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             }
             if (detectorAlgo.equals("ORB") && matcherAlgo.equals("BRISK")) {
                 YesNoCancelDialog yesNoCancelDialog = new YesNoCancelDialog(null, "Warning message :",
-                        "No result can be guaranteed by using these two algorithms. Proceed anyway?");
+                        "No result can be guaranteed by using these two algorithms. Do you want to proceed anyway?");
             }
+
+            driftCalcul = getPropertyValue(DRIFTCALCUL_TEXT);
+            switch (driftCalcul) {
+                case "Mean" :
+                    YesNoCancelDialog yesNoCancelMean = new YesNoCancelDialog(null, "Information message : ",
+                            "It is the fastest drift calculation method but the less accurate. Do you want to proceed?");
+                    break;
+                case "Harmonic Mean" :
+                    YesNoCancelDialog yesNoCancelHarmonicMean = new YesNoCancelDialog(null, "Information message : ",
+                            "It is the second fastest drift calculation method but the second less accurate. Do you want to proceed?");
+                    break;
+                case "Median" :
+                    YesNoCancelDialog yesNoCancelMedian = new YesNoCancelDialog(null, "Information message : ",
+                            "It is the most accurate drift calculation method but the least fast. Do you want to proceed?");
+                    break;
+                case "Minimum Distance" :
+                    YesNoCancelDialog yesNoCancelMinimumDistance = new YesNoCancelDialog(null, "Information message : ",
+                            "It is the most accurate drift calculation method but the least fast. Do you want to proceed?");
+                    break;
+            }
+
             channel = getPropertyValue(CHANNEL);
             umPerStep = NumberUtils.displayStringToDouble(getPropertyValue(UMPERSTEP));
             save = getPropertyValue(SAVEIMGS_TEXT);
@@ -315,21 +337,26 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                                 IJ.error("Unknown method of algorithm combination");
                         }
 
-                        switch (flag) {
-                            case(MEAN):
+                        switch (driftCalcul) {
+                            case "Mean":
                                 xCorrection = drifts[0];
                                 yCorrection = drifts[1];
                                 threshold = 0.05;
                                 break;
-                            case(MEDIAN):
+                            case "Median":
                                 xCorrection = drifts[5];
                                 yCorrection = drifts[6];
                                 threshold = 0.05;
                                 break;
-                            case(MIN):
+                            case "Minimum Distance" :
                                 xCorrection = drifts[7];
                                 yCorrection = drifts[8];
                                 threshold = 0.001;
+                                break;
+                            case "Harmonic Mean" :
+                                xCorrection = drifts[9];
+                                yCorrection = drifts[10];
+                                threshold = 0.05;
                                 break;
                             default:
                                 IJ.error("Unknown method of correction");
@@ -352,7 +379,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     correctedXPosition = currentXPosition + xCorrection;
                     correctedYPosition = currentYPosition + yCorrection;
                 }
-                
+
                 long endTime = new Date().getTime();
                 long acquisitionTimeElapsed = endTime - startTime;
                 ReportingUtils.logMessage("Acquisition duration in ms : " + acquisitionTimeElapsed);
@@ -377,24 +404,29 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                             oldROI, oldState, oldExposure, oldAutoShutterState,
                             positionList, label, bfPath, correctedZPosition, correctedXPosition, correctedYPosition);
 
-                    switch (flag) {
-                        case(MEAN):
+                    switch (driftCalcul) {
+                        case "Mean":
                             xCorrection = drifts[0];
                             yCorrection = drifts[1];
                             threshold = 0.05;
                             break;
-                        case(MEDIAN):
+                        case "Median":
                             xCorrection = drifts[5];
                             yCorrection = drifts[6];
                             threshold = 0.05;
                             break;
-                        case(MIN):
+                        case "Minimum Distance" :
                             xCorrection = drifts[7];
                             yCorrection = drifts[8];
                             threshold = 0.001;
                             break;
+                        case "Harmonic Mean" :
+                            xCorrection = drifts[9];
+                            yCorrection = drifts[10];
+                            threshold = 0.05;
+                            break;
                         default:
-                            IJ.error("Unknown method");
+                            IJ.error("Unknown method of correction");
                     }
 
                     if (Double.isNaN(xCorrection) || Double.isNaN(yCorrection)){
@@ -414,7 +446,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     correctedYPosition = currentYPosition + yCorrection;
 
                 }
-                
+
                 long endTime = new Date().getTime();
                 long acquisitionTimeElapsed = endTime - startTime;
                 ReportingUtils.logMessage("Acquisition duration in ms : " + acquisitionTimeElapsed);
@@ -486,10 +518,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
     //Write output file when testing all algorithms
     public void writeMultipleOutput(long acquisitionDuration, String label, String prefix, double oldX,
-                                     double oldY, double oldZ, double currentXPosition, double correctedXPosition, double currentYPosition,
-                                     double correctedYPosition, double correctedZPosition, double[] xyDriftsBRISKORB,
-                                     double[] xyDriftsORBORB, double[] xyDriftsORBBRISK, double[] xyDriftsBRISKBRISK,
-                                     double[] xyDriftsAKAZEAKAZE, double[] xyDriftsAKAZEBRISK, double[] xyDriftsAKAZEORB) {
+                                    double oldY, double oldZ, double currentXPosition, double correctedXPosition, double currentYPosition,
+                                    double correctedYPosition, double correctedZPosition, double[] xyDriftsBRISKORB,
+                                    double[] xyDriftsORBORB, double[] xyDriftsORBBRISK, double[] xyDriftsBRISKBRISK,
+                                    double[] xyDriftsAKAZEAKAZE, double[] xyDriftsAKAZEBRISK, double[] xyDriftsAKAZEORB) {
 
         File f1 = new File(savingPath + prefix + "_" + label + "_Stats" + ".csv");
         FileWriter fw = null;
@@ -531,10 +563,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                     "minXdisplacementAKAZEBRISK", "minYdisplacementAKAZEBRISK", "minXdisplacementAKAZEORB", "minYdisplacementAKAZEORB",
                     "minXdisplacementAKAZEAKAZE", "minYdisplacementAKAZEAKAZE",
 
-                    "modeXdisplacementBRISKORB", "modeYdisplacementBRISKORB", "modeXdisplacementORBORB", "modeYdisplacementORBORB",
-                    "modeXdisplacementORBBRISK", "modeYdisplacementORBBRISK", "modeXdisplacementBRISKBRISK", "modeYdisplacementBRISKBRISK",
-                    "modeXdisplacementAKAZEBRISK", "modeYdisplacementAKAZEBRISK", "modeXdisplacementAKAZEORB", "modeYdisplacementAKAZEORB",
-                    "modeXdisplacementAKAZEAKAZE", "modeYdisplacementAKAZEAKAZE"
+                    "harmonicMeanXdisplacementBRISKORB", "harmonicMeanYdisplacementBRISKORB", "harmonicMeanXdisplacementORBORB", "harmonicMeanYdisplacementORBORB",
+                    "harmonicMeanXdisplacementORBBRISK", "harmonicMeanYdisplacementORBBRISK", "harmonicMeanXdisplacementBRISKBRISK", "harmonicMeanYdisplacementBRISKBRISK",
+                    "harmonicMeanXdisplacementAKAZEBRISK", "harmonicMeanYdisplacementAKAZEBRISK", "harmonicMeanXdisplacementAKAZEORB", "harmonicMeanYdisplacementAKAZEORB",
+                    "harmonicMeanXdisplacementAKAZEAKAZE", "harmonicMeanYdisplacementAKAZEAKAZE"
 
             } ;
 
@@ -555,8 +587,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             double medianYDisplacementBRISKORB = xyDriftsBRISKORB[6];
             double minXDisplacementBRISKORB = xyDriftsBRISKORB[7];
             double minYDisplacementBRISKORB = xyDriftsBRISKORB[8];
-            double modeXDisplacementBRISKORB = xyDriftsBRISKORB[9];
-            double modeYDisplacementBRISKORB = xyDriftsBRISKORB[10];
+            double harmonicMeanXDisplacementBRISKORB = xyDriftsBRISKORB[9];
+            double harmonicMeanYDisplacementBRISKORB = xyDriftsBRISKORB[10];
 
             double meanXdisplacementORBORB = xyDriftsORBORB[0];
             double meanYdisplacementORBORB = xyDriftsORBORB[1];
@@ -567,8 +599,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             double medianYDisplacementORBORB = xyDriftsORBORB[6];
             double minXDisplacementORBORB = xyDriftsORBORB[7];
             double minYDisplacementORBORB = xyDriftsORBORB[8];
-            double modeXDisplacementORBORB = xyDriftsORBORB[9];
-            double modeYDisplacementORBORB = xyDriftsORBORB[10];
+            double harmonicMeanXDisplacementORBORB = xyDriftsORBORB[9];
+            double harmonicMeanYDisplacementORBORB = xyDriftsORBORB[10];
 
             double meanXdisplacementORBBRISK = xyDriftsORBBRISK[0];
             double meanYdisplacementORBBRISK = xyDriftsORBBRISK[1];
@@ -579,8 +611,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             double medianYDisplacementORBBRISK = xyDriftsORBBRISK[6];
             double minXDisplacementORBBRISK = xyDriftsORBBRISK[7];
             double minYDisplacementORBBRISK = xyDriftsORBBRISK[8];
-            double modeXDisplacementORBBRISK = xyDriftsORBBRISK[9];
-            double modeYDisplacementORBBRISK = xyDriftsORBBRISK[10];
+            double harmonicMeanXDisplacementORBBRISK = xyDriftsORBBRISK[9];
+            double harmonicMeanYDisplacementORBBRISK = xyDriftsORBBRISK[10];
 
             double meanXdisplacementBRISKBRISK = xyDriftsBRISKBRISK[0];
             double meanYdisplacementBRISKBRISK = xyDriftsBRISKBRISK[1];
@@ -591,8 +623,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             double medianYDisplacementBRISKBRISK = xyDriftsBRISKBRISK[6];
             double minXDisplacementBRISKBRISK = xyDriftsBRISKBRISK[7];
             double minYDisplacementBRISKBRISK = xyDriftsBRISKBRISK[8];
-            double modeXDisplacementBRISKBRISK = xyDriftsBRISKBRISK[9];
-            double modeYDisplacementBRISKBRISK = xyDriftsBRISKBRISK[10];
+            double harmonicMeanXDisplacementBRISKBRISK = xyDriftsBRISKBRISK[9];
+            double harmonicMeanYDisplacementBRISKBRISK = xyDriftsBRISKBRISK[10];
 
             double meanXdisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[0];
             double meanYdisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[1];
@@ -603,8 +635,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             double medianYDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[6];
             double minXDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[7];
             double minYDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[8];
-            double modeXDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[9];
-            double modeYDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[10];
+            double harmonicMeanXDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[9];
+            double harmonicMeanYDisplacementAKAZEBRISK = xyDriftsAKAZEBRISK[10];
 
             double meanXdisplacementAKAZEORB = xyDriftsAKAZEORB[0];
             double meanYdisplacementAKAZEORB = xyDriftsAKAZEORB[1];
@@ -615,8 +647,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             double medianYDisplacementAKAZEORB = xyDriftsAKAZEORB[6];
             double minXDisplacementAKAZEORB = xyDriftsAKAZEORB[7];
             double minYDisplacementAKAZEORB = xyDriftsAKAZEORB[8];
-            double modeXDisplacementAKAZEORB = xyDriftsAKAZEORB[9];
-            double modeYDisplacementAKAZEORB = xyDriftsAKAZEORB[10];
+            double harmonicMeanXDisplacementAKAZEORB = xyDriftsAKAZEORB[9];
+            double harmonicMeanYDisplacementAKAZEORB = xyDriftsAKAZEORB[10];
 
             double meanXdisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[0];
             double meanYdisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[1];
@@ -627,8 +659,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             double medianYDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[6];
             double minXDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[7];
             double minYDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[8];
-            double modeXDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[9];
-            double modeYDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[10];
+            double harmonicMeanXDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[9];
+            double harmonicMeanYDisplacementAKAZEAKAZE = xyDriftsAKAZEAKAZE[10];
 
             FileWriter fw1 = null;
             try {
@@ -663,10 +695,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                         + minXDisplacementAKAZEBRISK + "," + minYDisplacementAKAZEBRISK + "," + minXDisplacementAKAZEORB + "," + minYDisplacementAKAZEORB + ","
                         + minXDisplacementAKAZEAKAZE + "," + minYDisplacementAKAZEAKAZE + ","
 
-                        + modeXDisplacementBRISKORB + "," + modeYDisplacementBRISKORB + "," + modeXDisplacementORBORB + "," + modeYDisplacementORBORB + ","
-                        + modeXDisplacementORBBRISK + "," + modeYDisplacementORBBRISK + "," + modeXDisplacementBRISKBRISK + "," + modeYDisplacementBRISKBRISK + ","
-                        + modeXDisplacementAKAZEBRISK + "," + modeYDisplacementAKAZEBRISK + "," + modeXDisplacementAKAZEORB + "," + modeYDisplacementAKAZEORB + ","
-                        + modeXDisplacementAKAZEAKAZE + "," + modeYDisplacementAKAZEAKAZE
+                        + harmonicMeanXDisplacementBRISKORB + "," + harmonicMeanYDisplacementBRISKORB + "," + harmonicMeanXDisplacementORBORB + "," + harmonicMeanYDisplacementORBORB + ","
+                        + harmonicMeanXDisplacementORBBRISK + "," + harmonicMeanYDisplacementORBBRISK + "," + harmonicMeanXDisplacementBRISKBRISK + "," + harmonicMeanYDisplacementBRISKBRISK + ","
+                        + harmonicMeanXDisplacementAKAZEBRISK + "," + harmonicMeanYDisplacementAKAZEBRISK + "," + harmonicMeanXDisplacementAKAZEORB + "," + harmonicMeanYDisplacementAKAZEORB + ","
+                        + harmonicMeanXDisplacementAKAZEAKAZE + "," + harmonicMeanYDisplacementAKAZEAKAZE
 
                         + System.lineSeparator());
                 fw1.close();
@@ -679,8 +711,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
     //Write output file for one algorithm
     public void writeOutput(long acquisitionDuration, String label, String prefix, double currentXPosition, double correctedXPosition,
-                             double currentYPosition, double correctedYPosition,
-                             double currentZPosition, double correctedZPosition, double[] xyDrifts, double intervalInMin_) {
+                            double currentYPosition, double correctedYPosition,
+                            double currentZPosition, double correctedZPosition, double[] xyDrifts, double intervalInMin_) {
 
         File f1 = new File(savingPath + prefix + "_" + label + "_Stats" + ".csv");
         FileWriter fw = null;
@@ -703,7 +735,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
                     "minXdisplacement", "minYdisplacement",
 
-                    "modeXdisplacement", "modeYdisplacement",
+                    "harmonicMeanXdisplacement", "harmonicMeanYdisplacement",
 
                     "numberOfMatches", "numberOfGoodMatches",
 
@@ -729,8 +761,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             double medianYDisplacement = xyDrifts[6];
             double minXDisplacement = xyDrifts[7];
             double minYDisplacement = xyDrifts[8];
-            double modeXDisplacement = xyDrifts[9];
-            double modeYDisplacement = xyDrifts[10];
+            double harmonicMeanXDisplacement = xyDrifts[9];
+            double harmonicMeanYDisplacement = xyDrifts[10];
 
             FileWriter fw1 = null;
             try {
@@ -747,7 +779,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
                         + minXDisplacement + "," + minYDisplacement + ","
 
-                        + modeXDisplacement + "," + modeYDisplacement + ","
+                        + harmonicMeanXDisplacement + "," + harmonicMeanYDisplacement + ","
 
                         + numberOfMatches + "," + numberOfGoodMatches + ","
 
@@ -777,7 +809,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
     //Reinitialize origin ROI and all other parameters
     public void resetInitialMicroscopeCondition(Rectangle oldROI, Configuration oldState, double oldExposure,
-                                                 boolean oldAutoShutterState) {
+                                                boolean oldAutoShutterState) {
         core_.setAutoShutter(oldAutoShutterState);
 
         if (cropFactor < 1.0) {
@@ -803,8 +835,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     }
 
     public void finalizeAcquisition(Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState,
-                                     PositionList positionList, String label, String bfPath, double correctedZPosition,
-                                     double correctedXPosition, double correctedYPosition) {
+                                    PositionList positionList, String label, String bfPath, double correctedZPosition,
+                                    double correctedXPosition, double correctedYPosition) {
         //Reset conditions
         resetInitialMicroscopeCondition(oldROI, oldState, oldExposure, oldAutoShutterState);
 
@@ -1003,9 +1035,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     //XY-Methods
 
     public double[] calculateXYDrifts(Mat currentImgMat, Integer detectorAlgo, Integer descriptorExtractor, Integer descriptorMatcher,
-                                       Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState,
-                                       PositionList positionList, String label, String bfPath, double correctedZPosition,
-                                       double correctedXPosition, double correctedYPosition) {
+                                      Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState,
+                                      PositionList positionList, String label, String bfPath, double correctedZPosition,
+                                      double correctedXPosition, double correctedYPosition) {
 
         ExecutorService es = Executors.newSingleThreadExecutor();
         Future job = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
@@ -1038,11 +1070,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     }
 
     public List<double[]> calculateMultipleXYDrifts(Mat currentImgMat, Integer detectorAlgo1, Integer detectorAlgo2, Integer detectorAlgo3,
-                                                     Integer descriptorExtractor1, Integer descriptorExtractor2, Integer descriptorExtractor3,
-                                                     Integer descriptorMatcher, Rectangle oldROI, Configuration oldState,
-                                                     double oldExposure, boolean oldAutoShutterState,
-                                                     PositionList positionList, String label, String bfPath, double correctedZPosition,
-                                                     double correctedXPosition, double correctedYPosition){
+                                                    Integer descriptorExtractor1, Integer descriptorExtractor2, Integer descriptorExtractor3,
+                                                    Integer descriptorMatcher, Rectangle oldROI, Configuration oldState,
+                                                    double oldExposure, boolean oldAutoShutterState,
+                                                    PositionList positionList, String label, String bfPath, double correctedZPosition,
+                                                    double correctedXPosition, double correctedYPosition){
         int nThread = Runtime.getRuntime().availableProcessors() - 2;
         ExecutorService es = Executors.newFixedThreadPool(nThread);
         Future[] jobs = new Future[7];

@@ -145,16 +145,14 @@ public class DriftCorrection {
     }
 
     public static Float getMean(ArrayList<Double> listOfValues) {
-        int totalNumberOfX = listOfValues.size();
-        float sumXDistancesCoordinates = 0;
-        float meanXDifferencesCoordinates;
-        double[] xDistances = new double[listOfValues.size()];
+        int totalNumberOfValues = listOfValues.size();
+        float sumOfValues = 0;
+        float meanOfValues;
         for (int i = 0; i < listOfValues.size(); i++) {
-            sumXDistancesCoordinates += listOfValues.get(i);
-            xDistances[i] = listOfValues.get(i);
+            sumOfValues += listOfValues.get(i);
         }
-        meanXDifferencesCoordinates = sumXDistancesCoordinates/totalNumberOfX;
-        return meanXDifferencesCoordinates;
+        meanOfValues = sumOfValues/totalNumberOfValues;
+        return meanOfValues;
     }
 
     public static double getMedian(ArrayList<Double> listOfValues) {
@@ -167,58 +165,16 @@ public class DriftCorrection {
         return medianValue;
     }
 
-    public static List<Integer> getModesDisplacements(ArrayList<Double> listOfValues) {
-        //Initializations
-        double[] distances = new double[listOfValues.size()];
-        List<Integer> modes = new ArrayList<>();
-        Map<Integer, Integer> countMap = new HashMap<Integer, Integer>();
-        int max  = (int) Double.MIN_VALUE;
-        //Calcul difference between img1 and img2 coordinates
+    public static double getHarmonicMean(ArrayList<Double> listOfValues){
+        int totalNumberOfValues = listOfValues.size();
+        float sumOfValues = 0;
+        float meanOfValues;
         for (int i = 0; i < listOfValues.size(); i++) {
-            distances[i] = listOfValues.get(i);
+            double inverseOfValue = 1.0 / listOfValues.get(i);
+            sumOfValues += inverseOfValue;
         }
-
-        for (int n = 0; n < distances.length; n++) {
-            //Create dictionary of values and associated count
-            int count = 0;
-            if (countMap.containsKey(n)) {
-                count = countMap.get(n) + 1;
-            } else {
-                count = 1;
-            }
-            countMap.put(n, count);
-
-            //Determine if the count is the max or not
-            if (count > max) {
-                max = count;
-            }
-        }
-
-        for (Map.Entry<Integer, Integer> tuple : countMap.entrySet()) {
-            if (tuple.getValue() == max) {
-                modes.add(tuple.getKey());
-            }
-        }
-
-        return modes;
-    }
-
-    public static double getMode(ArrayList<Double> listOfValues){
-        double maxValue = 0;
-        int maxCount = 0;
-        for (int i =0; i < listOfValues.size(); i++){
-            int count = 0;
-            for (int j = 0; j < listOfValues.size(); j ++){
-                if(listOfValues.get(j) == listOfValues.get(i)){
-                    count ++;
-                }
-            }
-            if (count > maxCount){
-                maxCount = count;
-                maxValue = listOfValues.get(i);
-            }
-        }
-        return maxValue;
+        meanOfValues = sumOfValues/totalNumberOfValues;
+        return (1.0/meanOfValues);
     }
 
     public static Float getVariance(ArrayList<Double> listOfValues) {
@@ -372,15 +328,15 @@ public class DriftCorrection {
         double medianXDisplacement = getMedian(goodMatchesXDistances);
         double medianYDisplacement = getMedian(goodMatchesYDistances);
 
-        double modeXDisplacement = getMode(goodMatchesXDistances);
-        double modeYDisplacement = getMode(goodMatchesYDistances);
+        double harmonicMeanXDisplacement = getHarmonicMean(goodMatchesXDistances);
+        double harmonicMeanYDisplacement = getHarmonicMean(goodMatchesYDistances);
 
         long endTime = new Date().getTime();
         long algorithmDuration = endTime - startTime;
 
         return new double[]{meanXdisplacement, meanYdisplacement, matcher.rows(), good_matchesList.size(), algorithmDuration,
                 medianXDisplacement, medianYDisplacement, minXDisplacement, minYDisplacement, 
-                modeXDisplacement, modeYDisplacement};
+                harmonicMeanXDisplacement, harmonicMeanYDisplacement};
     }
 }
 
