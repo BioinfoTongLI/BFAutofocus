@@ -22,8 +22,6 @@ import org.scijava.plugin.SciJavaPlugin;
 
 import java.awt.*;
 import java.io.File;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.text.ParseException;
 import java.util.Date;
 import java.util.HashMap;
@@ -663,15 +661,14 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		
 		@Override
 		public double[] call() {
-			Object turboReg;
-			Method method;
 			final int width = img1_.getWidth();
 			final int height = img2_.getHeight();
 			final String sourcePathAndFileName = IJ.getDirectory("temp") + UUID.randomUUID().toString() + img1_.getTitle();
 			IJ.saveAsTiff(img1_, sourcePathAndFileName);
 			final String targetPathAndFileName = IJ.getDirectory("temp") + UUID.randomUUID().toString() + img2_.getTitle();
 			IJ.saveAsTiff(img2_, targetPathAndFileName);
-			turboReg = IJ.runPlugIn("TurboReg", "-align"
+			TurboReg_ reg = new TurboReg_();
+			reg.run("-align"
 					+ " -file " + sourcePathAndFileName
 					+ " 0 0 " + (width - 1) + " " + (height - 1)
 					+ " -file " + targetPathAndFileName
@@ -679,30 +676,14 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 					+ " -translation"
 					+ " " + (width / 2) + " " + (height / 2)
 					+ " " + (width / 2) + " " + (height / 2)
-					+ " -hideOutput"
-			);
-			double[][] sourcePoints = null;
-			double[][] targetPoints = null;
-			try {
-				method = turboReg.getClass().getMethod("getSourcePoints" );
-				sourcePoints = ((double[][]) method.invoke(turboReg));
-				method = turboReg.getClass().getMethod("getTargetPoints");
-				targetPoints = ((double[][]) method.invoke(turboReg));
-			} catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException e) {
-				ReportingUtils.showError("Unable to align images with TurboReg.");
-				e.printStackTrace();
-			}
-
-//		System.out.println(sourcePoints[0][0] + "");
-//		System.out.println(targetPoints[0][0] + "");
-			ReportingUtils.logMessage(targetPoints[0][0] - sourcePoints[0][0] + "");
-//
-//		System.out.println(sourcePoints[0][1] + "");
-//		System.out.println(targetPoints[0][1] + "");
-			ReportingUtils.logMessage(targetPoints[0][1] -  sourcePoints[0][1]+ "");
+					+ " -hideOutput");
 			
-			return new double[]{targetPoints[0][0] - sourcePoints[0][0],
-					targetPoints[0][1] - sourcePoints[0][1]};
+			double[][] sourcePoints = reg.getSourcePoints();
+			double[][] targetPoints = reg.getTargetPoints();
+			double[] xyDrifts = new double[2];
+			xyDrifts[0] = targetPoints[0][0] - sourcePoints[0][0];
+			xyDrifts[1] = targetPoints[0][1] -  sourcePoints[0][1];
+			return xyDrifts;
 		}
 	}
 }

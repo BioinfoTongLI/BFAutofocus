@@ -4,10 +4,8 @@ import ij.ImagePlus;
 import org.junit.Assert;
 import org.junit.jupiter.api.Test;
 
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.util.UUID;
+import java.util.concurrent.*;
 
 class BFAutofocusTest {
 	
@@ -89,18 +87,21 @@ class BFAutofocusTest {
 		String root = System.getProperty("user.dir") + "/src/main/resources/";
 		ImagePlus srcimg = IJ.openImage(root + "T0.tif");
 		ImagePlus tagimg = IJ.openImage(root + "T10.tif");
+		final String sourcePathAndFileName = IJ.getDirectory("temp") + UUID.randomUUID().toString() + srcimg.getTitle();
+		IJ.saveAsTiff(srcimg, sourcePathAndFileName);
+		final String targetPathAndFileName = IJ.getDirectory("temp") + UUID.randomUUID().toString() + tagimg.getTitle();
+		IJ.saveAsTiff(tagimg, targetPathAndFileName);
 		ExecutorService es = Executors.newSingleThreadExecutor();
 		Future job = es.submit(new BFAutofocus.ThreadAttribution(srcimg, tagimg));
 		double[] xyDrifts = new double[2];
 		try {
 			xyDrifts = (double[]) job.get();
-		} catch (Exception e1) {
-			e1.printStackTrace();
+		} catch (InterruptedException | ExecutionException e) {
+			e.printStackTrace();
 		}
-		
 		es.shutdown();
 		try {
-			es.awaitTermination(1, TimeUnit.MINUTES);
+			es.awaitTermination(20, TimeUnit.SECONDS);
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
