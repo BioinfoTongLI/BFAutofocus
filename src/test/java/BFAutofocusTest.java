@@ -4,7 +4,6 @@ import ij.ImagePlus;
 import org.junit.Assert;
 import org.junit.jupiter.api.Test;
 
-import java.util.UUID;
 import java.util.concurrent.*;
 
 class BFAutofocusTest {
@@ -54,10 +53,6 @@ class BFAutofocusTest {
 	}
 	
 	@Test
-	void getZPositionTest() {
-	}
-	
-	@Test
 	void getZfocusTest() {
 	}
 	
@@ -79,18 +74,10 @@ class BFAutofocusTest {
 	}
 	
 	@Test
-	void setZPositionTest() {
-	}
-	
-	@Test
 	void calculateXYDriftsTest() {
 		String root = System.getProperty("user.dir") + "/src/main/resources/";
 		ImagePlus srcimg = IJ.openImage(root + "T0.tif");
 		ImagePlus tagimg = IJ.openImage(root + "T10.tif");
-		final String sourcePathAndFileName = IJ.getDirectory("temp") + UUID.randomUUID().toString() + srcimg.getTitle();
-		IJ.saveAsTiff(srcimg, sourcePathAndFileName);
-		final String targetPathAndFileName = IJ.getDirectory("temp") + UUID.randomUUID().toString() + tagimg.getTitle();
-		IJ.saveAsTiff(tagimg, targetPathAndFileName);
 		ExecutorService es = Executors.newSingleThreadExecutor();
 		Future job = es.submit(new BFAutofocus.ThreadAttribution(srcimg, tagimg));
 		double[] xyDrifts = new double[2];
@@ -112,17 +99,5 @@ class BFAutofocusTest {
 	
 	@Test
 	void calculateMultipleXYDriftsTest() {
-	}
-	
-	@Test
-	void setXYPositionTest() {
-	}
-	
-	@Test
-	void convertToMatTest() {
-	}
-	
-	@Test
-	void convertTo8BitsMatTest() {
 	}
 }
