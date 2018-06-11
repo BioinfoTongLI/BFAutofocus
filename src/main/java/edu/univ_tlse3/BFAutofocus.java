@@ -657,28 +657,13 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		
 		@Override
 		public double[] call() {
-			final int width = img1_.getWidth();
-			final int height = img1_.getHeight();
-			final String sourcePathAndFileName = IJ.getDirectory("temp") + UUID.randomUUID().toString() + img1_.getTitle();
-			IJ.saveAsTiff(img1_, sourcePathAndFileName);
-			final String targetPathAndFileName = IJ.getDirectory("temp") + UUID.randomUUID().toString() + img2_.getTitle();
-			IJ.saveAsTiff(img2_, targetPathAndFileName);
 			TurboReg_ reg = new TurboReg_();
-			reg.run("-align"
-					+ " -file " + sourcePathAndFileName
-					+ " 0 0 " + (width - 1) + " " + (height - 1)
-					+ " -file " + targetPathAndFileName
-					+ " 0 0 " + (width - 1) + " " + (height - 1)
-					+ " -translation"
-					+ " " + (width / 2) + " " + (height / 2)
-					+ " " + (width / 2) + " " + (height / 2)
-					+ " -hideOutput");
-			
+			reg.alignPlanes(img1_.getProcessor(), img2_.getProcessor(), turboRegDialog.TRANSLATION);
 			double[][] sourcePoints = reg.getSourcePoints();
 			double[][] targetPoints = reg.getTargetPoints();
 			double[] xyDrifts = new double[2];
 			xyDrifts[0] = targetPoints[0][0] - sourcePoints[0][0];
-			xyDrifts[1] = targetPoints[0][1] -  sourcePoints[0][1];
+			xyDrifts[1] = targetPoints[0][1] - sourcePoints[0][1];
 			return xyDrifts;
 		}
 	}
