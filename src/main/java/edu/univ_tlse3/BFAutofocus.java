@@ -69,7 +69,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 	//Global variables
 	public Studio studio_;
 	public CMMCore core_;
-	public ImagePlus imgRef_Mat = null;
 	public double calibration = 0;
 	public double intervalInMin = 0;
 	public int positionIndex = 0;
@@ -222,8 +221,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 				refImageDict.put(label, currentImp);
 			} else {
 				//Or calculate XY drift
-				imgRef_Mat = refImageDict.get(label);
-				
 				drifts = calculateXYDrifts(currentImp, oldROI, oldState, oldExposure, oldAutoShutterState,
 						positionList, label, bfPath, correctedZPosition, correctedXPosition, correctedYPosition);
 				
@@ -258,8 +255,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			//Reference image incremental
 			core_.waitForDevice(core_.getCameraDevice());
 			core_.snapImage();
-			ImagePlus newRefMat = taggedImgToImagePlus(core_.getTaggedImage());
-			refImageDict.replace(label, newRefMat);
+			ImagePlus newRef = taggedImgToImagePlus(core_.getTaggedImage());
+			refImageDict.replace(label, newRef);
 		}
 		
 		finalizeAcquisition(oldROI, oldState, oldExposure, oldAutoShutterState, positionList, label,
@@ -518,9 +515,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 	public double[] calculateXYDrifts(ImagePlus currentImg, Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState,
 												 PositionList positionList, String label, String bfPath, double correctedZPosition,
 												 double correctedXPosition, double correctedYPosition) {
-		
 		ExecutorService es = Executors.newSingleThreadExecutor();
-		Future job = es.submit(new ThreadAttribution(imgRef_Mat, currentImg));
+		Future job = es.submit(new ThreadAttribution(refImageDict.get(label), currentImg));
 		double[] xyDrifts = new double[2];
 		try {
 			xyDrifts = (double[]) job.get();
@@ -662,7 +658,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		@Override
 		public double[] call() {
 			final int width = img1_.getWidth();
-			final int height = img2_.getHeight();
+			final int height = img1_.getHeight();
 			final String sourcePathAndFileName = IJ.getDirectory("temp") + UUID.randomUUID().toString() + img1_.getTitle();
 			IJ.saveAsTiff(img1_, sourcePathAndFileName);
 			final String targetPathAndFileName = IJ.getDirectory("temp") + UUID.randomUUID().toString() + img2_.getTitle();
