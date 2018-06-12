@@ -159,12 +159,12 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			try {
 				store = studio_.data().createMultipageTIFFDatastore(
 						bfPath, false, true);
+				if (show.contentEquals("Yes")) {
+					studio_.displays().createDisplay(store);
+				}
 			}
 			catch (Exception e) {
 //				throw new FileAlreadyExistsException("Data store already exist");
-			}
-			if (show.contentEquals("Yes")) {
-				studio_.displays().createDisplay(store);
 			}
 		}
 		
