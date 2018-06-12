@@ -205,7 +205,14 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			core_.waitForDevice(core_.getCameraDevice());
 			core_.snapImage();
 			ImagePlus currentImp = taggedImgToImagePlus(core_.getTaggedImage());
-			
+
+			try {
+				core_.setShutterOpen(false);
+			} catch (Exception e) {
+				e.printStackTrace();
+				ReportingUtils.logMessage("Can not shut shutter off");
+			}
+
 			double xCorrection = 0;
 			double yCorrection = 0;
 			
@@ -220,17 +227,18 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 				
 				xCorrection = driftsInPixel[0] * calibration;
 				yCorrection = driftsInPixel[1] * calibration;
-				double threshold = 0.2;
+//				double threshold = 0.2;
 				
 				if (Double.isNaN(xCorrection) || Double.isNaN(yCorrection)) {
 					ReportingUtils.logMessage("Drift correction failed at position " + label + " timepoint " + timepoint);
 					xCorrection = 0;
 					yCorrection = 0;
-				} else if (Math.abs(xCorrection) < threshold) {
-					xCorrection = 0;
-				} else if (Math.abs(yCorrection) < threshold) {
-					yCorrection = 0;
 				}
+//				else if (Math.abs(xCorrection) < threshold) {
+//					xCorrection = 0;
+//				} else if (Math.abs(yCorrection) < threshold) {
+//					yCorrection = 0;
+//				}
 				
 				ReportingUtils.logMessage("X Correction : " + xCorrection);
 				ReportingUtils.logMessage("Y Correction : " + yCorrection);
