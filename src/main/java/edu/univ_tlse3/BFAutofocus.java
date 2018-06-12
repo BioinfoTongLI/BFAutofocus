@@ -22,7 +22,6 @@ import org.scijava.plugin.SciJavaPlugin;
 
 import java.awt.*;
 import java.io.File;
-import java.nio.file.FileAlreadyExistsException;
 import java.text.ParseException;
 import java.util.Date;
 import java.util.HashMap;
@@ -160,8 +159,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			try {
 				store = studio_.data().createMultipageTIFFDatastore(
 						bfPath, false, true);
-			} catch (Exception e) {
-				throw new FileAlreadyExistsException("Data store already exist");
+			}
+			catch (Exception e) {
+//				throw new FileAlreadyExistsException("Data store already exist");
 			}
 			if (show.contentEquals("Yes")) {
 				studio_.displays().createDisplay(store);
