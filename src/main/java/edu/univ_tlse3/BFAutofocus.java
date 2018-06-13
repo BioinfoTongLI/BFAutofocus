@@ -206,13 +206,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			core_.snapImage();
 			ImagePlus currentImp = taggedImgToImagePlus(core_.getTaggedImage());
 
-			try {
-				core_.setShutterOpen(false);
-			} catch (Exception e) {
-				e.printStackTrace();
-				ReportingUtils.logMessage("Can not shut shutter off");
-			}
-
 			double xCorrection = 0;
 			double yCorrection = 0;
 			
