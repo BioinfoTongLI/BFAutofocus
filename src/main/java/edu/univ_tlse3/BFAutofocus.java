@@ -127,33 +127,33 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             testAllAlgos = getPropertyValue(TESTALLALGOS_TEXT);
             detectorAlgo = getPropertyValue(DETECTORALGO_TEXT);
             matcherAlgo = getPropertyValue(MATCHERALGO_TEXT);
-            if ((detectorAlgo.equals("ORB") || detectorAlgo.equals("BRISK")) && matcherAlgo.equals("AKAZE")) {
-                ReportingUtils.showMessage("This combination does not work. Please choose another one");
-            }
-            if (detectorAlgo.equals("ORB") && matcherAlgo.equals("BRISK")) {
-                YesNoCancelDialog yesNoCancelDialog = new YesNoCancelDialog(null, "Warning message :",
-                        "No result can be guaranteed by using these two algorithms. Do you want to proceed anyway?");
-            }
+//            if ((detectorAlgo.equals("ORB") || detectorAlgo.equals("BRISK")) && matcherAlgo.equals("AKAZE")) {
+//                ReportingUtils.showMessage("This combination does not work. Please choose another one");
+//            }
+//            if (detectorAlgo.equals("ORB") && matcherAlgo.equals("BRISK")) {
+//                YesNoCancelDialog yesNoCancelDialog = new YesNoCancelDialog(null, "Warning message :",
+//                        "No result can be guaranteed by using these two algorithms. Do you want to proceed anyway?");
+//            }
 
             driftCalcul = getPropertyValue(DRIFTCALCUL_TEXT);
-            switch (driftCalcul) {
-                case "Mean" :
-                    YesNoCancelDialog yesNoCancelMean = new YesNoCancelDialog(null, "Information message : ",
-                            "It is the fastest drift calculation method but the less accurate. Do you want to proceed?");
-                    break;
-                case "Harmonic Mean" :
-                    YesNoCancelDialog yesNoCancelHarmonicMean = new YesNoCancelDialog(null, "Information message : ",
-                            "It is the second fastest drift calculation method but the second less accurate. Do you want to proceed?");
-                    break;
-                case "Median" :
-                    YesNoCancelDialog yesNoCancelMedian = new YesNoCancelDialog(null, "Information message : ",
-                            "It is the most accurate drift calculation method but the least fast. Do you want to proceed?");
-                    break;
-                case "Minimum Distance" :
-                    YesNoCancelDialog yesNoCancelMinimumDistance = new YesNoCancelDialog(null, "Information message : ",
-                            "It is the most accurate drift calculation method but the least fast. Do you want to proceed?");
-                    break;
-            }
+//            switch (driftCalcul) {
+//                case "Mean" :
+//                    YesNoCancelDialog yesNoCancelMean = new YesNoCancelDialog(null, "Information message : ",
+//                            "It is the fastest drift calculation method but the less accurate. Do you want to proceed?");
+//                    break;
+//                case "Harmonic Mean" :
+//                    YesNoCancelDialog yesNoCancelHarmonicMean = new YesNoCancelDialog(null, "Information message : ",
+//                            "It is the second fastest drift calculation method but the second less accurate. Do you want to proceed?");
+//                    break;
+//                case "Median" :
+//                    YesNoCancelDialog yesNoCancelMedian = new YesNoCancelDialog(null, "Information message : ",
+//                            "It is the most accurate drift calculation method but the least fast. Do you want to proceed?");
+//                    break;
+//                case "Minimum Distance" :
+//                    YesNoCancelDialog yesNoCancelMinimumDistance = new YesNoCancelDialog(null, "Information message : ",
+//                            "It is the most accurate drift calculation method but the least fast. Do you want to proceed?");
+//                    break;
+//            }
 
             channel = getPropertyValue(CHANNEL);
             umPerStep = NumberUtils.displayStringToDouble(getPropertyValue(UMPERSTEP));
