@@ -50,15 +50,15 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 	public static final String Z_OFFSET = "Z offset";
 	
 	//Set default parameters
-	public double searchRange = 10;
+	public double searchRange = 3;
 	public double cropFactor = 1;
 	public String channel = "BF";
 	public double exposure = 50;
 	public String show = "Yes";
-	public String save = "Yes";
+	public String save = "No";
 	public int imageCount = 0;
 	public int timepoint = 0;
-	public double step = 0.3;
+	public double step = 0.5;
 	public String xy_correction = "Yes";
 	public Map<String, ImagePlus> refImageDict = new HashMap<>();
 	public Map<String, double[]> oldPositionsDict = new HashMap<>();
