@@ -20,6 +20,7 @@ import org.micromanager.internal.utils.*;
 import org.scijava.plugin.Plugin;
 import org.scijava.plugin.SciJavaPlugin;
 
+import javax.swing.SwingUtilities;
 import java.awt.*;
 import java.io.File;
 import java.text.ParseException;
@@ -185,7 +186,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		}
 		
 		//Calculate Focus
-		double correctedZPosition = calculateZFocus(currentZ, save.contentEquals("Yes"));
+		double correctedZPosition = calculateZFocus(currentZ, save.contentEquals("Yes"), show.contentEquals("Yes"));
 		ReportingUtils.logMessage("Corrected Z Position : " + correctedZPosition);
 		
 		double currentXPosition = core_.getXPosition();
@@ -317,9 +318,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		
 		//Save datastore if acquisition stopped/ all timepoints for all positions have been acquired
 		if (!studio_.acquisitions().isAcquisitionRunning() ||
-				(timepoint == studio_.acquisitions().getAcquisitionSettings().numFrames - 1
-						&& store.getAxisLength("position") - 1 == positionIndex)) {
-			if (save.contentEquals("Yes")) {
+				timepoint == studio_.acquisitions().getAcquisitionSettings().numFrames - 1) {
+			if (save.contentEquals("Yes") && store.getAxisLength("position") - 1 == positionIndex) {
 				SummaryMetadata summary = store.getSummaryMetadata();
 				if (summary == null) {
 					// Create dummy summary metadata just for saving.
@@ -436,7 +436,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		}
 	}
 	
-	private double calculateZFocus(double oldZ, boolean save) {
+	private double calculateZFocus(double oldZ, boolean save, boolean show) {
 		double[] zPositions = calculateZPositions(searchRange, step, oldZ);
 		double[] stdAtZPositions = new double[zPositions.length];
 		TaggedImage currentImg = null;
@@ -447,6 +447,16 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 				core_.waitForDevice(core_.getCameraDevice());
 				core_.snapImage();
 				currentImg = core_.getTaggedImage();
+				if (!save && show) {
+					final TaggedImage img1 = currentImg;
+					SwingUtilities.invokeLater(() -> {
+						try {
+							studio_.live().displayImage(studio_.data().convertTaggedImage(img1));
+						} catch (JSONException | IllegalArgumentException e) {
+							studio_.logs().showError(e);
+						}
+					});
+				}
 			} catch (Exception e) {
 				e.printStackTrace();
 				ReportingUtils.showError("Cannot take snapshot");
