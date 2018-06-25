@@ -879,12 +879,12 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                 ReportingUtils.logMessage("Datastore saved");
                 store.close();
 
-//                try {
-//                    studio_.core().clearCircularBuffer();
-//                } catch (Exception e) {
-//                    e.printStackTrace();
-//                    ReportingUtils.logMessage("Unable to clear circular buffer");
-//                }
+                try {
+                    studio_.core().clearCircularBuffer();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    ReportingUtils.logMessage("Unable to clear circular buffer");
+                }
 
                 if (show.contentEquals("Yes")) {
                     studio_.displays().manage(store);
