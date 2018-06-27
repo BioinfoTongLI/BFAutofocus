@@ -168,13 +168,11 @@ public class DriftCorrection {
     public static double getHarmonicMean(ArrayList<Double> listOfValues){
         int totalNumberOfValues = listOfValues.size();
         float sumOfValues = 0;
-        float meanOfValues;
         for (int i = 0; i < listOfValues.size(); i++) {
             double inverseOfValue = 1.0 / listOfValues.get(i);
             sumOfValues += inverseOfValue;
         }
-        meanOfValues = sumOfValues/totalNumberOfValues;
-        return (1.0/meanOfValues);
+        return (totalNumberOfValues/sumOfValues);
     }
 
     public static Float getVariance(ArrayList<Double> listOfValues) {
