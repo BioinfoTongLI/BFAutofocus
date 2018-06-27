@@ -64,11 +64,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     public static final String[] DRIFTCALCUL_VALUES = {"Mean", "Harmonic Mean", "Median", "Minimum Distance"};
 
     //Set default parameters
-    public double searchRange = 10;
+    public double searchRange = 5;
     public double cropFactor = 1;
     public String channel = "BF";
     public double exposure = 50;
-    public String show = "Yes";
+    public String show = "No";
     public String save = "Yes";
     public int imageCount = 0;
     public int timepoint = 0;
@@ -879,12 +879,12 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                 ReportingUtils.logMessage("Datastore saved");
                 store.close();
 
-                try {
-                    studio_.core().clearCircularBuffer();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    ReportingUtils.logMessage("Unable to clear circular buffer");
-                }
+//                try {
+//                    studio_.core().clearCircularBuffer();
+//                } catch (Exception e) {
+//                    e.printStackTrace();
+//                    ReportingUtils.logMessage("Unable to clear circular buffer");
+//                }
 
                 if (show.contentEquals("Yes")) {
                     studio_.displays().manage(store);
