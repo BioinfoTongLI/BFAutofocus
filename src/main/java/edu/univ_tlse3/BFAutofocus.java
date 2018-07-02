@@ -324,8 +324,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		
 		//Save datastore if acquisition stopped/ all timepoints for all positions have been acquired
 		if (!studio_.acquisitions().isAcquisitionRunning() ||
-				(timepoint == studio_.acquisitions().getAcquisitionSettings().numFrames - 1
-						&& store.getAxisLength("position") - 1 == positionIndex)) {
+				(timepoint >= studio_.acquisitions().getAcquisitionSettings().numFrames - 1
+						&& store.getAxisLength("position") == positionIndex)) {
 			if (save.contentEquals("Yes")) {
 				SummaryMetadata summary = store.getSummaryMetadata();
 				if (summary == null) {
