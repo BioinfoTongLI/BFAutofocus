@@ -20,6 +20,7 @@ import org.micromanager.internal.utils.*;
 import org.scijava.plugin.Plugin;
 import org.scijava.plugin.SciJavaPlugin;
 
+import javax.swing.SwingUtilities;
 import java.awt.*;
 import java.io.File;
 import java.text.ParseException;
@@ -50,15 +51,15 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 	public static final String Z_OFFSET = "Z offset";
 	
 	//Set default parameters
-	public double searchRange = 10;
+	public double searchRange = 3;
 	public double cropFactor = 1;
 	public String channel = "BF";
 	public double exposure = 50;
 	public String show = "Yes";
-	public String save = "Yes";
+	public String save = "No";
 	public int imageCount = 0;
 	public int timepoint = 0;
-	public double step = 0.3;
+	public double step = 0.5;
 	public String xy_correction = "Yes";
 	public Map<String, ImagePlus> refImageDict = new HashMap<>();
 	public Map<String, double[]> oldPositionsDict = new HashMap<>();
@@ -185,7 +186,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		}
 		
 		//Calculate Focus
-		double correctedZPosition = calculateZFocus(currentZ, save.contentEquals("Yes"));
+		double correctedZPosition = calculateZFocus(currentZ, save.contentEquals("Yes"), show.contentEquals("Yes"));
 		ReportingUtils.logMessage("Corrected Z Position : " + correctedZPosition);
 		
 		double currentXPosition = core_.getXPosition();
@@ -205,13 +206,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			core_.waitForDevice(core_.getCameraDevice());
 			core_.snapImage();
 			ImagePlus currentImp = taggedImgToImagePlus(core_.getTaggedImage());
-
-			try {
-				core_.setShutterOpen(false);
-			} catch (Exception e) {
-				e.printStackTrace();
-				ReportingUtils.logMessage("Can not shut shutter off");
-			}
 
 			double xCorrection = 0;
 			double yCorrection = 0;
@@ -443,7 +437,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		}
 	}
 	
-	private double calculateZFocus(double oldZ, boolean save) {
+	private double calculateZFocus(double oldZ, boolean save, boolean show) {
 		double[] zPositions = calculateZPositions(searchRange, step, oldZ);
 		double[] stdAtZPositions = new double[zPositions.length];
 		TaggedImage currentImg = null;
@@ -454,6 +448,16 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 				core_.waitForDevice(core_.getCameraDevice());
 				core_.snapImage();
 				currentImg = core_.getTaggedImage();
+				if (!save && show) {
+					final TaggedImage img1 = currentImg;
+					SwingUtilities.invokeLater(() -> {
+						try {
+							studio_.live().displayImage(studio_.data().convertTaggedImage(img1));
+						} catch (JSONException | IllegalArgumentException e) {
+							studio_.logs().showError(e);
+						}
+					});
+				}
 			} catch (Exception e) {
 				e.printStackTrace();
 				ReportingUtils.showError("Cannot take snapshot");
