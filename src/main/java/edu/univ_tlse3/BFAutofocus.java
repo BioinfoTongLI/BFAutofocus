@@ -44,8 +44,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 	public static final String EXPOSURE = "Exposure";
 	public static final String SHOWIMAGES_TEXT = "ShowImages";
 	public static final String SAVEIMGS_TEXT = "SaveImages";
+	public static final String DO_XY_CORRECTION_TEXT = "XY Correction";
+	public static final String INCREMENTAL_CORRECTION_TEXT = "Incremental";
 	public static final String[] SHOWIMAGES_VALUES = {"Yes", "No"};
 	public static final String[] SAVEIMAGES_VALUES = {"Yes", "No"};
+	public static final String[] INCREMENTAL_CORRECTION_VALUES = {"Yes", "No"};
 	public static final String STEP_SIZE = "Step_size";
 	public static final String[] XY_CORRECTION_VALUES = {"Yes", "No"};
 	public static final String Z_OFFSET = "Z offset";
@@ -61,6 +64,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 	public int timepoint = 0;
 	public double step = 0.5;
 	public String xy_correction = "Yes";
+	public String incremental = "Yes";
 	public Map<String, ImagePlus> refImageDict = new HashMap<>();
 	public Map<String, double[]> oldPositionsDict = new HashMap<>();
 	public double zOffset = -1;
@@ -80,6 +84,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		super.createProperty(EXPOSURE, NumberUtils.doubleToDisplayString(exposure));
 		super.createProperty(Z_OFFSET, NumberUtils.doubleToDisplayString(zOffset));
 		super.createProperty(SHOWIMAGES_TEXT, show, SHOWIMAGES_VALUES);
+		super.createProperty(DO_XY_CORRECTION_TEXT, xy_correction, XY_CORRECTION_VALUES);
+		super.createProperty(INCREMENTAL_CORRECTION_TEXT, incremental, XY_CORRECTION_VALUES);
 		super.createProperty(STEP_SIZE, NumberUtils.doubleToDisplayString(step));
 		super.createProperty(CHANNEL, channel);
 		super.createProperty(SAVEIMGS_TEXT, save, SAVEIMAGES_VALUES);
