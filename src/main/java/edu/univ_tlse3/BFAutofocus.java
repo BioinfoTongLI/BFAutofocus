@@ -45,10 +45,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 	public static final String SHOWIMAGES_TEXT = "ShowImages";
 	public static final String SAVEIMGS_TEXT = "SaveImages";
 	public static final String DO_XY_CORRECTION_TEXT = "XY Correction";
-	public static final String INCREMENTAL_CORRECTION_TEXT = "Incremental";
 	public static final String[] SHOWIMAGES_VALUES = {"Yes", "No"};
 	public static final String[] SAVEIMAGES_VALUES = {"Yes", "No"};
-	public static final String[] INCREMENTAL_CORRECTION_VALUES = {"Yes", "No"};
 	public static final String STEP_SIZE = "Step_size";
 	public static final String[] XY_CORRECTION_VALUES = {"Yes", "No"};
 	public static final String Z_OFFSET = "Z offset";
@@ -64,7 +62,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 	public int timepoint = 0;
 	public double step = 0.5;
 	public String xy_correction = "Yes";
-	public String incremental = "Yes";
 	public Map<String, ImagePlus> refImageDict = new HashMap<>();
 	public Map<String, double[]> oldPositionsDict = new HashMap<>();
 	public double zOffset = -1;
@@ -85,7 +82,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		super.createProperty(Z_OFFSET, NumberUtils.doubleToDisplayString(zOffset));
 		super.createProperty(SHOWIMAGES_TEXT, show, SHOWIMAGES_VALUES);
 		super.createProperty(DO_XY_CORRECTION_TEXT, xy_correction, XY_CORRECTION_VALUES);
-		super.createProperty(INCREMENTAL_CORRECTION_TEXT, incremental, XY_CORRECTION_VALUES);
 		super.createProperty(STEP_SIZE, NumberUtils.doubleToDisplayString(step));
 		super.createProperty(CHANNEL, channel);
 		super.createProperty(SAVEIMGS_TEXT, save, SAVEIMAGES_VALUES);
@@ -99,6 +95,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			cropFactor = MathFunctions.clip(0.01, cropFactor, 1.0);
 			exposure = NumberUtils.displayStringToDouble(getPropertyValue(EXPOSURE));
 			zOffset = NumberUtils.displayStringToDouble(getPropertyValue(Z_OFFSET));
+			xy_correction = getPropertyValue(DO_XY_CORRECTION_TEXT);
 			show = getPropertyValue(SHOWIMAGES_TEXT);
 			channel = getPropertyValue(CHANNEL);
 			save = getPropertyValue(SAVEIMGS_TEXT);
@@ -201,10 +198,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		double correctedXPosition = currentXPosition;
 		double correctedYPosition = currentYPosition;
 		
-		if (xy_correction.contentEquals("No")) {
-			//Set to the focus
-			setZPosition(correctedZPosition);
-		}else{
+		if (xy_correction.contentEquals("Yes")) {
 			//Set to the focus + offset in order to enhance the signal
 			setZPosition(correctedZPosition + zOffset);
 			
@@ -227,22 +221,24 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 				
 				xCorrection = driftsInPixel[0] * calibration;
 				yCorrection = driftsInPixel[1] * calibration;
-//				double threshold = 0.2;
-				
+
 				if (Double.isNaN(xCorrection) || Double.isNaN(yCorrection)) {
 					ReportingUtils.logMessage("Drift correction failed at position " + label + " timepoint " + timepoint);
 					xCorrection = 0;
 					yCorrection = 0;
 				}
-//				else if (Math.abs(xCorrection) < threshold) {
-//					xCorrection = 0;
-//				} else if (Math.abs(yCorrection) < threshold) {
-//					yCorrection = 0;
-//				}
-				
+
+				double precision = 0.8;
+				if (Math.abs(xCorrection) <= precision) {
+					xCorrection = 0;
+				}
+				if (Math.abs(yCorrection) <= precision) {
+					yCorrection = 0;
+				}
+
 				ReportingUtils.logMessage("X Correction : " + xCorrection);
 				ReportingUtils.logMessage("Y Correction : " + yCorrection);
-				
+
 				correctedXPosition = currentXPosition + xCorrection;
 				correctedYPosition = currentYPosition + yCorrection;
 				
@@ -250,7 +246,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 				long acquisitionTimeElapsed = endTime - startTime;
 				ReportingUtils.logMessage("Acquisition duration in ms : " + acquisitionTimeElapsed);
 			}
-			
+
 			//If XY Correction, new coordinates; else, corrected = current coordinates;
 			if (xCorrection != 0 || yCorrection != 0) {
 				setXYPosition(correctedXPosition, correctedYPosition);
