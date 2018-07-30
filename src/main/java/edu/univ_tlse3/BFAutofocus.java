@@ -9,6 +9,7 @@ import mmcorej.StrVector;
 import mmcorej.TaggedImage;
 import org.json.JSONException;
 import org.micromanager.AutofocusPlugin;
+import org.micromanager.MultiStagePosition;
 import org.micromanager.PositionList;
 import org.micromanager.Studio;
 import org.micromanager.data.*;
@@ -258,10 +259,16 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			ImagePlus newRef = taggedImgToImagePlus(core_.getTaggedImage());
 			refImageDict.replace(label, newRef);
 		}
-		
+		if (positionList.getNumberOfPositions() > 0) {
+			String last_label = studio_.positions().getPositionList().getPosition(positionIndex).getLabel();
+			studio_.positions().getPositionList().replacePosition(positionIndex,
+					new MultiStagePosition(studio_.getCMMCore().getXYStageDevice(), correctedXPosition, correctedYPosition,
+							studio_.getCMMCore().getFocusDevice(), correctedZPosition));
+			studio_.positions().getPositionList().setLabel(positionIndex, last_label);
+		}
+
 		finalizeAcquisition(oldROI, oldState, oldExposure, oldAutoShutterState, positionList, label,
 				bfPath, correctedZPosition, correctedXPosition, correctedYPosition);
-		
 		return correctedZPosition;
 	}
 	//*******//
@@ -320,8 +327,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		
 		//Save datastore if acquisition stopped/ all timepoints for all positions have been acquired
 		if (!studio_.acquisitions().isAcquisitionRunning() ||
-				(timepoint == studio_.acquisitions().getAcquisitionSettings().numFrames - 1
-						&& store.getAxisLength("position") -1 == positionIndex)) {
+				(timepoint >= studio_.acquisitions().getAcquisitionSettings().numFrames - 1
+						&& (positionList.getNumberOfPositions() - 1 == positionIndex ||
+						positionList.getNumberOfPositions() < 1))) {
 			if (save.contentEquals("Yes")) {
 				SummaryMetadata summary = store.getSummaryMetadata();
 				if (summary == null) {
