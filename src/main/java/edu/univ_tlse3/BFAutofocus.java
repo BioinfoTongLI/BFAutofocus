@@ -9,7 +9,6 @@ import mmcorej.StrVector;
 import mmcorej.TaggedImage;
 import org.json.JSONException;
 import org.micromanager.AutofocusPlugin;
-import org.micromanager.MultiStagePosition;
 import org.micromanager.PositionList;
 import org.micromanager.Studio;
 import org.micromanager.data.*;
@@ -25,6 +24,7 @@ import javax.swing.SwingUtilities;
 import java.awt.*;
 import java.io.File;
 import java.text.ParseException;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -180,7 +180,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			double[] currentPositions = new double[3];
 			currentPositions[0] = core_.getXPosition();
 			currentPositions[1] = core_.getYPosition();
-			currentPositions[2] = getZPosition();
+			currentPositions[2] = currentZ;
 			oldPositionsDict.put(label, currentPositions);
 		} else {
 			//Set to the last good position calculated
@@ -229,7 +229,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 					yCorrection = 0;
 				}
 
-				double precision = 0.8;
+				double precision = 0.5;
 				if (Math.abs(xCorrection) <= precision) {
 					xCorrection = 0;
 				}
@@ -259,13 +259,13 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			ImagePlus newRef = taggedImgToImagePlus(core_.getTaggedImage());
 			refImageDict.replace(label, newRef);
 		}
-		if (positionList.getNumberOfPositions() > 0) {
-			String last_label = studio_.positions().getPositionList().getPosition(positionIndex).getLabel();
-			studio_.positions().getPositionList().replacePosition(positionIndex,
-					new MultiStagePosition(studio_.getCMMCore().getXYStageDevice(), correctedXPosition, correctedYPosition,
-							studio_.getCMMCore().getFocusDevice(), correctedZPosition));
-			studio_.positions().getPositionList().setLabel(positionIndex, last_label);
-		}
+//		if (positionList.getNumberOfPositions() > 0) {
+//			String last_label = studio_.positions().getPositionList().getPosition(positionIndex).getLabel();
+//			studio_.positions().getPositionList().replacePosition(positionIndex,
+//					new MultiStagePosition(studio_.getCMMCore().getXYStageDevice(), correctedXPosition, correctedYPosition,
+//							studio_.getCMMCore().getFocusDevice(), correctedZPosition));
+//			studio_.positions().getPositionList().setLabel(positionIndex, last_label);
+//		}
 
 		finalizeAcquisition(oldROI, oldState, oldExposure, oldAutoShutterState, positionList, label,
 				bfPath, correctedZPosition, correctedXPosition, correctedYPosition);
@@ -408,16 +408,20 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		return z;
 	}
 	
-	private static int getZfocus(double[] stdArray) {
+	private static Integer[] getZfocus(double[] stdArray) {
 		double min = Double.MAX_VALUE;
-		int maxIdx = Integer.MAX_VALUE;
-		for (int i = 0; i < stdArray.length; i++) {
-			if (stdArray[i] < min) {
-				maxIdx = i;
-				min = stdArray[i];
+		for (double aStd : stdArray) {
+			if (aStd < min) {
+				min = aStd;
 			}
 		}
-		return maxIdx;
+		ArrayList minIdxs = new ArrayList<Integer>();
+		for (int i = 0; i < stdArray.length; i++) {
+			if (stdArray[i] == min) {
+				minIdxs.add(i);
+			}
+		}
+		return (Integer[]) minIdxs.toArray(new Integer[]{});
 	}
 	
 	public static double[] calculateZPositions(double searchRange, double step, double startZUm) {
@@ -494,8 +498,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			}
 			stdAtZPositions[i] = studio_.data().ij().createProcessor(img).getStatistics().stdDev;
 		}
-		int rawIndex = getZfocus(stdAtZPositions);
-		return optimizeZFocus(rawIndex, stdAtZPositions, zPositions);
+		Integer[] rawIndexs = getZfocus(stdAtZPositions);
+		int minIndexLength = rawIndexs.length;
+		int minIndex = rawIndexs[(int) Math.floor(minIndexLength / 2.0)];
+		return optimizeZFocus(minIndex, stdAtZPositions, zPositions);
 	}
 	
 	private void setZPosition(double z) {
