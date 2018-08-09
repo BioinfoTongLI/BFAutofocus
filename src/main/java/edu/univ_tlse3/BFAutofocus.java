@@ -112,7 +112,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		applySettings();
 		Rectangle oldROI = studio_.core().getROI();
 		core_ = studio_.getCMMCore();
-		
+
 		calibration = core_.getPixelSizeUm();
 		savingPath = studio_.acquisitions().getAcquisitionSettings().root + File.separator;
 		
@@ -210,7 +210,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
 			double xCorrection = 0;
 			double yCorrection = 0;
-			
+
 			double[] driftsInPixel;
 			//Define current image as reference for the position if it does not exist
 			if (!refImageDict.containsKey(label)) {
@@ -219,7 +219,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 				//Or calculate XY drift
 				driftsInPixel = calculateXYDrifts(currentImp, oldROI, oldState, oldExposure, oldAutoShutterState,
 						positionList, label, bfPath, correctedZPosition, correctedXPosition, correctedYPosition);
-				
+
 				xCorrection = driftsInPixel[0] * calibration;
 				yCorrection = driftsInPixel[1] * calibration;
 
@@ -230,10 +230,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 				}
 
 				double precision = 0.5;
-				if (Math.abs(xCorrection) <= precision) {
+				//TODO the first correction is very much erroneous, don't know why. So just skip it
+				if (Math.abs(xCorrection) <= precision || timepoint == 1) {
 					xCorrection = 0;
 				}
-				if (Math.abs(yCorrection) <= precision) {
+				if (Math.abs(yCorrection) <= precision || timepoint == 1) {
 					yCorrection = 0;
 				}
 
