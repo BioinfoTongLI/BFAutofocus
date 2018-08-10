@@ -174,7 +174,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		}
 		
 		double currentZ = getZPosition();
-		
+        double lastZ = Double.MAX_VALUE;
 		//Define positions if it does not exist
 		if (!oldPositionsDict.containsKey(label)) {
 			double[] currentPositions = new double[3];
@@ -184,13 +184,19 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			oldPositionsDict.put(label, currentPositions);
 		} else {
 			//Set to the last good position calculated
-			double[] oldXYZ = oldPositionsDict.get(label);
+            double[] oldXYZ = oldPositionsDict.get(label);
 			setXYPosition(oldXYZ[0], oldXYZ[1]);
 			setZPosition(oldXYZ[2]);
+            lastZ = oldXYZ[2];
 		}
 		
 		//Calculate Focus
 		double correctedZPosition = calculateZFocus(currentZ, save.contentEquals("Yes"), show.contentEquals("Yes"));
+        if (lastZ != Double.MAX_VALUE) {
+            double delta = lastZ - correctedZPosition;
+            double k = 0.15;
+            correctedZPosition = lastZ - delta * k;
+        }
 		ReportingUtils.logMessage("Corrected Z Position : " + correctedZPosition);
 		
 		double currentXPosition = core_.getXPosition();
