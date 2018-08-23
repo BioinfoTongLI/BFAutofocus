@@ -194,7 +194,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		double correctedZPosition = calculateZFocus(currentZ, save.contentEquals("Yes"), show.contentEquals("Yes"));
         if (lastZ != Double.MAX_VALUE) {
             double delta = lastZ - correctedZPosition;
-            double k = 0.15;
+            double k = 0.4;
             correctedZPosition = lastZ - delta * k;
         }
 		ReportingUtils.logMessage("Corrected Z Position : " + correctedZPosition);
