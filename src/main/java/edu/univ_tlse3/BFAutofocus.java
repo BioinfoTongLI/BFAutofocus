@@ -214,6 +214,12 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			core_.snapImage();
 			ImagePlus currentImp = taggedImgToImagePlus(core_.getTaggedImage());
 
+			try {
+				core_.setShutterOpen(false);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+
 			double xCorrection = 0;
 			double yCorrection = 0;
 
@@ -259,7 +265,13 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			if (xCorrection != 0 || yCorrection != 0) {
 				setXYPosition(correctedXPosition, correctedYPosition);
 			}
-			
+
+			try {
+				core_.setShutterOpen(true);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+
 			// Refresh reference image
 			core_.waitForDevice(core_.getCameraDevice());
 			core_.snapImage();
