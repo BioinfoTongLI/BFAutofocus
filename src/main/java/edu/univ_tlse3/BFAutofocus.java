@@ -296,6 +296,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 	//Reinitialize origin ROI and all other parameters
 	private void resetInitialMicroscopeCondition(Rectangle oldROI, Configuration oldState, double oldExposure,
 															  boolean oldAutoShutterState) {
+		try {
+			core_.setShutterOpen(false);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 		core_.setAutoShutter(oldAutoShutterState);
 		
 		if (cropFactor < 1.0) {
