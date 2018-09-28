@@ -115,14 +115,14 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
 		calibration = core_.getPixelSizeUm();
 		savingPath = studio_.acquisitions().getAcquisitionSettings().root + File.separator;
-		
+
 		//ReportingUtils.logMessage("Original ROI: " + oldROI);
 		int w = (int) (oldROI.width * cropFactor);
 		int h = (int) (oldROI.height * cropFactor);
 		int x = oldROI.x + (oldROI.width - w) / 2;
 		int y = oldROI.y + (oldROI.height - h) / 2;
 		Rectangle newROI = new Rectangle(x, y, w, h);
-		
+
 		//ReportingUtils.logMessage("Setting ROI to: " + newROI);
 		Configuration oldState = null;
 		if (channel.length() > 0) {
@@ -130,20 +130,20 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			oldState = core_.getConfigGroupState(chanGroup);
 			core_.setConfig(chanGroup, channel);
 		}
-		
+
 		//Avoid wasting time on setting roi if it is the same
 		if (cropFactor < 1.0) {
 			studio_.app().setROI(newROI);
 			core_.waitForDevice(core_.getCameraDevice());
 		}
-		
+
 		double oldExposure = core_.getExposure();
 		core_.setExposure(exposure);
-		
+
 		boolean oldAutoShutterState = core_.getAutoShutter();
 		core_.setAutoShutter(false);
 		core_.setShutterOpen(true);
-		
+
 		//Get label of current position
 		PositionList positionList = studio_.positions().getPositionList();
 		String label;
@@ -155,9 +155,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		} else {
 			label = positionList.getPosition(positionIndex).getLabel();
 		}
-		
+
 		ReportingUtils.logMessage("Position : " + label + " at time point : " + timepoint);
-		
+
 		//Creation of BF saving directory
 		String bfPath = savingPath + "BFs";
 		if (save.contentEquals("Yes")) {
@@ -172,9 +172,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 //				throw new FileAlreadyExistsException("Data store already exist");
 			}
 		}
-		
+
 		double currentZ = getZPosition();
-        double lastZ = Double.MAX_VALUE;
+
 		//Define positions if it does not exist
 		if (!oldPositionsDict.containsKey(label)) {
 			double[] currentPositions = new double[3];
@@ -184,41 +184,29 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			oldPositionsDict.put(label, currentPositions);
 		} else {
 			//Set to the last good position calculated
-            double[] oldXYZ = oldPositionsDict.get(label);
+			double[] oldXYZ = oldPositionsDict.get(label);
 			setXYPosition(oldXYZ[0], oldXYZ[1]);
 			setZPosition(oldXYZ[2]);
-            lastZ = oldXYZ[2];
 		}
-		
+
 		//Calculate Focus
-		double correctedZPosition = calculateZFocus(currentZ, save.contentEquals("Yes"), show.contentEquals("Yes"));
-        if (lastZ != Double.MAX_VALUE) {
-            double delta = lastZ - correctedZPosition;
-            double k = 0.4;
-            correctedZPosition = lastZ - delta * k;
-        }
+		double correctedZPosition = calculateZFocus(currentZ);
 		ReportingUtils.logMessage("Corrected Z Position : " + correctedZPosition);
-		
+
 		double currentXPosition = core_.getXPosition();
 		double currentYPosition = core_.getYPosition();
-		
+
 		double correctedXPosition = currentXPosition;
 		double correctedYPosition = currentYPosition;
-		
+
+		//Set to the focus + offset in order to enhance the signal
+		setZPosition(correctedZPosition + zOffset);
+
 		if (xy_correction.contentEquals("Yes")) {
-			//Set to the focus + offset in order to enhance the signal
-			setZPosition(correctedZPosition + zOffset);
-			
 			//Get an image to define reference image, for each position
 			core_.waitForDevice(core_.getCameraDevice());
 			core_.snapImage();
 			ImagePlus currentImp = taggedImgToImagePlus(core_.getTaggedImage());
-
-			try {
-				core_.setShutterOpen(false);
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
 
 			double xCorrection = 0;
 			double yCorrection = 0;
@@ -242,11 +230,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 				}
 
 				double precision = 0.5;
-				//TODO the first correction is very much erroneous, don't know why. So just skip it
-				if (Math.abs(xCorrection) <= precision || timepoint == 1) {
+				if (Math.abs(xCorrection) <= precision) {
 					xCorrection = 0;
 				}
-				if (Math.abs(yCorrection) <= precision || timepoint == 1) {
+				if (Math.abs(yCorrection) <= precision) {
 					yCorrection = 0;
 				}
 
@@ -255,7 +242,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
 				correctedXPosition = currentXPosition + xCorrection;
 				correctedYPosition = currentYPosition + yCorrection;
-				
+
 				long endTime = new Date().getTime();
 				long acquisitionTimeElapsed = endTime - startTime;
 				ReportingUtils.logMessage("Acquisition duration in ms : " + acquisitionTimeElapsed);
@@ -265,27 +252,22 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			if (xCorrection != 0 || yCorrection != 0) {
 				setXYPosition(correctedXPosition, correctedYPosition);
 			}
-
-			try {
-				core_.setShutterOpen(true);
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
-
-			// Refresh reference image
-			core_.waitForDevice(core_.getCameraDevice());
-			core_.snapImage();
-			ImagePlus newRef = taggedImgToImagePlus(core_.getTaggedImage());
-			refImageDict.replace(label, newRef);
 		}
-//		if (positionList.getNumberOfPositions() > 0) {
-//			String last_label = studio_.positions().getPositionList().getPosition(positionIndex).getLabel();
-//			studio_.positions().getPositionList().replacePosition(positionIndex,
-//					new MultiStagePosition(studio_.getCMMCore().getXYStageDevice(), correctedXPosition, correctedYPosition,
-//							studio_.getCMMCore().getFocusDevice(), correctedZPosition));
-//			studio_.positions().getPositionList().setLabel(positionIndex, last_label);
-//		}
 
+		core_.waitForDevice(core_.getCameraDevice());
+		core_.snapImage();
+		TaggedImage newRefImg = core_.getTaggedImage();
+
+		if (!save.contentEquals("Yes")) {
+			Image img = getImageFromTaggedImg(newRefImg, 0);
+			assert store != null;
+			store.putImage(img);
+		}
+
+		if (xy_correction.contentEquals("Yes")) {
+            ImagePlus newRefImp = taggedImgToImagePlus(newRefImg);
+			refImageDict.replace(label, newRefImp);
+		}
 		finalizeAcquisition(oldROI, oldState, oldExposure, oldAutoShutterState, positionList, label,
 				bfPath, correctedZPosition, correctedXPosition, correctedYPosition);
 		return correctedZPosition;
@@ -293,7 +275,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 	//*******//
 	//Methods//
 	//*******//
-	
+
 	//Reinitialize counters and dictionaries
 	private void resetParameters() {
 		refImageDict = new HashMap<>();
@@ -304,17 +286,12 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		timepoint = 0;
 		IJ.log("BF AutoFocus internal parameters have been reset");
 	}
-	
+
 	//Reinitialize origin ROI and all other parameters
 	private void resetInitialMicroscopeCondition(Rectangle oldROI, Configuration oldState, double oldExposure,
 															  boolean oldAutoShutterState) {
-		try {
-			core_.setShutterOpen(false);
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
 		core_.setAutoShutter(oldAutoShutterState);
-		
+
 		if (cropFactor < 1.0) {
 			try {
 				studio_.app().setROI(oldROI);
@@ -324,11 +301,11 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 				ReportingUtils.showError("Unable to reset ROI");
 			}
 		}
-		
+
 		if (oldState != null) {
 			core_.setSystemState(oldState);
 		}
-		
+
 		try {
 			core_.setExposure(oldExposure);
 		} catch (Exception e) {
@@ -336,19 +313,19 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			ReportingUtils.showError("Unable to reset exposure");
 		}
 	}
-	
+
 	private void finalizeAcquisition(Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState,
 											  PositionList positionList, String label, String bfPath, double correctedZPosition,
 											  double correctedXPosition, double correctedYPosition) {
 		//Reset conditions
 		resetInitialMicroscopeCondition(oldROI, oldState, oldExposure, oldAutoShutterState);
-		
+
 		//Set to the focus
 		setZPosition(correctedZPosition);
-		
+
 		//Refresh positions in position dictionary
 		refreshOldXYZposition(correctedXPosition, correctedYPosition, correctedZPosition, label);
-		
+
 		//Save datastore if acquisition stopped/ all timepoints for all positions have been acquired
 		if (!studio_.acquisitions().isAcquisitionRunning() ||
 				(timepoint >= studio_.acquisitions().getAcquisitionSettings().numFrames - 1
@@ -368,7 +345,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 					}
 					summary = summary.copy().intendedDimensions(builder.build()).build();
 				}
-				
+
 				//Add summary metadata to data
 				try {
 					store.setSummaryMetadata(summary);
@@ -376,7 +353,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 					e.printStackTrace();
 					ReportingUtils.logMessage("Unable to set metadata");
 				}
-				
+
 				//Save datastore
 				store.freeze();
 				store.save(Datastore.SaveMode.MULTIPAGE_TIFF, bfPath + "_ordered");
@@ -389,13 +366,13 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 //                    e.printStackTrace();
 //                    ReportingUtils.logMessage("Unable to clear circular buffer");
 //                }
-				
+
 				if (show.contentEquals("Yes")) {
 					studio_.displays().manage(store);
 				}
 			}
 			resetParameters();
-			
+
 			//Increment timepoint and positionIndex if acquisition still running
 		} else {
 			if (positionList.getNumberOfPositions() == 0) {
@@ -411,15 +388,15 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			}
 		}
 	}
-	
+
 	//XYZ-Methods
-	
+
 	private void refreshOldXYZposition(double correctedXPosition, double correctedYPosition, double correctedZPosition, String label) {
 		oldPositionsDict.replace(label, new double[] {correctedXPosition, correctedYPosition, correctedZPosition});
 	}
-	
+
 	//Z-Methods
-	
+
 	private double getZPosition() {
 		String focusDevice = core_.getFocusDevice();
 		double z = 0;
@@ -431,7 +408,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		}
 		return z;
 	}
-	
+
 	private static Integer[] getZfocus(double[] stdArray) {
 		double min = Double.MAX_VALUE;
 		for (double aStd : stdArray) {
@@ -447,7 +424,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		}
 		return (Integer[]) minIdxs.toArray(new Integer[]{});
 	}
-	
+
 	public static double[] calculateZPositions(double searchRange, double step, double startZUm) {
 		double lower = startZUm - searchRange / 2;
 		int nstep = new Double(searchRange / step).intValue() + 1;
@@ -457,7 +434,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		}
 		return zpos;
 	}
-	
+
 	private static double optimizeZFocus(int rawZidx, double[] stdArray, double[] zpositionArray) {
 		if (rawZidx == zpositionArray.length - 1 || rawZidx == 0) {
 			return zpositionArray[rawZidx];
@@ -474,51 +451,33 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			return zpositionArray[rawZidx];
 		}
 	}
-	
-	private double calculateZFocus(double oldZ, boolean save, boolean show) {
+
+	private double calculateZFocus(double oldZ) {
 		double[] zPositions = calculateZPositions(searchRange, step, oldZ);
 		double[] stdAtZPositions = new double[zPositions.length];
 		TaggedImage currentImg = null;
-		
+
 		for (int i = 0; i < zPositions.length; i++) {
 			setZPosition(zPositions[i]);
 			try {
 				core_.waitForDevice(core_.getCameraDevice());
 				core_.snapImage();
 				currentImg = core_.getTaggedImage();
-				if (!save && show) {
-					final TaggedImage img1 = currentImg;
-					SwingUtilities.invokeLater(() -> {
-						try {
-							studio_.live().displayImage(studio_.data().convertTaggedImage(img1));
-						} catch (JSONException | IllegalArgumentException e) {
-							studio_.logs().showError(e);
-						}
-					});
-				}
 			} catch (Exception e) {
 				e.printStackTrace();
 				ReportingUtils.showError("Cannot take snapshot");
 			}
 			imageCount++;
 			assert currentImg != null;
-			Metadata metadata = DefaultMetadata.legacyFromJSON(currentImg.tags);
-			PositionList posList = studio_.positions().getPositionList();
-			if (posList.getNumberOfPositions() > 0) {
-				metadata = metadata.copy().positionName(posList.getPosition(positionIndex).getLabel()).build();
-			}
-			Image img = null;
-			try {
-				img = studio_.data().convertTaggedImage(currentImg,
-						studio_.data().getCoordsBuilder().z(i).channel(0).stagePosition(positionIndex).time(timepoint).build(),
-						metadata);
-				if (save) {
-					assert store != null;
-					store.putImage(img);
-				}
-			} catch (JSONException | DatastoreRewriteException | DatastoreFrozenException e) {
-				e.printStackTrace();
-				ReportingUtils.showError("Unable to save current z image at " + i);
+			Image img = getImageFromTaggedImg(currentImg, i);
+			if (show.contentEquals("Yes")) {
+				SwingUtilities.invokeLater(() -> {
+					try {
+						studio_.live().displayImage(img);
+					} catch (IllegalArgumentException e) {
+						studio_.logs().showError(e);
+					}
+				});
 			}
 			stdAtZPositions[i] = studio_.data().ij().createProcessor(img).getStatistics().stdDev;
 		}
@@ -527,7 +486,25 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		int minIndex = rawIndexs[(int) Math.floor(minIndexLength / 2.0)];
 		return optimizeZFocus(minIndex, stdAtZPositions, zPositions);
 	}
-	
+
+	private Image getImageFromTaggedImg(TaggedImage currentImg, int i) {
+		Image img = null;
+		Metadata metadata = DefaultMetadata.legacyFromJSON(currentImg.tags);
+		PositionList posList = studio_.positions().getPositionList();
+		if (posList.getNumberOfPositions() > 0) {
+			metadata = metadata.copy().positionName(posList.getPosition(positionIndex).getLabel()).build();
+		}
+		try {
+			img = studio_.data().convertTaggedImage(currentImg,
+					studio_.data().getCoordsBuilder().z(i).channel(0).stagePosition(positionIndex).time(timepoint).build(),
+					metadata);
+		} catch (JSONException e) {
+			e.printStackTrace();
+			ReportingUtils.showError("Unable to process z image at " + i);
+		}
+		return img;
+	}
+
 	private void setZPosition(double z) {
 		String focusDevice = core_.getFocusDevice();
 		try {
