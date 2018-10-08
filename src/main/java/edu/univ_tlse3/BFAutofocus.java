@@ -1,8 +1,15 @@
 package edu.univ_tlse3;
 
 import ij.IJ;
+import ij.ImagePlus;
+import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
+import ij.process.ShortProcessor;
 import mmcorej.*;
+import org.bytedeco.javacpp.opencv_core;
+import org.bytedeco.javacpp.opencv_imgproc;
+import org.bytedeco.javacv.Java2DFrameConverter;
+import org.bytedeco.javacv.OpenCVFrameConverter;
 import org.json.JSONException;
 import org.micromanager.AutofocusPlugin;
 import org.micromanager.PositionList;
@@ -11,21 +18,18 @@ import org.micromanager.data.Coords;
 import org.micromanager.data.Datastore;
 import org.micromanager.data.Image;
 import org.micromanager.internal.utils.*;
-import org.opencv.core.Core;
-import org.opencv.core.CvType;
-import org.opencv.core.Mat;
-import org.opencv.features2d.DescriptorExtractor;
-import org.opencv.features2d.DescriptorMatcher;
-import org.opencv.features2d.FeatureDetector;
+import java.awt.image.BufferedImage;
 import org.scijava.plugin.Plugin;
 import org.scijava.plugin.SciJavaPlugin;
+
+import org.bytedeco.javacpp.opencv_core.*;
 
 import javax.swing.*;
 import java.awt.*;
 import java.io.*;
+import java.nio.FloatBuffer;
 import java.text.ParseException;
 import java.util.*;
-import java.util.concurrent.*;
 
 @Plugin(type = AutofocusPlugin.class)
 public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJavaPlugin {
@@ -43,10 +47,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private static final String SHOWIMAGES_TEXT = "ShowImages";
     private static final String SAVEIMGS_TEXT = "SaveImages";
     private static final String XY_CORRECTION_TEXT = "Correct XY at same time";
-    private static final String DETECTORALGO_TEXT = "Feature detector algorithm";
-    private static final String MATCHERALGO_TEXT = "Matches extractor algorithm";
-    private static final String[] DETECTORALGO_VALUES = {"AKAZE", "BRISK", "ORB"};
-    private static final String[] MATCHERALGO_VALUES = {"AKAZE", "BRISK", "ORB"};
     private static final String[] SHOWIMAGES_VALUES = {"Yes", "No"};
     private static final String[] SAVEIMAGES_VALUES = {"Yes", "No"};
     private static final String STEP_SIZE = "Step_size";
@@ -65,19 +65,14 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
     private int timepoint = 0;
     private double step = 0.3;
     private String xy_correction = "Yes";
-    private Map<String, Mat> refImageDict = new HashMap<>();
+    private Map<String, TaggedImage> refImageDict = new HashMap<>();
     private Map<String, double[]> oldPositionsDict = new HashMap<>();
     private double umPerStep = 15;
-    private String detectorAlgo = "AKAZE";
-    private String matcherAlgo = "BRISK";
     private double zOffset = -1;
 
     //Global variables
     private Studio studio_;
     private CMMCore core_;
-    private Mat imgRef_Mat = null;
-    private double calibration = 0;
-    private double intervalInMin = 0;
     private int positionIndex = 0;
     private String savingPath;
 
@@ -89,13 +84,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         super.createProperty(Z_OFFSET, NumberUtils.doubleToDisplayString(zOffset));
         super.createProperty(SHOWIMAGES_TEXT, show, SHOWIMAGES_VALUES);
         super.createProperty(XY_CORRECTION_TEXT, xy_correction, XY_CORRECTION_VALUES);
-        super.createProperty(DETECTORALGO_TEXT, detectorAlgo, DETECTORALGO_VALUES);
-        super.createProperty(MATCHERALGO_TEXT, matcherAlgo, MATCHERALGO_VALUES);
         super.createProperty(STEP_SIZE, NumberUtils.doubleToDisplayString(step));
         super.createProperty(CHANNEL, channel);
         super.createProperty(UMPERSTEP, NumberUtils.doubleToDisplayString(umPerStep));
         super.createProperty(SAVEIMGS_TEXT, save, SAVEIMAGES_VALUES);
-        nu.pattern.OpenCV.loadShared();
     }
 
     @Override
@@ -108,8 +100,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             zOffset = NumberUtils.displayStringToDouble(getPropertyValue(Z_OFFSET));
             show = getPropertyValue(SHOWIMAGES_TEXT);
             xy_correction = getPropertyValue(XY_CORRECTION_TEXT);
-            detectorAlgo = getPropertyValue(DETECTORALGO_TEXT);
-            matcherAlgo = getPropertyValue(MATCHERALGO_TEXT);
             channel = getPropertyValue(CHANNEL);
             umPerStep = NumberUtils.displayStringToDouble(getPropertyValue(UMPERSTEP));
             save = getPropertyValue(SAVEIMGS_TEXT);
@@ -124,11 +114,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         applySettings();
         Rectangle oldROI = studio_.core().getROI();
         core_ = studio_.getCMMCore();
-
-        calibration = core_.getPixelSizeUm();
-        intervalInMin = (studio_.acquisitions().getAcquisitionSettings().intervalMs)/60000;
         savingPath = studio_.acquisitions().getAcquisitionSettings().root + File.separator;
-        String prefix = studio_.acquisitions().getAcquisitionSettings().prefix;
 
         //ReportingUtils.logMessage("Original ROI: " + oldROI);
         int w = (int) (oldROI.width * cropFactor);
@@ -203,8 +189,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         //Get an image to define reference image, for each position
         core_.waitForDevice(core_.getCameraDevice());
         core_.snapImage();
-        TaggedImage taggedImagePosition = core_.getTaggedImage();
-        Mat currentMat8Set = convertTo8BitsMat(taggedImagePosition);
+        TaggedImage currentImg = core_.getTaggedImage();
 
         //Calculation of XY Drifts only if the parameter "Correct XY at same time" is set to Yes;
         double currentXPosition = core_.getXPosition();
@@ -217,24 +202,29 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         double yCorrection = 0;
 
         if (xy_correction.contentEquals("Yes")){
-            double[] drifts = new double[11];
+            int[] dxdy;
             //Define current image as reference for the position if it does not exist
             if (!refImageDict.containsKey(label)) {
-                refImageDict.put(label, currentMat8Set);
+                refImageDict.put(label, currentImg);
             } else {
                 //Or calculate XY drift
-                imgRef_Mat = refImageDict.get(label);
-                int detector = getFeatureDetectorIndex(detectorAlgo);
-                int matcher = getDescriptorExtractorIndex(matcherAlgo);
-                ReportingUtils.logMessage("FeatureDetector : " + detector);
+                TaggedImage imgRef = refImageDict.get(label);
 
-                //Get Correction to apply : 0-1 = x/y drifts; 3-4 = matcher size ; 5 = acquisition duration
-                drifts = calculateXYDrifts(currentMat8Set, detector, matcher, DescriptorMatcher.FLANNBASED,
-                      oldROI, oldState, oldExposure, oldAutoShutterState, DriftCorrection.MEAN);
-                xCorrection = drifts[0];
-                yCorrection = drifts[1];
+                /*
+                    CV_TM_SQDIFF        = 0,
+                    CV_TM_SQDIFF_NORMED = 1,
+                    CV_TM_CCORR         = 2,
+                    CV_TM_CCORR_NORMED  = 3,
+                    CV_TM_CCOEFF        = 4,
+                    CV_TM_CCOEFF_NORMED = 5;
+                 */
+                FloatProcessor rFp = doMatch(taggedImgToImgProcessor(imgRef), taggedImgToImgProcessor(currentImg),
+                        3);
+                dxdy = findMax(rFp, 0);
+
+                xCorrection = dxdy[0];
+                yCorrection = dxdy[1];
                 if (Double.isNaN(xCorrection) || Double.isNaN(yCorrection)){
-                    ReportingUtils.logError("Nan is found with algorithm : " + matcher + "_" + "detector "+ detector);
                     xCorrection = 0;
                     yCorrection = 0;
                 }
@@ -246,10 +236,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
             long acquisitionTimeElapsed = endTime - startTime;
             ReportingUtils.logMessage("Acquisition duration in ms : " + acquisitionTimeElapsed);
 
-            writeOutput(acquisitionTimeElapsed, label, prefix, currentXPosition, correctedXPosition,
-                    currentYPosition, correctedYPosition, oldZ, correctedZPosition,
-                    drifts, intervalInMin);
-
             setXYPosition(correctedXPosition, correctedYPosition);
 
             if (xCorrection != 0 && yCorrection != 0) {
@@ -257,8 +243,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
                 core_.waitForDevice(core_.getCameraDevice());
                 core_.snapImage();
                 TaggedImage newRefTaggedImage = core_.getTaggedImage();
-                Mat newRefMat = convertTo8BitsMat(newRefTaggedImage);
-                refImageDict.replace(label, newRefMat);
+                refImageDict.replace(label, newRefTaggedImage);
             }
         }
 
@@ -290,42 +275,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         imageCount = 0;
         timepoint = 0;
         IJ.log("BF AutoFocus internal parameters have been reset");
-    }
-
-    private int getFeatureDetectorIndex(String name){
-        int index = -1;
-        switch (name){
-            case "AKAZE":
-                index = FeatureDetector.AKAZE;
-                break;
-            case "ORB":
-                index = FeatureDetector.ORB;
-                break;
-            case "BRISK":
-                index = FeatureDetector.BRISK;
-                break;
-            default:
-                ReportingUtils.logError("Can not handle this algorithm name");
-        }
-        return index;
-    }
-
-    private int getDescriptorExtractorIndex(String name){
-        int index = -1;
-        switch (name){
-            case "AKAZE":
-                index = DescriptorExtractor.AKAZE;
-                break;
-            case "ORB":
-                index = DescriptorExtractor.ORB;
-                break;
-            case "BRISK":
-                index = DescriptorExtractor.BRISK;
-                break;
-            default:
-                ReportingUtils.logError("Can not handle this algorithm name");
-        }
-        return index;
     }
 
     private void resetInitialMicroscopeCondition(Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState) throws Exception {
@@ -471,131 +420,12 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         core_.waitForDevice(focusDevice);
     }
 
-    //XY-Methods
-    private double[] calculateXYDrifts(Mat currentImgMat, Integer detectorAlgo,
-                                       Integer descriptorExtractor, Integer descriptorMatcher,
-                                       Rectangle oldROI, Configuration oldState,
-                                       double oldExposure, boolean oldAutoShutterState, int flag) {
-        ExecutorService es = Executors.newSingleThreadExecutor();
-        Future job = es.submit(new ThreadAttribution(imgRef_Mat, currentImgMat, calibration,
-                intervalInMin, umPerStep, detectorAlgo, descriptorExtractor, descriptorMatcher, flag));
-        double[] xyDrifts = new double[0];
-        try {
-            xyDrifts = (double[]) job.get();
-        } catch (InterruptedException | ExecutionException e) {
-            try {
-                resetInitialMicroscopeCondition(oldROI, oldState, oldExposure, oldAutoShutterState);
-            } catch (Exception e1) {
-                e1.printStackTrace();
-            }
-        }
-        es.shutdown();
-        try {
-            es.awaitTermination(1, TimeUnit.MINUTES);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        return xyDrifts;
-    }
-
     private void setXYPosition(double x, double y) throws Exception {
         assert x != 0;
         assert y != 0;
         String xyDevice = core_.getXYStageDevice();
         core_.setXYPosition(x,y);
         core_.waitForDevice(xyDevice);
-    }
-
-    //Convert MM TaggedImage to OpenCV Mat
-    private static Mat convertToMat(TaggedImage img) throws JSONException {
-        int width = img.tags.getInt("Width");
-        int height = img.tags.getInt("Height");
-        Mat mat = new Mat(height, width, CvType.CV_16UC1);
-        mat.put(0,0, (short[]) img.pix);
-        return mat;
-    }
-
-    //Convert MM TaggedImage to OpenCV 8 bits Mat
-    private static Mat convertTo8BitsMat(TaggedImage taggedImage) throws JSONException {
-        Mat mat16 = convertToMat(taggedImage);
-        Mat mat8 = new Mat(mat16.cols(), mat16.rows(), CvType.CV_8UC1);
-        Core.MinMaxLocResult minMaxResult = Core.minMaxLoc(mat16);
-        double min = minMaxResult.minVal;
-        double max = minMaxResult.maxVal;
-        mat16.convertTo(mat8, CvType.CV_8UC1, 255/(max-min));
-        return DriftCorrection.equalizeImages(mat8);
-    }
-
-    //Write output file
-    private void writeOutput(long acquisitionDuration, String label, String prefix, double currentXPosition, double correctedXPosition,
-                             double currentYPosition, double correctedYPosition,
-                             double currentZPosition, double correctedZPosition, double[] xyDrifts, double intervalInMin_) throws IOException {
-
-        File f1 = new File(savingPath + prefix + "_Stats_" + label + ".csv");
-        if (!f1.exists()) {
-            boolean wrote = f1.createNewFile();
-            if (wrote) {
-                FileWriter fw = new FileWriter(f1);
-                String[] headersOfFile = new String[]{"currentXPosition", "correctedXPosition",
-                        "currentYPosition", "correctedYPosition",
-
-                        "currentZPosition", "correctedZPosition",
-
-                        "meanXdisplacement", "meanYdisplacement",
-
-                        "medianXdisplacement", "medianYdisplacement",
-
-                        "minXdisplacement", "minYdisplacement",
-
-                        "modeXdisplacement", "modeYdisplacement",
-
-                        "numberOfMatches", "numberOfGoodMatches",
-
-                        "algorithmDuration(ms)", "acquisitionDuration(ms)", "intervalInMin"
-
-                };
-
-                fw.write(String.join(",", headersOfFile) + System.lineSeparator());
-                fw.close();
-            }else{
-                ReportingUtils.logError("Can not create new file");
-            }
-
-        } else {
-            double meanXdisplacement = xyDrifts[0];
-            double meanYdisplacement = xyDrifts[1];
-            double numberOfMatches = xyDrifts[2];
-            double numberOfGoodMatches = xyDrifts[3];
-            double algorithmDuration = xyDrifts[4];
-            double medianXDisplacement = xyDrifts[0];
-            double medianYDisplacement = xyDrifts[1];
-            double minXDisplacement = xyDrifts[0];
-            double minYDisplacement = xyDrifts[1];
-            double modeXDisplacement = xyDrifts[0];
-            double modeYDisplacement = xyDrifts[1];
-
-            FileWriter fw1 = new FileWriter(f1, true);
-            fw1.write(currentXPosition + "," + correctedXPosition + ","
-
-                    + currentYPosition + "," + correctedYPosition + ","
-
-                    + currentZPosition + "," + correctedZPosition  + ","
-
-                    + meanXdisplacement + "," + meanYdisplacement + ","
-
-                    + medianXDisplacement + "," + medianYDisplacement + ","
-
-                    + minXDisplacement + "," + minYDisplacement + ","
-
-                    + modeXDisplacement + "," + modeYDisplacement + ","
-
-                    + numberOfMatches + "," + numberOfGoodMatches + ","
-
-                    + algorithmDuration + "," + acquisitionDuration + "," + intervalInMin_
-
-                    + System.lineSeparator());
-            fw1.close();
-        }
     }
 
     //Methods overriding
@@ -679,39 +509,173 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
         return super.getProperties();
     }
 
-    //********************************************************************************//
-    //*************************** Class for multithreading ***************************//
-    //********************************************************************************//
-    private class ThreadAttribution implements Callable<double[]> {
+    public static FloatProcessor doMatch(ImagePlus src, ImagePlus tpl, int method) {
 
-        private Mat img1_;
-        private Mat img2_;
-        private double calibration_;
-        private double intervalInMs_;
-        private double umPerStep_;
-        private Integer detectorAlgo_;
-        private Integer descriptorExtractor_;
-        private Integer descriptorMatcher_;
-        private int flag;
+        return doMatch(src.getProcessor(), tpl.getProcessor(), method);
 
-        ThreadAttribution(Mat img1, Mat img2, double calibration, double intervalInMs, double umPerStep,
-                          Integer detectorAlgo, Integer descriptorExtractor, Integer descriptorMatcher, int flag) {
-            img1_ = img1;
-            img2_ = img2;
-            calibration_ = calibration;
-            intervalInMs_ = intervalInMs;
-            umPerStep_ = umPerStep;
-            detectorAlgo_ = detectorAlgo;
-            descriptorExtractor_ = descriptorExtractor;
-            descriptorMatcher_ = descriptorMatcher;
-            this.flag = flag;
+    }
+
+    private static FloatProcessor doMatch(ImageProcessor src, ImageProcessor tpl, int method) {
+
+        BufferedImage bi, bi2;
+        FloatProcessor resultFp;
+        int srcW = src.getWidth();
+        int srcH = src.getHeight();
+        int tplW = tpl.getWidth();
+        int tplH = tpl.getHeight();
+        IplImage temp, temp2,res;
+        IplImage iplSrc = null;
+        IplImage iplTpl = null;
+
+        switch (src.getBitDepth()) {
+
+            case 32:
+                //convert source imageProcessor into iplImage
+                CvMat srcMat = CvMat.create(srcH, srcW, opencv_core.CV_32FC1);
+                double[] dArr1 = float2DtoDouble1DArray(src.getFloatArray(), srcW, srcH);
+                srcMat.put(0, dArr1, 0, dArr1.length);
+                iplSrc = srcMat.asIplImage();
+                //iplSrc = temp.clone();
+
+                //convert template imageProcessor into iplImage
+                CvMat tplMat = CvMat.create(tplH, tplW, opencv_core.CV_32FC1);
+                double[] dArr2 = float2DtoDouble1DArray(tpl.getFloatArray(), tplW, tplH);
+                tplMat.put(0, dArr2, 0, dArr2.length);
+                iplTpl = tplMat.asIplImage();
+                //iplTpl = temp2.clone();
+
+                break;
+            case 16:
+                //since cvMatchTemplate don't accept 16bit image, we have to convert it to 32bit
+                iplSrc = opencv_core.cvCreateImage(opencv_core.cvSize(srcW, srcH), opencv_core.IPL_DEPTH_32F, 1);
+                bi = ((ShortProcessor) src).get16BitBufferedImage();
+                temp = toIplImage(bi);
+//                temp = IplImage.createFrom(bi);
+                opencv_core.cvConvertScale(temp, iplSrc, 1 / 65535.0, 0);
+
+                iplTpl = opencv_core.cvCreateImage(opencv_core.cvSize(tplW, tplH), opencv_core.IPL_DEPTH_32F, 1);
+                bi2 = ((ShortProcessor) tpl).get16BitBufferedImage();
+                temp2 = toIplImage(bi2);
+                opencv_core.cvConvertScale(temp2, iplTpl, 1 / 65535.0, 0);
+
+                temp.release();
+                temp2.release();
+
+                break;
+            case 8:
+
+                bi = src.getBufferedImage();
+                iplSrc = toIplImage(bi);
+
+                bi2 = tpl.getBufferedImage();
+                iplTpl = toIplImage(bi2);
+
+                break;
+            default:
+                IJ.error("Unsupported image type");
+                break;
         }
 
-        @Override
-        public double[] call() {
-            return DriftCorrection.driftCorrection(img1_, img2_, calibration_, intervalInMs_,
-                    umPerStep_, detectorAlgo_, descriptorExtractor_, descriptorMatcher_, flag);
+        res =  opencv_core.cvCreateImage(opencv_core.cvSize(srcW - tplW + 1, srcH - tplH + 1),
+                opencv_core.IPL_DEPTH_32F, 1);
+
+        /*
+        CV_TM_SQDIFF        = 0,
+        CV_TM_SQDIFF_NORMED = 1,
+        CV_TM_CCORR         = 2,
+        CV_TM_CCORR_NORMED  = 3,
+        CV_TM_CCOEFF        = 4,
+        CV_TM_CCOEFF_NORMED = 5;
+         */
+
+        opencv_imgproc.cvMatchTemplate(iplSrc, iplTpl, res, method);
+        FloatBuffer fb = res.getFloatBuffer();
+        float[] f = new float[res.width() * res.height()];
+        fb.get(f, 0, f.length);
+        resultFp = new FloatProcessor(res.width(), res.height(), f, null);
+        opencv_core.cvReleaseImage(res);
+
+        switch (src.getBitDepth()) {
+            case 32:
+                iplSrc.release();
+                iplTpl.release();
+                break;
+            case 16:
+                opencv_core.cvReleaseImage(iplSrc);
+                opencv_core.cvReleaseImage(iplTpl);
+                break;
+            case 8:
+                iplSrc.release();
+                iplTpl.release();
+                break;
+            default:
+                break;
         }
+
+        return resultFp;
+    }
+
+    private ImageProcessor taggedImgToImgProcessor(TaggedImage taggedImage) throws JSONException {
+        return studio_.data().getImageJConverter().createProcessor(studio_.data().convertTaggedImage(taggedImage));
+    }
+
+    public static int[] findMax(ImageProcessor ip, int sW) {
+        int[] coord = new int[2];
+        float max = ip.getPixel(0, 0);
+        int sWh, sWw;
+
+        if (sW == 0) {
+            sWh = ip.getHeight();
+            sWw = ip.getWidth();
+        } else {
+            sWh = sW;
+            sWw = sW;
+        }
+
+
+        for (int j = (ip.getHeight() - sWh) / 2; j < (ip.getHeight() + sWh) / 2; j++) {
+            for (int i = (ip.getWidth() - sWw) / 2; i < (ip.getWidth() + sWw) / 2; i++) {
+                if (ip.getPixel(i, j) > max) {
+                    max = ip.getPixel(i, j);
+                    coord[0] = i;
+                    coord[1] = j;
+                }
+            }
+        }
+        return (coord);
+    }
+
+    /*
+     *  The 2D array from ImageJ is [x][y], while the cvMat is in [y][x]
+     */
+    private static double[] float2DtoDouble1DArray(float[][] arr2d, int column, int row) {
+
+
+
+//        IJ.log("src.col: " + column);
+//        IJ.log("src.row: "+ row);
+//        IJ.log("arr2d[]: "+ arr2d.length);
+//        IJ.log("arr2d[][]: "+ arr2d[0].length);
+
+
+        double[] arr1d = new double[column * row];
+        for (int y = 0; y < row; y++) {
+            for (int x = 0; x < column; x++) {
+//                IJ.log("convert x:"+x+" y: "+y );
+//                IJ.log("arr1d x*row+y:"+(y*column+x));
+//                IJ.log("arr1d value:"+ arr2d[x][y]);
+                arr1d[y * column + x] = (double) arr2d[x][y];
+            }
+        }
+
+        return arr1d;
+    }
+
+    private static IplImage toIplImage(BufferedImage bufImage) {
+
+        OpenCVFrameConverter.ToIplImage iplConverter = new OpenCVFrameConverter.ToIplImage();
+        Java2DFrameConverter java2dConverter = new Java2DFrameConverter();
+        return iplConverter.convert(java2dConverter.convert(bufImage));
     }
 }
 
