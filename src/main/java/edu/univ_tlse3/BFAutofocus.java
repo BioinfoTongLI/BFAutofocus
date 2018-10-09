@@ -2,6 +2,7 @@ package edu.univ_tlse3;
 
 import ij.IJ;
 import ij.ImagePlus;
+import ij.measure.ResultsTable;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import ij.process.ShortProcessor;
@@ -426,6 +427,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		setZPosition(correctedZPosition + zOffset);
 
 		if (xy_correction.contentEquals("Yes")) {
+            ResultsTable rt = new ResultsTable();
+            rt.getResultsTable();
 			//Get an image to define reference image, for each position
 			core_.setShutterOpen(true);
 			core_.waitForDevice(core_.getCameraDevice());
@@ -478,6 +481,13 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
 				ReportingUtils.logMessage("X Correction : " + xCorrection);
 				ReportingUtils.logMessage("Y Correction : " + yCorrection);
+
+                rt.incrementCounter();
+                rt.addValue("Slice", timepoint);
+                rt.addValue("dX", xCorrection);
+                rt.addValue("dY", yCorrection);
+                rt.updateResults();
+                rt.show("Results");
 
 				correctedXPosition = currentXPosition + xCorrection;
 				correctedYPosition = currentYPosition + yCorrection;
