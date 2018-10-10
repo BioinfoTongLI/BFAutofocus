@@ -35,6 +35,8 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.FloatBuffer;
 import java.text.ParseException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -82,6 +84,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 	private CMMCore core_;
 	private int positionIndex = 0;
 	private Datastore store;
+	private ResultsTable rt;
 
 	//Begin autofocus
 	public BFAutofocus() {
@@ -94,6 +97,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		super.createProperty(STEP_SIZE, NumberUtils.doubleToDisplayString(step));
 		super.createProperty(CHANNEL, channel);
 		super.createProperty(SAVEIMGS_TEXT, save, SAVEIMAGES_VALUES);
+		rt = ResultsTable.getResultsTable();
 	}
 
 	private static Integer[] getZfocus(double[] stdArray) {
@@ -362,7 +366,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		core_.setExposure(exposure);
 
 		boolean oldAutoShutterState = core_.getAutoShutter();
-		core_.setAutoShutter(false);
+		core_.setAutoShutter(true);
 
 		//Get label of position
 		PositionList positionList = studio_.positions().getPositionList();
@@ -403,16 +407,18 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		} else {
 			//Set to the last good position calculated
 			double[] oldXYZ = oldPositionsDict.get(label);
-			setXYPosition(oldXYZ[0], oldXYZ[1]);
-			setZPosition(oldXYZ[2]);
+//			setXYPosition(oldXYZ[0], oldXYZ[1]);
+//			setZPosition(oldXYZ[2]);
 			lastZ = oldXYZ[2];
 		}
 
 		//Calculate Focus
 		double correctedZPosition = calculateZFocus(currentZ);
+		double delta = -1;
+
 		if (lastZ != Double.MAX_VALUE) {
-			double delta = lastZ - correctedZPosition;
 			double k = 0.4;
+			delta = lastZ - correctedZPosition;
 			correctedZPosition = lastZ - delta * k;
 		}
 		ReportingUtils.logMessage("Corrected Z Position : " + correctedZPosition);
@@ -427,13 +433,10 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		setZPosition(correctedZPosition + zOffset);
 
 		if (xy_correction.contentEquals("Yes")) {
-            ResultsTable rt = new ResultsTable();
-            rt.getResultsTable();
 			//Get an image to define reference image, for each position
-			core_.setShutterOpen(true);
 			core_.waitForDevice(core_.getCameraDevice());
 			core_.snapImage();
-			core_.setShutterOpen(false);
+
 			TaggedImage currentImg = core_.getTaggedImage();
 
 			double xCorrection = 0;
@@ -451,7 +454,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 				int fieldWidth = (int) core_.getImageWidth();
 				int fieldHeight = (int) core_.getImageHeight();
 
-				int cropMagnitude = 2;
+				int cropMagnitude = 4;
 				int newW = Math.floorDiv(fieldWidth, cropMagnitude);
 				int newH = Math.floorDiv(fieldHeight, cropMagnitude);
 				int selectionOriginX = Math.floorDiv(fieldWidth, 2) - newW / 2;
@@ -483,14 +486,16 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 				ReportingUtils.logMessage("Y Correction : " + yCorrection);
 
                 rt.incrementCounter();
-                rt.addValue("Slice", timepoint);
+				rt.addValue("Position", label);
+				rt.addValue("Slice", timepoint);
                 rt.addValue("dX", xCorrection);
                 rt.addValue("dY", yCorrection);
+                rt.addValue("dZ", delta);
                 rt.updateResults();
                 rt.show("Results");
 
-				correctedXPosition = currentXPosition + xCorrection;
-				correctedYPosition = currentYPosition + yCorrection;
+				correctedXPosition = currentXPosition - xCorrection;
+				correctedYPosition = currentYPosition - yCorrection;
 
 				long endTime = new Date().getTime();
 				long acquisitionTimeElapsed = endTime - startTime;
@@ -502,32 +507,33 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 				setXYPosition(correctedXPosition, correctedYPosition);
 			}
 		}
-		core_.setShutterOpen(true);
 		core_.waitForDevice(core_.getCameraDevice());
 		core_.snapImage();
-		core_.setShutterOpen(false);
 		TaggedImage newRefImg = core_.getTaggedImage();
-
-		if (save.contentEquals("Yes")) {
-			Image img = getImageFromTaggedImg(newRefImg, 0);
-			assert store != null;
-			store.putImage(img);
-			if (show.contentEquals("Yes")) {
-				SwingUtilities.invokeLater(() -> {
-					try {
-						studio_.live().displayImage(img);
-					} catch (IllegalArgumentException e) {
-						studio_.logs().showError(e);
-					}
-				});
-			}
-		}
 
 		if (xy_correction.contentEquals("Yes")) {
 			refImageDict.replace(label, newRefImg);
 		}
+
+		Image img = getImageFromTaggedImg(newRefImg, 0);
+
+		if (show.contentEquals("Yes")) {
+			SwingUtilities.invokeLater(() -> {
+				try {
+					studio_.live().displayImage(img);
+				} catch (IllegalArgumentException e) {
+					studio_.logs().showError(e);
+				}
+			});
+		}
+
+		if (save.contentEquals("Yes")) {
+			assert store != null;
+			store.putImage(img);
+		}
+
 		finalizeAcquisition(oldROI, oldState, oldExposure, oldAutoShutterState, positionList, label,
-				bfPath, correctedZPosition, correctedXPosition, correctedYPosition);
+				savingPath, correctedZPosition, correctedXPosition, correctedYPosition);
 		return correctedZPosition;
 	}
 
@@ -539,6 +545,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		store = null;
 		imageCount = 0;
 		timepoint = 0;
+		rt.reset();
+		IJ.run("Clear Results", "");
 		IJ.log("BF AutoFocus internal parameters have been reset");
 	}
 
@@ -570,7 +578,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 	}
 
 	private void finalizeAcquisition(Rectangle oldROI, Configuration oldState, double oldExposure, boolean oldAutoShutterState,
-	                                 PositionList positionList, String label, String bfPath, double correctedZPosition,
+	                                 PositionList positionList, String label, String savingPath, double correctedZPosition,
 	                                 double correctedXPosition, double correctedYPosition) {
 		//Reset conditions
 		resetInitialMicroscopeCondition(oldROI, oldState, oldExposure, oldAutoShutterState);
@@ -611,7 +619,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 
 				//Save datastore
 				store.freeze();
-				store.save(Datastore.SaveMode.MULTIPAGE_TIFF, bfPath + "_ordered");
+				store.save(Datastore.SaveMode.MULTIPAGE_TIFF, savingPath + "ordered_focus_imgs");
 				ReportingUtils.logMessage("Datastore saved");
 				store.close();
 
@@ -626,6 +634,12 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 					studio_.displays().manage(store);
 				}
 			}
+			String currentTime = LocalDateTime.now()
+					.format(DateTimeFormatter.ofPattern("MM-dd-HH-mm"));
+			if (savingPath == null){
+				savingPath = IJ.getDirectory("macro");
+			}
+			IJ.saveAs("Results", savingPath + "Drift_corrections_" + currentTime + ".csv");
 			resetParameters();
 
 			//Increment timepoint and positionIndex if acquisition still running
@@ -675,7 +689,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		double[] zPositions = calculateZPositions(searchRange, step, oldZ);
 		double[] stdAtZPositions = new double[zPositions.length];
 		TaggedImage currentImg = null;
-		core_.setShutterOpen(true);
 		for (int i = 0; i < zPositions.length; i++) {
 			setZPosition(zPositions[i]);
 			try {
@@ -691,7 +704,6 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			Image img = getImageFromTaggedImg(currentImg, i);
 			stdAtZPositions[i] = studio_.data().ij().createProcessor(img).getStatistics().stdDev;
 		}
-		core_.setShutterOpen(false);
 		Integer[] rawIndexs = getZfocus(stdAtZPositions);
 		int minIndexLength = rawIndexs.length;
 		int minIndex = rawIndexs[(int) Math.floor(minIndexLength / 2.0)];
