@@ -58,7 +58,9 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 	private static final String SHOWIMAGES_TEXT = "ShowImages";
 	private static final String SAVEIMGS_TEXT = "SaveImages";
 	private static final String XY_CORRECTION_TEXT = "XY Correction";
-	private static final String[] SHOWIMAGES_VALUES = {"Yes", "No"};
+    private static final String D0_SUBPIXEL = "Sub pixel ?";
+    private static final String[] D0_SUBPIXEL_VALUES = {"Yes", "No"};
+    private static final String[] SHOWIMAGES_VALUES = {"Yes", "No"};
 	private static final String[] SAVEIMAGES_VALUES = {"Yes", "No"};
 	private static final String STEP_SIZE = "Step_size";
 	private static final String[] XY_CORRECTION_VALUES = {"Yes", "No"};
@@ -71,6 +73,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 	private double exposure = 50;
 	private String show = "Yes";
 	private String save = "No";
+    private String subPixel = "Yes";
 	private int imageCount = 0;
 	private int timepoint = 0;
 	private double step = 0.5;
@@ -86,6 +89,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 	private Datastore store;
 	private ResultsTable rt;
 
+
 	//Begin autofocus
 	public BFAutofocus() {
 		super.createProperty(SEARCH_RANGE, NumberUtils.doubleToDisplayString(searchRange));
@@ -97,6 +101,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 		super.createProperty(STEP_SIZE, NumberUtils.doubleToDisplayString(step));
 		super.createProperty(CHANNEL, channel);
 		super.createProperty(SAVEIMGS_TEXT, save, SAVEIMAGES_VALUES);
+		super.createProperty(D0_SUBPIXEL, subPixel, D0_SUBPIXEL_VALUES);
 		rt = ResultsTable.getResultsTable();
 	}
 
@@ -327,6 +332,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			xy_correction = getPropertyValue(XY_CORRECTION_TEXT);
 			channel = getPropertyValue(CHANNEL);
 			save = getPropertyValue(SAVEIMGS_TEXT);
+			subPixel = getPropertyValue(D0_SUBPIXEL);
 		} catch (MMException | ParseException ex) {
 			studio_.logs().logError(ex);
 		}
@@ -473,8 +479,14 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 				FloatProcessor rFp = doMatch(taggedImgToImgProcessor(currentImg), proc.crop(), 3);
 				int[] dxdy = findMax(rFp, 0);
 
-				xCorrection = (selectionOriginX - dxdy[0]) * calib;
-				yCorrection = (selectionOriginY - dxdy[1]) * calib;
+                if (subPixel.contentEquals("Yes")) {
+                    double[] dxdyG = gaussianPeakFit(rFp, dxdy[0], dxdy[1]);
+                    xCorrection = (selectionOriginX - dxdyG[0]) * calib;
+                    yCorrection = (selectionOriginY - dxdyG[1]) * calib;
+                } else {
+                    xCorrection = (selectionOriginX - dxdy[0]) * calib;
+                    yCorrection = (selectionOriginY - dxdy[1]) * calib;
+                }
 
 				if (Double.isNaN(xCorrection) || Double.isNaN(yCorrection)) {
 					ReportingUtils.logMessage("Drift correction failed at position " + label + " timepoint " + timepoint);
@@ -684,6 +696,32 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			ReportingUtils.showError("  Unable to set Z Position");
 		}
 	}
+
+    private double[] gaussianPeakFit(ImageProcessor ip, int x, int y) {
+        double[] coord = new double[2];
+        // border values
+        if (x == 0
+                || x == ip.getWidth() - 1
+                || y == 0
+                || y == ip.getHeight() - 1) {
+            coord[0] = x;
+            coord[1] = y;
+        } else {
+            coord[0] = x
+                    + (Math.log(ip.getPixel(x - 1, y))
+                    - Math.log(ip.getPixel(x + 1, y)))
+                    / (2 * Math.log(ip.getPixel(x - 1, y))
+                    - 4 * Math.log(ip.getPixel(x, y))
+                    + 2 * Math.log(ip.getPixel(x + 1, y)));
+            coord[1] = y
+                    + (Math.log(ip.getPixel(x, y - 1))
+                    - Math.log(ip.getPixel(x, y + 1)))
+                    / (2 * Math.log(ip.getPixel(x, y - 1))
+                    - 4 * Math.log(ip.getPixel(x, y))
+                    + 2 * Math.log(ip.getPixel(x, y + 1)));
+        }
+        return (coord);
+    }
 
 	private double calculateZFocus(double oldZ) throws Exception {
 		double[] zPositions = calculateZPositions(searchRange, step, oldZ);
