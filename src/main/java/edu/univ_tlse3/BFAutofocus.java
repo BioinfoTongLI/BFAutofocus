@@ -649,7 +649,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			String currentTime = LocalDateTime.now()
 					.format(DateTimeFormatter.ofPattern("MM-dd-HH-mm"));
 			if (savingPath == null){
-				savingPath = IJ.getDirectory("macro");
+				savingPath = IJ.getDirectory("macros");
 			}
 			IJ.saveAs("Results", savingPath + "Drift_corrections_" + currentTime + ".csv");
 			resetParameters();
