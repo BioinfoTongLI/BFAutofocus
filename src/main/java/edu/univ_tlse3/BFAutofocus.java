@@ -71,7 +71,7 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 	private double cropFactor = 1;
 	private String channel = "BF";
 	private double exposure = 50;
-	private String show = "Yes";
+	private String show = "No";
 	private String save = "No";
     private String subPixel = "Yes";
 	private int imageCount = 0;
@@ -651,7 +651,8 @@ public class BFAutofocus extends AutofocusBase implements AutofocusPlugin, SciJa
 			if (savingPath == null){
 				savingPath = IJ.getDirectory("macros");
 			}
-			IJ.saveAs("Results", savingPath + "Drift_corrections_" + currentTime + ".csv");
+			IJ.saveAs("Results", savingPath + studio_.acquisitions().getAcquisitionSettings().prefix +
+					"_1" + File.separator + "Drift_corrections_" + currentTime + ".csv");
 			resetParameters();
 
 			//Increment timepoint and positionIndex if acquisition still running
